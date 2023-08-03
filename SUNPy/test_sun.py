@@ -58,6 +58,29 @@ def test_casimir(alpha, expected):
 
 
 
+@pytest.mark.parametrize("alpha, expected", [
+    (np.array([1], dtype=int), True),
+    (np.array([2], dtype=int), True),
+    (np.array([1,1], dtype=int), True),
+    (np.array([3], dtype=int), True),
+    (np.array([2,1], dtype=int), True),
+    (np.array([1,1,1], dtype=int), True),
+    (np.array([3,3,3,3], dtype=int), True)
+])
+def test_binary_search_SYT(alpha, expected):
+    actual = True
+    # extracts all SYTs
+    Y = sun.get_SYT(alpha=alpha, order='iLLOS')
+    # test for each SYT
+    for i in range(0, Y.shape[0]):
+        ii = sun.binary_search_SYT(Y[i,:], Y)
+        if not ii==i:
+            actual = False
+            break
+    assert actual==expected
+
+
+
 @pytest.mark.parametrize("alpha, m, order, expected", [
     #:::::::::::::::::::::::::::::::::::::::::::
     # m=1 - LLOS
@@ -297,7 +320,3 @@ def test_energy(alpha, m, symmetry, N, isPBC, expected):
         E, _ = scipy.sparse.linalg.eigsh(H, k=1, which='SA')
         E = E[0]
     assert abs(E-expected)<prec
-    
-    
-    
-    
