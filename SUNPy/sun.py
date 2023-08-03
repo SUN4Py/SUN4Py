@@ -709,6 +709,38 @@ def SYT_to_index_symm(y, alpha, m, order='LLOS'):
 
 
 
+def binary_search_SYT(y, Y):
+    # Search the index of SYT <y> in the list of all SYTs <Y> through a binary
+    # search.
+    # 
+    
+    NY = Y.shape[0]
+    n = Y.shape[1]
+    
+    l = int(0)
+    u = NY - 1
+    m = int(0)
+    
+    while (l<=u):
+        m = (l+u)//2
+        t = n - 1
+        while (t>0):
+            if (Y[m][t]<y[t]):
+                l = m + 1
+                break
+            elif (Y[m][t]>y[t]):
+                u = m - 1
+                break
+            else:
+                # box t is correctly placed
+                t -= 1
+        if (t==0):
+            l = u+1
+    
+    return m
+
+
+
 def multiplicity_symm(alpha, m):
     # Compute the total number of SYTs for the irrep alpha, satisfying the 
     # constraints of local symmetry with m particles per site in the symmetric
