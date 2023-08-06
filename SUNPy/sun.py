@@ -12,6 +12,8 @@ import math
 import numpy as np
 import scipy.sparse
 
+import partitions
+
 
 
 def get_column(Y):
@@ -200,6 +202,120 @@ def get_SYT(alpha, order='LLOS'):
     
     if not Y.shape[0]==multiplicity(alpha):
         sys.exit('Problem: number of SYTs is not correct')
+    
+    return Y
+
+
+
+def get_subSYT(alpha, alpha0):
+    # Build all SYTs corresponding to the subshape <alpha>-<alpha0>
+    # 
+    
+    n = np.sum(alpha)
+    n0 = np.sum(alpha0)
+    
+    nl = len(np.argwhere(alpha>0).flatten())
+    nl0 = len(np.argwhere(alpha0>0).flatten())
+    
+    if (nl<nl0):
+        sys.exit('Problem: irreps alpha and alpha0 do not match')
+    
+    if not len(alpha)==len(alpha0):
+        sys.exit('Problem: alpha and alpha0 do not have the same number of elements.')
+    
+    alphap = np.copy(alpha)
+    alpha0p = np.copy(alpha0)
+    alphap = np.hstack([alpha, 0])
+    alpha0p = np.hstack([alpha0, 0])
+    
+    alpha_r = alphap - alpha0p
+    n1 = n - n0
+    
+    if len(np.argwhere(alpha_r<0).flatten())>0:
+        sys.exit('Problem: alpha0 is not contained in alpha.')
+    
+    Y = np.zeros(shape=(1, n1), dtype=int)
+    
+    NY = int(1)
+    
+    for j in range(n1-1, -1, -1):
+        
+        cpt = int(0)
+        Ynew = np.zeros(shape=(0, n1), dtype=int)
+        
+        for q in range(0, NY):
+            
+            # generate the remaining shape
+            alphap_q = np.copy(alphap)
+            for t in range(n1-1, j, -1):
+                alphap_q[Y[q][t]] -= 1
+            
+            alphap_r = alphap_q - alpha0p
+            
+            ind = np.argwhere(alphap_r>0).flatten()
+            
+            for t in range(0, len(ind)):
+                if alphap_q[ind[t]]>alphap_q[ind[t]+1]:
+                    # row ind[t] has a bottom corner
+                    ytmp = np.copy(Y[q])
+                    ytmp[j] = ind[t]
+                    Ynew = np.vstack([Ynew, ytmp])
+                    cpt += 1
+                # end  if
+            # end for t
+        # end for q
+        NY = cpt
+        Y = np.copy(Ynew)
+    # end for j
+    
+    return Y
+
+
+
+def fill_subSYT(Y, alpha, **kwargs):
+    # Fill all remaining boxes of the sub-SYTs in <Y> corresponding to the 
+    # global shape alpha.
+    # 
+    # The convention is to fill the remaining boxes by the largest SYT in the
+    # last letter order sequence, unless fill_type='lowest' is used.
+    # 
+    
+    if not 'fill_type' in kwargs:
+        kwargs['fill_type'] = 'largest'
+    
+    if not kwargs['fill_type'] in ['largest', 'smallest']:
+        sys.exit('Problem: undefined fill_type.')
+    
+    n = np.sum(alpha)
+    NY = Y.shape[0]
+    n1 = Y.shape[1]
+    n0 = n - n1 # number of particles to place
+    
+    alpha1 = np.zeros(shape=alpha.shape, dtype=int)
+    
+    for i in range(0, n1):
+        alpha1[Y[0][i]] += 1
+    
+    alpha0 = alpha - alpha1
+    
+    
+    
+    y1 = np.zeros((n0,), dtype=int)
+    cpt = int(0)
+    
+    if kwargs['fill_type']=='largest':
+        alpha0T = transpose_shape(alpha0)
+        for ic in range(0, len(alpha0T)):
+            for il in range(0, alpha0T[ic]):
+                y1[cpt] = il
+                cpt += 1
+    else:
+        for il in range(0, len(alpha0)):
+            for ic in range(0, alpha0[il]):    
+                y1[cpt] = il
+                cpt += 1
+    
+    Y = np.hstack([np.tile(y1, [NY, 1]), Y])
     
     return Y
 
@@ -1390,6 +1506,9 @@ def sortrows(A):
         index = np.lexsort(tmp)
         B = np.copy(A)
         B = B[index,:]
+    else:
+        B = A
+        index = np.array([0], dtype=int)
     
     return B, index
 
@@ -2358,13 +2477,36 @@ def developp_antisymmetric(alpha, y, cy, m, n1, n2):
 
 
 
-def print_to_latex(y, sh, sc):
+def print_to_latex(y, **kwargs):
     # Print a SYT to text in LaTeX format, using \ytableau
     # 
+    # Optional arguments:
+    #   shift
+    #   scale
+    #   colors : dictionnary with keys-value pairs as i: 'col'
+    # 
+    
+    if not 'shift' in kwargs:
+        kwargs['shift'] = 0
+    if not 'scale' in kwargs:
+        kwargs['scale'] = 1
+    
+    n = len(y)
+    if not 'colors' in kwargs:
+        c = [''] * n
+        kwargs['colors'] = {i: c[i] for i in range(0, n)}
+    else:
+        allkeys = [i for i in range(0, n)]
+        for i in allkeys:
+            if i in kwargs['colors'].keys():
+                if not ((kwargs['colors'][i][0:2]=='*(') and (kwargs['colors'][i][-1:]==')')):
+                    kwargs['colors'][i] = '*('+kwargs['colors'][i]+')'
+            else:
+                kwargs['colors'][i] = ''
     
     nl = np.max(y) + 1 # number of rows in the shape
     
-    print('\\shsc{' + '{:.1f}'.format(sh) + 'pt}{' + '{:.1f}'.format(sc) + '}{\\begin{ytableau}')
+    print('\\shsc{' + '{:.1f}'.format(kwargs['shift']) + 'pt}{' + '{:.1f}'.format(kwargs['scale']) + '}{\\begin{ytableau}')
     
     for j in range(0, nl):
         # find all numbers situated in the j-th row
@@ -2373,14 +2515,309 @@ def print_to_latex(y, sh, sc):
         # print all numbers of the j-th row
         line = ''
         for k in range(0, len(indj)-1):
-            line += str(indj[k]+1) + ' & '
+            line += kwargs['colors'][indj[k]] + str(indj[k]+1) + ' & '
         
-        line += str(indj[-1]+1) + ' \\\\ '
+        line += kwargs['colors'][indj[-1]] + str(indj[-1]+1) + ' \\\\ '
         print(line)
     
     print('\\end{ytableau}}\n')
     
     return
+
+
+
+def print_subSYT_to_latex(y, alpha, **kwargs):
+    # Print the subSYT <y> in LaTeX format, using \ytableau.
+    # 
+    # Details:
+    #  1) <alpha> is the global shape associated to <y>.
+    #  2) <y> is of length n1, corresponding to the number of boxes in the
+    #     remainder shape <alpha>-alpha0, where alpha0 is the subshape of alpha
+    #
+    # Optional arguments:
+    #   shift
+    #   scale
+    #   lowcol      color for low part (alpha0)
+    #   highcol     color for high part (<alpha>-alpha0)
+    # 
+    
+    if not 'shift' in kwargs:
+        kwargs['shift'] = 0
+    if not 'scale' in kwargs:
+        kwargs['scale'] = 1
+    
+    if not 'lowcol' in kwargs:
+        kwargs['lowcol'] = '{}'
+    else:
+        kwargs['lowcol'] = '*(' + kwargs['lowcol'] + ')'
+    
+    if not 'highcol' in kwargs:
+        kwargs['highcol'] = ''
+    else:
+        kwargs['highcol'] = '*(' + kwargs['highcol'] + ')'
+    
+    n = np.sum(alpha)
+    n1 = len(y)
+    n0 = n - n1
+    
+    alpha1 = np.zeros(shape=alpha.shape, dtype=int)
+    
+    for i in range(0, n1):
+        alpha1[y[i]] += 1
+    
+    y0 = np.full(shape=(n0,), fill_value=-1, dtype=int)
+    yglobal = np.hstack([y0, y])
+    
+    nl = len(np.argwhere(alpha>0).flatten()) # number of rows in global shape alpha
+    
+    print('\\shsc{' + '{:.1f}'.format(kwargs['shift']) + 'pt}{' + '{:.1f}'.format(kwargs['scale']) + '}{\\begin{ytableau}')
+    
+    for j in range(0, nl):
+        # find all numbers of subtableau situated in the j-th row
+        indj = np.argwhere(yglobal==j).flatten()
+        
+        ns = len(indj) # number of filled boxes in the j-th row
+        nb = alpha[j] - ns # number of blank boxes
+        
+        # print all numbers of the j-th row
+        line = ''
+        for k in range(0, nb-1):
+            line += str(kwargs['lowcol'] + ' & ')
+        if ns==0:
+            line += str(kwargs['lowcol'] + ' \\\\')
+        else:
+            if nb>0:
+                line += str(kwargs['lowcol'] + ' & ')
+            for k in range(0, len(indj)-1):
+                line += kwargs['highcol'] + str(indj[k]+1) + ' & '
+            line += kwargs['highcol'] + str(indj[-1]+1) + ' \\\\ '
+        
+        print(line)
+    
+    print('\\end{ytableau}}\n')
+    
+    return
+
+
+
+class PartialLookupTool:
+    
+    
+    def __init__(self, N, alpha, nlookupboxes):
+        
+        if nlookupboxes==0:
+            sys.exit('Problem: for nlookupboxes==0, no lookup. Use dedicated functions.')
+        elif nlookupboxes==1:
+            print('Warning: nlookupboxes=1 is equivalent to no lookup.')
+        elif nlookupboxes>=np.sum(alpha):
+            sys.exit('Problem: for partial lookup, nlookupboxes must be stricly smaller than the total number of boxes.')
+        
+        self.alpha = alpha
+        self.N = N
+        self.n = np.sum(alpha)
+        self.nlookupboxes = nlookupboxes
+        self.n0 = nlookupboxes
+        self.n1 = self.n - self.n0
+        
+        return
+    
+    
+    
+    def init_lookup(self):
+        # Generate all lookup tables
+        # 
+        
+        # generate all subshapes of alpha with <self.n0> boxes
+        pstarnm = partitions.pstarnm(self.n0, self.N) # number of partitions of <self.n0> in at most <self.N> parts
+        
+        alpha_all, _ = get_list_irreps(self.N, 2*pstarnm, self.n)
+        
+        # restrict to potential shapes
+        ind = np.argwhere( (np.sum(alpha_all, axis=1)<=self.n0) & ((np.sum(alpha_all, axis=1)%self.N)==(self.n0%self.N)) ).flatten()
+        alpha_all = alpha_all[ind]
+        
+        if not alpha_all.shape[0]==pstarnm:
+            sys.exit('Problem: the number of generated shapes does not match the number of parititions.')
+        
+        # add columns with N boxes
+        for i in range(0, alpha_all.shape[0]):
+            r = (self.n0 - np.sum(alpha_all[i]))//self.N
+            alpha_all[i] += np.full(shape=alpha_all[i].shape, fill_value=r, dtype=int)
+        
+        # remove shapes which are not subshapes
+        ind = np.zeros(shape=(0,), dtype=int)
+        for i in range(0, alpha_all.shape[0]):
+            issubshape = True
+            for l in range(0, self.N):
+                if alpha_all[i][l]>self.alpha[l]:
+                    issubshape = False
+                    break
+            if issubshape==True:
+                ind = np.hstack([ind, i])
+        
+        self.alpha0 = np.copy(alpha_all[ind])
+        
+        ###########################################################################
+        
+        # reorder alpha0 so as to correspond to the iLLOS
+        # irreps must be sorted according to the length of the rows
+        
+        self.alpha0, _ = sortrows(self.alpha0)
+        self.Na = self.alpha0.shape[0] # total number of subshapes
+        
+        ###########################################################################
+        
+        # for each subshape of alpha, generate all SYTs
+        
+        self.Y0 = [None] * self.Na
+        self.dims0 = np.zeros((self.Na,), dtype=int)
+        
+        for i in range(0, self.Na):
+            self.Y0[i] = get_SYT(self.alpha0[i], order='iLLOS')
+            self.dims0[i] = self.Y0[i].shape[0]
+        
+        ###########################################################################
+        
+        # Generate all remainder shapes
+        
+        self.alpha1 = self.alpha - self.alpha0
+        
+        ###########################################################################
+        
+        # for each remainder shape, generate all SYTs
+        
+        self.Y1 = [None] * self.Na
+        self.dims1 = np.zeros((self.Na,), dtype=int)
+        
+        for i in range(0, self.Na):
+            self.Y1[i] = get_subSYT(self.alpha, self.alpha0[i])
+            self.dims1[i] = self.Y1[i].shape[0]
+        
+        ###########################################################################
+        
+        # Verify dimension
+        
+        self.dim = int(0)
+        for i in range(0, self.Na):
+            self.dim += (self.dims0[i] * self.dims1[i])
+        
+        if not self.dim==multiplicity(self.alpha):
+            sys.exit('Problem: the sum of the product of the dimensions does not match the multiplicity.')
+        
+        ###########################################################################
+        # GENERATE THE ORDERING TO MATCH THE ILLOS
+        ###########################################################################
+        
+        # note that sorting the SYTs is not strictly necessary, as one can simply
+        # redefine the basis, as in each "block", the SYTs are ordered in the iLLOS
+        # by construction. However, the iLLOS is a convenient order.
+        
+        self.orderingIrrep = np.zeros(shape=(np.sum(self.dims1),), dtype=int)
+        self.orderingState = np.zeros(shape=(np.sum(self.dims1),), dtype=int)
+        
+        self.lookup = [None] * self.Na
+        for i in range(0, self.Na):
+            self.lookup[i] = np.zeros(shape=(self.dims1[i],), dtype=int)
+        
+        self.lookup[0][0] = int(0)
+        
+        start_index = np.zeros(shape=(self.Na,), dtype=int)
+        start_index[0] = int(1)
+        
+        cpt = int(1)
+        while cpt<np.sum(self.dims1):
+            
+            Ytmp = np.zeros(shape=(0, self.n1), dtype=int)
+            ar = []
+            for i in range(0, self.Na):
+                if start_index[i]<self.dims1[i]:
+                    ar.append(i)
+                    Ytmp = np.vstack([Ytmp, self.Y1[i][start_index[i]]])
+            ar = np.array(ar, dtype=int)
+            _, ind = sortrows(np.fliplr(Ytmp))
+            
+            k = ar[ind[0]]
+            
+            self.orderingIrrep[cpt] = k
+            self.orderingState[cpt] = start_index[k]
+            self.lookup[k][start_index[k]] = cpt
+            
+            start_index[ar[ind[0]]] += 1
+            cpt += 1
+        
+        ###########################################################################
+        # GENERATE A USEFUL LOOKUP TO GET SYT FROM INDEX
+        ###########################################################################
+        
+        self.acc_dims = np.zeros(shape=(np.sum(self.dims1)+1,), dtype=int)
+        
+        for j in range(1, np.sum(self.dims1)+1):
+            ind = self.orderingIrrep[j-1]
+            self.acc_dims[j] = self.acc_dims[j-1] + self.dims0[ind]
+        
+        return
+    
+    
+        
+    def get_SYT(self, i):
+        # Get the <i>-th SYT.
+        # 
+        # Input index <i> is in the iLLOS: i=0 ---> largest SYT.
+        # 
+        
+        ind = np.argwhere(self.acc_dims<=i).flatten()[-1]
+        
+        k = self.orderingIrrep[ind] # index of irrep
+        i0 = i - self.acc_dims[ind] # index of low part
+        i1 = self.orderingState[ind] # index of high part
+        
+        y0 = np.copy(self.Y0[k][i0])
+        y1 = np.copy(self.Y1[k][i1])
+        
+        y = np.hstack([y0, y1])
+        
+        return y
+    
+    
+    
+    def get_index(self, y):
+        # get the index corresponding to SYT <y> in the ordered (wrt iLLOS) 
+        # list of all SYTs.
+        # 
+        
+        y0 = np.copy(y[0:self.n0]) # low part
+        y1 = np.copy(y[self.n0:]) # high part
+        
+        # generate irrep for the low part
+        a0 = np.zeros(shape=(self.N,), dtype=int)
+        for i in range(0, self.n0):
+            a0[y0[i]] += 1
+        
+        # search index of a0 in self.alpha0 [here linear search]
+        k = np.argwhere( np.sum(abs(self.alpha0-a0), axis=1)==0 ).flatten()[0]
+        
+        # search index of state for low part [here linear search]
+        #i0 = np.argwhere( np.sum(abs(self.Y0[k]-y0), axis=1)==0 ).flatten()[0]
+        # [here binary search]
+        i0 = binary_search_SYT(y0, self.Y0[k])
+        
+        # search index of state for high part [here linear search]
+        # i1 = np.argwhere( np.sum(abs(self.Y1[k]-y1), axis=1)==0 ).flatten()[0]
+        # [here binary search]
+        i1 = binary_search_SYT(y1, self.Y1[k])
+        
+        # find index from high part
+        # indhigh = np.argwhere( (self.orderingIrrep==k) & (self.orderingState==i1) ).flatten()[0]
+        # use <lookup> technique: - slightly faster than argwhere, but requires self.lookup
+        indhigh = self.lookup[k][i1]
+        
+        # compute index
+        i = int(0)
+        for j in range(0, indhigh):
+            i += self.dims0[self.orderingIrrep[j]]
+        i += i0
+        
+        return i
 
 
 
