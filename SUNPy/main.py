@@ -69,3 +69,29 @@ for i in range(0, Yalpha.shape[0]):
 for i in range(0, NY):
     y = lkptool.get_SYT(i)
 '''
+
+
+'''
+import time
+
+N = int(3)
+alpha=np.array([6, 6, 6], dtype=int)
+beta=np.array([[3,0,0],[3,0,0],[3,0,0],[3,0,0],[3,0,0],[3,0,0]],dtype=int)
+
+start = time.perf_counter()
+Ysymm = sun.get_SYT_symm(alpha, 3, order='iLLOS')
+CYsymm = sun.get_column(Ysymm)
+end = time.perf_counter()
+print("Elapsed symm = {}s".format((end - start)))
+
+start = time.perf_counter()
+CYsymm = sun.get_column(Ysymm)
+end = time.perf_counter()
+print("Elapsed cols = {}s".format((end - start)))
+
+NY = sun.multiplicity_irrep_mixed(alpha, beta, N)
+start = time.perf_counter()
+Ygen, CYgen = sun.get_SYT_general(alpha, beta, N)
+end = time.perf_counter()
+print("Elapsed gen = {}s".format((end - start)))
+'''
