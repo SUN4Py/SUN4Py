@@ -1902,6 +1902,190 @@ def get_SYT_antisymm(alpha, m, order='LLOS'):
 
 
 
+def get_SYT_general(alpha, beta, order='LLOS'):
+    """
+    SYTs of equivalence classes for general local constraints
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        global irrep
+    beta : numpy array of numpy arrays
+        local irreps
+    order : str - [default] LLOS or iLLOS
+        order in which to arrange the SYTs
+    
+    Returns
+    -------
+    Y : numpy array
+        SYTs of equivalence classes
+    CY: numpy array
+        column positions of SYTs of equivalence classes
+    
+    Description
+    -----------
+    Generate all SYTs of equivalence classes associated to the global irrep 
+    alpha, satisfying the local constraints imposed by irreps in beta
+    """
+    
+    Ns = beta.shape[0]
+    n = np.sum(alpha)
+    
+    nly = len(np.argwhere(alpha>0).flatten())
+    alpha = np.hstack([alpha[0:nly], 0])
+    
+    Y = np.full(shape=(1, n), fill_value=-1, dtype=int)
+    CY = np.full(shape=(1, n), fill_value=-1, dtype=int)
+    nbsyt = int(1)
+    
+    for j in range(Ns-1, -1, -1):
+        
+        cpt = int(0)
+        Ynew = np.full(shape=(0, n), fill_value=-1, dtype=int)
+        CYnew = np.full(shape=(0, n), fill_value=-1, dtype=int)
+        
+        for q in range(0, nbsyt):
+            
+            alphap = get_new_shape(alpha, Y[q,:])
+            
+            bc = get_bottom_corner(alphap)
+            nbc = len(bc)
+            cbc = alphap[bc]-1 # columns of bottom corners
+            
+            for b in range(nbc-1, -1, -1):
+                
+                w1 = bc[b] # row position of bottom corner
+                cw1 = cbc[b] # column position of bottom corner
+                
+                if np.sum(beta[j])==1:
+                    cpt += 1
+                    pos = n - np.sum(np.sum(beta[j+1:,:])) - 1
+                    Ynew[cpt, :] = Y[q, :]
+                    Ynew[cpt, pos] = w1
+                    CYnew[cpt, :] = CY[q, :]
+                    CYnew[cpt, pos] = cw1
+                else:
+                    
+                    alphapp = np.copy(alphap)
+                    alphapp[w1] -= 1
+                    
+                    Ynew, CYnew, cpt = place_recursive(
+                                            int(1), 
+                                            beta[j], 
+                                            alphapp, 
+                                            np.array([w1], dtype=int), 
+                                            np.array([cw1], dtype=int), 
+                                            Y[q,:], 
+                                            CY[q,:], 
+                                            Ynew, 
+                                            CYnew, 
+                                            cpt)
+        
+        Y = np.copy(Ynew)
+        CY = np.copy(CYnew)
+        nbsyt = cpt
+    
+    if order=='LLOS':
+        Y = np.flipud(Y)
+        CY = np.flipud(CY)
+    
+    return Y, CY
+
+
+
+def place_recursive(k, beta_loc, alphap, wvec, cwvec, y, cy, Ynew, CYnew, cpt):
+    """
+    Recursive placement satisfying local constraints
+    
+    Parameters
+    ----------
+    k : int
+        step
+    beta_loc : numpy array
+        local irrep
+    alphap : numpy array
+        remaining global irrep
+    wvec : numpy array
+        rows of already placed particles
+    cwvec : numpy array
+        columns of already placed particles
+    y : numpy array
+        subSYT under consideration
+    cy : numpy array
+        columns positions associated to y
+    Ynew : numpy array
+        all SYTs generated so far
+    CYnew : numpy array
+        column positions associated with Ynew
+    cpt : counter
+    
+    Returns
+    -------
+    Ynew : numpy array
+        SYTs of equivalence classes generated so  far
+    CYnew : numpy array
+        column positions associated with Ynew
+    cpt : int
+        counter
+    
+    Description
+    -----------
+    Try to place the k-th particle of the local irrep beta_loc in the remaining
+    global irrep alphap in the (yet incomplete) SYTs in Ynew which satisfy the
+    pattern from (incomplete) SYT y
+    """
+    
+    m_loc = np.sum(beta_loc)
+    
+    nr = len(np.argwhere(beta_loc>0)) # number of rows in the shape
+    nc = beta_loc[0] # number of columns in the shape
+        
+    for w in range(wvec[0], -1, -1):
+        
+        if alphap[w]>alphap[w+1]:
+            # bottom corner in row w
+            cw = alphap[w] - 1
+            isOk = True
+            nw = len(np.argwhere(wvec==w)) # nb of part already placed in row w
+            if (nw+1>nc):
+                isOk = False
+            else:
+                cnw = len(np.argwhere(cwvec==cw)) # nb of part already placed in column cw
+                if (cnw+1>nr):
+                    isOk = False
+            
+            if isOk:
+                wvecp = np.concatenate(([w], wvec))
+                cwvecp = np.concatenate(([cw], cwvec))
+                
+                if k==m_loc-1:
+                    Ynew = np.vstack([Ynew, y])
+                    CYnew = np.vstack([CYnew, cy])
+                    pos = np.max(np.argwhere(y<0).flatten())                    
+                    for ll in range(m_loc-1, -1, -1):
+                        Ynew[cpt, pos] = wvecp[ll]
+                        CYnew[cpt, pos] = cwvecp[ll]
+                        pos -= 1
+                    cpt += 1
+                
+                else:
+                    alphapp = np.copy(alphap)
+                    alphapp[w] -= 1
+                    Ynew, CYnew, cpt = place_recursive(k+1, 
+                                                beta_loc, 
+                                                alphapp, 
+                                                wvecp, 
+                                                cwvecp, 
+                                                y, 
+                                                cy, 
+                                                Ynew, 
+                                                CYnew, 
+                                                cpt)
+    
+    return Ynew, CYnew, cpt
+
+
+
 def fullsimplify_development(ydev, cydev, coeff):
     # Sum coefficients of equal SYTs and remove SYTs having vanishing 
     # coefficients.
