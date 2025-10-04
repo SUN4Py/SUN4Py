@@ -75,8 +75,9 @@ for i in range(0, NY):
 import time
 
 N = int(3)
-alpha=np.array([6, 6, 6], dtype=int)
-beta=np.array([[3,0,0],[3,0,0],[3,0,0],[3,0,0],[3,0,0],[3,0,0]],dtype=int)
+alpha=np.array([8, 8, 8], dtype=int)
+beta=np.array([[3,0,0],[3,0,0],[3,0,0],[3,0,0],[3,0,0],[3,0,0],[3,0,0],[3,0,0]],dtype=int)
+
 
 start = time.perf_counter()
 Ysymm = sun.get_SYT_symm(alpha, 3, order='iLLOS')

@@ -1126,8 +1126,25 @@ def get_new_shape(alpha, y):
 
 
 def dim_irrep_sun(alpha, N):
-    # Compute the dimension of the irrep alpha of SU(N).
-    #
+    """
+    Dimension of irrep of SU(N)
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    N : int
+        SU(N)
+    
+    Returns
+    -------
+    dimension : int
+        dimension of irrep
+    
+    Description
+    -----------
+    Compute the dimension of the irrep of SU(N) using the Hook-length formula
+    """
     
     nl = len(np.argwhere(alpha>0).flatten())
     if nl>N:
@@ -1136,17 +1153,16 @@ def dim_irrep_sun(alpha, N):
     alphap[0:nl] = alpha[0:nl]
     alpha = alphap
     alpha = alpha - np.full(shape=(N,), fill_value=alpha[N-1], dtype=int) # remove columns with N boxes
+    n = np.sum(alpha)
     
     # Numerator
-    arnum = np.full(shape=(nl*alpha[0]), fill_value=1, dtype=int)
+    numvec = np.zeros(shape=n, dtype=int)
     cpt = int(0)
-    
     for i in range(0, nl):
         for j in range(0, alpha[i]):
-            arnum[cpt] = N-i+j
+            numvec[cpt] = N-i+j
             cpt += 1
-    
-    arnum = arnum[0:cpt]
+    numvec = np.sort(numvec)
     
     # Denominator: product of Hook lengths
     m = alpha[0]
@@ -1155,38 +1171,47 @@ def dim_irrep_sun(alpha, N):
         for j in range(0, alpha[i]):
             alphafull[i,j] = 1
     
-    denom = int(1)
+    denomvec = np.zeros(shape=n, dtype=int)
+    cpt = int(0)
     for i in range(0, nl):
         for j in range(0, alpha[i]):
             sumi = np.sum(alphafull[i:nl,j]) + np.sum(alphafull[i,j+1:m])
-            if not sumi==0:
-                ind = np.argwhere(arnum==sumi).flatten()
-                if len(ind)==1:
-                    arnum[ind[0]] = 1
-                else:
-                    denom *= sumi
+            denomvec[cpt] = sumi
+            cpt += 1
+    denomvec = np.sort(denomvec)
     
-    # we further reduce the numerator and the denominator by finding common divisors
-    for i in range(0, len(arnum)):
-        k = arnum[i]
-        if denom%k==0:
-            denom = denom//k
-            arnum[i] = 1
+    # check for equality between factors in numerator and denominator
+    for i in range(n):
+        di = denomvec[i]
+        ind = np.argwhere(numvec==di).flatten()
+        if len(ind)>0:
+            numvec[ind[0]] = 1
+            denomvec[i] = 1
     
-    # we further reduce by finding common divisors among prime numbers
-    divisors = np.array([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31], dtype=int) # 11 first prime numbers
-    for i in range(0, len(arnum)):
-        for t in range(0, 4): # 4 repetitions of the loop below
-            for d in divisors:
-                if ((denom%d==0) and (arnum[i]%d==0)):
-                    denom = denom//d
-                    arnum[i] = arnum[i]//d
+    # keep only non-1's
+    numvec = numvec[np.argwhere(numvec!=1)].flatten()
+    denomvec = denomvec[np.argwhere(denomvec!=1)].flatten()
     
-    num = np.prod(arnum)
+    if len(denomvec)==0:
+        denomvec = np.array([1], dtype=int)
+    else:
+        # we further reduce by finding common divisors among prime numbers
+        divisors = np.array([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31], dtype=int) # 11 first prime numbers
+        for d in divisors:
+            for t in range(0, 4): # 4 repetitions of the loops below
+                for i in range(0, len(numvec)):
+                    if (numvec[i]%d==0):
+                        for j in range(0, len(denomvec)):
+                            if (denomvec[j]%d==0):
+                                numvec[i] = numvec[i]//d
+                                denomvec[j] = denomvec[j]//d
     
-    d = num//denom
+    num = np.prod(numvec)
+    denom = np.prod(denomvec)
+    dimension = num//denom
     
-    return d
+    return dimension
+
 
 
 def get_SSYT(alpha, N):
