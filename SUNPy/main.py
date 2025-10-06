@@ -14,8 +14,49 @@ import sun
 import Lattice
 
 
+#sigma=np.array([3,2,5,0,1,4,6,8,7], dtype=int)
+#at = sun.permutation_to_adjacent_transpositions(sigma)
+
+alpha = np.array([5, 3, 2], dtype=int)
+Y = sun.get_SYT(alpha)
+CY = sun.get_column(Y)
+
+y = Y[44] # check nb 3
+cy = CY[44]
+sun.print_to_latex(y)
+particles = np.array([4, 5, 6])
+alphaTot, alphaB, alphaP, offset = sun.get_subshape(y, cy, particles)
+
+subY = sun.get_subSYT(alphaTot, alphaB)
 
 
+'''
+sigmaMat, sigmaMatinverse, sigmaMatinverse2 = sun.get_orthogonal_units(alpha)
+for i in range(0, len(sigmaMat)):
+    sigmaMat[i] = sigmaMat[i].toarray()
+    sigmaMatinverse[i] = sigmaMatinverse[i].toarray()
+    sigmaMatinverse2[i] = sigmaMatinverse2[i].toarray()
+'''
+
+'''
+for i in range(0, len(sigmaMat)):
+    res = np.linalg.norm(sigmaMatinverse[i]-sigmaMatinverse2[i])
+    if res>1.0e-14:
+        print(i)
+'''
+
+'''
+ortho = sun.OrthogonalUnits(alpha)
+
+for i in range(ortho.nn):
+    print('-------------')
+    print(ortho.permutations[i])
+    print(ortho.adjaTranspo[i])
+    #print( np.linalg.norm( (ortho.sigmaMat[i] - ortho.sigmaMatv2[i]).toarray() ) )
+    #print(ortho.coeffs[0,0][i])
+'''
+
+'''
 N = int(3)
 m = int(1)
 alpha = np.array([4, 3, 2], dtype=int)
@@ -37,7 +78,7 @@ H = Engine.sun_hamiltonian()
 E, PSI = scipy.sparse.linalg.eigsh(H, k=1, which='SA')
 EGS = E[0]
 print('GS Energy: ', E[0])
-
+'''
 
 
 '''

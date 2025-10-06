@@ -11,6 +11,7 @@ import sys
 import math
 import numpy as np
 import scipy.sparse
+import itertools
 
 import partitions
 
@@ -207,9 +208,36 @@ def get_SYT(alpha, order='LLOS'):
 
 
 
-def get_subSYT(alpha, alpha0):
-    # Build all SYTs corresponding to the subshape <alpha>-<alpha0>
-    # 
+def get_subSYT(alpha, alpha0, order='iLLOS'):
+    """
+    Build all SYTs associated to the subshape alpha-alpha0
+    
+    where alpha0===alphaB is the base top-left irrep
+    
+    Inputs
+    ------
+    alpha : numpy array
+        irrep
+    alpha0[alphaB] : numpy array
+        base top-left irrep
+    order : str
+        [default] 'iLLOS' or 'LLOS'
+    
+    Returns
+    -------
+    Y : numpy array
+        SYTs associated to alpha-alphaB
+    
+    Example
+    -------
+    alpha = [3, 1]
+    alphaB = [2, 0]
+    The two SYTs are:
+      |x|x|3|     |x|x|2|
+      |2|      &  |3|
+     y=[1, 0]    y=[0, 1]
+    output: Y=[[1, 0], [0, 1]] (order='iLLOS')
+    """
     
     n = np.sum(alpha)
     n0 = np.sum(alpha0)
@@ -267,6 +295,10 @@ def get_subSYT(alpha, alpha0):
         NY = cpt
         Y = np.copy(Ynew)
     # end for j
+    
+    if order=='LLOS':
+        Y = np.flipud(Y)
+        
     
     return Y
 
@@ -1083,11 +1115,14 @@ def get_transpositions(links):
     # nbtranspositions[i] = number of transpositions needed to rewrite the
     # permutation of the i-th link as a product of transpositions
     
+    '''
     for i in range(0, nlinks):
         nbtranspositions[i] = 2*abs(links[i][1]-links[i][0]) - 1
+    '''
     
     listtranspositions = [None] * nlinks
     
+    '''
     for i in range(0, nlinks):
         mini = np.min(links[i])
         maxi = np.max(links[i])
@@ -1095,6 +1130,10 @@ def get_transpositions(links):
         listtranspositions[i] = np.zeros((nbtranspositions[i], ), dtype=int)
         listtranspositions[i][0:((nbtranspositions[i]-1)/2+1).astype(int)] = np.arange(mini, maxi)
         listtranspositions[i][((nbtranspositions[i]-1)/2+1).astype(int):] = np.arange(maxi-2, mini-1, -1)
+    '''
+    for i in range(0, nlinks):
+        listtranspositions[i] = transposition_to_adjacent_transpositions(links[i])
+        nbtranspositions[i] = len(listtranspositions[i])
     
     return listtranspositions, nbtranspositions
 
@@ -2111,6 +2150,475 @@ def place_recursive(k, beta_loc, alphap, wvec, cwvec, y, cy, Ynew, CYnew, cpt):
 
 
 
+def permutation_to_cycles(sigma):
+    """
+    Transform a permutation of S_n into a product of disjoint cycles
+    """
+    
+    n = len(sigma)
+    
+    cycles = []
+    used = []
+    
+    f = lambda v : min(set(np.arange(0, n)) - set(v))
+    
+    while not len(used)==n:
+        s = f(used)
+        if sigma[s]==s:
+            used.append(s)
+        else:
+            cycle = np.array([s, sigma[s]], dtype=int)
+            used.append(s)
+            used.append(sigma[s])
+            while not sigma[cycle[-1]]==cycle[0]:
+                cycle = np.append(cycle, sigma[cycle[-1]])
+                used.append(cycle[-1])
+            cycles.append(cycle)
+    return cycles
+
+
+
+def cycle_to_transpositions(cycle):
+    """
+    Transform a cycle nto a product of 2-cycles (transpositions)
+    
+    Parameters
+    ----------
+    cycle : numpy array
+        cycle of S_n
+    
+    Returns
+    -------
+    t : list of numpy arrays
+        product of 2-cycles
+    """
+    
+    t = [None] * (len(cycle)-1)
+    
+    for i in range(0, len(cycle)-1):
+        a = cycle[i]
+        b = cycle[i+1]
+        t[i] = np.array([min(a, b), max(a, b)])
+    
+    return t
+
+
+
+def transposition_to_adjacent_transpositions(t):
+    """
+    Transform an arbitrary 2-cycle (transposition) into a product of adjacent 
+    2-cycles (transpositions)
+    
+    Parameters
+    ----------
+    t : numpy array
+        2-cycle of S_n
+    
+    Returns
+    -------
+    z : numpy array
+        product of adjacent 2-cycles (adjacent transpositions)
+    
+    Example
+    -------
+    t = (2, 5)
+    z = (2, 3)(3, 4)(4, 5)(3, 4)(2, 3) --> z=np.array([2, 3, 4, 3, 2])
+    """
+    
+    a = np.min(t)
+    b = np.max(t)
+    
+    n = 2*abs(b - a) - 1
+    
+    z = np.zeros(shape=(n, ), dtype=int)
+    z[0:((n-1)/2+1).astype(int)] = np.arange(a, b)
+    z[((n-1)/2+1).astype(int):] = np.arange(b-2, a-1, -1)
+    
+    return z
+
+
+
+def permutation_to_adjacent_transpositions_v1(sigma):
+    """
+    Transform a permutation into a product of adjacent 2-cycles (transpositions)
+    
+    Remark
+    ------
+    First method
+    """
+    
+    # Method A:
+    cycles = permutation_to_cycles(sigma)
+    
+    transpositions = []
+    for cycle in cycles:
+        transpositions += cycle_to_transpositions(cycle)
+    
+    at = np.zeros(shape=(0, ), dtype=int)
+    
+    for t in transpositions:
+        z = transposition_to_adjacent_transpositions(t)
+        at = np.append(at, z)
+    
+    # remove potential even number multiplying adjacent 2-cycles, such as (2 3)(2 3)=id
+    atr = reduce_adjacent_transpositions(at)
+    
+    # Method B:
+    
+    
+    return atr
+
+
+
+def reduce_adjacent_transpositions(at):
+    """
+    Remove even numbers of following identical adjacent transposition in a 
+    product of adjacent transpositions
+    
+    Description
+    -----------
+    If a product of adjacent transpositions contains identical elements multiplying
+    each other, replace them by the identity
+    
+    Example
+    -------
+    sigma = {3, 2, 0, 1} (permutation) = (0, 3, 1, 2) = cycle = 
+                                       = (0, 3)(1, 3)(1, 2)
+                                       = (0,1)(1,2)(2,3)(1,2)(0,1)(1,2)(2,3)(1,2)(1,2)
+                                                                              |____|
+                                                                                =id
+                                       = (0,1)(1,2)(2,3)(1,2)(0,1)(1,2)(2,3)
+    at = [0 1 2 1 0 1 2 1 1] ---> atr = [0 1 2 1 0 1 2]
+    """
+    
+    atr = np.zeros(shape=(0,), dtype=int)
+    if len(at)<=1:
+        atr = at
+    else:
+        i = int(0)
+        while i<len(at):
+            cpt = int(1)
+            j = i+1
+            while (j<len(at)):
+                if at[j]==at[i]:
+                    j += 1
+                    cpt += 1
+                else:
+                    break
+            if cpt%2==1:
+                atr = np.append(atr, at[i])
+            i = j
+    
+    return atr
+
+
+
+def permutation_to_transpositions(sigma):
+    """
+    Transform a permutation of S_n into a product of transpositions (2-cycles)
+    
+    Parameters
+    ----------
+    sigma : numpy array
+        permutation of S_n, as a permutation of [0, 1, ..., n-1]
+    
+    Returns
+    -------
+    tau : numpy array
+        transpositions
+    
+    Description
+    -----------
+    Decompose a permutation of S_n (such as (3, 2, 0, 5, 4, 1) \in S_6) as a 
+    product of 2-cycles (transpositions).
+    
+    Example
+    -------
+    sigma = (3, 2, 5, 0, 1, 4, 6, 8, 7) \in S_9
+    ---> sigma = (0, 3)(1, 2)(2, 5)(4, 5)(7, 8)
+    """
+    
+    n = len(sigma)
+    cpt = 0
+    
+    tau = np.zeros(shape=(n, 2), dtype=int)
+    
+    for i in range(0, n):
+        if not sigma[i]==i:
+            tau[cpt] = [i, sigma[i]]
+            j = np.argwhere(sigma==i).flatten()[0]
+            sigma[j] = sigma[i]
+            sigma[i] = i
+            cpt += 1
+    
+    tau = tau[0:cpt,:]
+    
+    return tau
+
+
+
+def permutation_to_adjacent_transpositions_v2(sigma):
+    """
+    Transform a permutation into a product of adjacent 2-cycles (transpositions)
+    
+    Remark
+    ------
+    Second method
+    """
+    
+    transpo = permutation_to_transpositions(sigma)
+    
+    at = np.zeros(shape=(0,), dtype=int)
+    
+    for t in transpo:
+        z = transposition_to_adjacent_transpositions(t)
+        at = np.append(at, z)
+    
+    atr = reduce_adjacent_transpositions(at)
+    
+    return atr
+
+
+
+def permutation_to_adjacent_transpositions(sigma):
+    """
+    Transform a permutation into a product of adjacent 2-cycles (transpositions)
+    
+    Remark
+    ------
+    Provides the best decomposition between the first and second method
+    """
+    at1 = permutation_to_adjacent_transpositions_v1(sigma)
+    at2 = permutation_to_adjacent_transpositions_v2(sigma)
+    
+    if len(at1)<len(at2):
+        atr = at1
+    else:
+        atr = at2
+    
+    return atr
+
+
+
+class OrthogonalUnits:
+    
+    def __init__(self, alpha):
+        self.alpha = alpha
+        
+        # build all SYTs associated to the irrep alpha
+        Y = get_SYT(self.alpha)
+        self.falpha = Y.shape[0]
+        CY = get_column(Y)
+        
+        # construct matrices of adjacent transpositions
+        P = get_adjacent_transposition_matrices(alpha, Y, CY)
+        self.P = P
+        
+        # get all permutations of S_n
+        n = np.sum(alpha)
+        ps = itertools.permutations(np.arange(0, n, dtype=int))
+        self.nn = math.factorial(n)
+        
+        # compute the matrices of the inverse permutations, obtained by reading
+        # the sequence of adjacent transpositions in reverse order
+        ps = itertools.permutations(np.arange(0, n, dtype=int))
+        self.permutations = []
+        self.sigmaMat = [scipy.sparse.eye(self.falpha)] * self.nn
+        self.sigmaMatinverse = [scipy.sparse.eye(self.falpha).tocsr()] * self.nn
+        self.adjaTranspo = [None] * self.nn
+        for i, sigma in enumerate(ps):
+            self.permutations.append(sigma)
+            at = permutation_to_adjacent_transpositions(np.array(sigma, dtype=int))
+            self.adjaTranspo[i] = at
+            for j in range(0, len(at)):
+                self.sigmaMat[i] = self.sigmaMat[i] @ P[at[j]]
+                self.sigmaMatinverse[i] = P[at[j]] @ self.sigmaMatinverse[i]
+        
+        self.coeffs = np.zeros(shape=(self.falpha, self.falpha, self.nn))
+        for r in range(self.falpha):
+            for s in range(self.falpha):
+                for i in range(self.nn):
+                    self.coeffs[r][s][i] = self.sigmaMatinverse[i][s,r]
+        self.coeffs *= self.falpha/self.nn
+
+
+
+def get_subshape(y, cy, particles):
+    """
+    Get the subshape associated to given particles in a SYT
+    
+    Parameters
+    ----------
+    y : numpy array
+        SYT
+    cy : numpy array
+        column positions
+    particles : numpy array
+        boxes to consider for extracting subshape
+    
+    Returns
+    -------
+    alpha : numpy array
+        minimal legal irrep
+    alphaP : numpy array
+        number of boxes associated to particles in each row
+    alphaB : numpy array
+        base top-left corner irrep
+    offset : int
+        offset compared to initial irrep associated to input SYT
+    
+    Description
+    -----------
+    alphaP + alphaB = alpha
+    
+    Example
+    -------
+    y = [0, 0, 0, 1, 0, 0, 2, 1, 1, 2]
+    cy = [0, 1, 2, 0, 3, 4, 0, 1, 2, 1]
+    irrep = [5, 3, 1] (not required in the input arguments)
+    particles = [4, 5, 6]
+    The tableau looks like:
+    | 0 | 1 | 2 | 4 | 5 |        | x | x | x | 4 | 5 |      | x | x | x | 4 | 5 |
+    | 3 | 7 | 8 |          --->  | x | x | x |         ---> | x |
+    | 6 | 9 |                    | 6 | x |                  | 6 |
+    
+    offset = 0 [there is at least 1 particle in the first row]
+    alphaP = [2, 0, 1] = number of particles in each row
+    alpha = [5, 1, 1] = minimal legal irrep which contains the particles at exterior positions
+    alphaB = [3, 1, 0] = base top-left corner irrep such that alphaB + alphaP = alpha
+    """
+    
+    yp = y[particles]
+    cyp = cy[particles]
+    
+    offset = np.min(yp)
+    offsetcol = np.min(cyp)
+    
+    # shift such that top row and top column are numbered 0
+    yp = yp - offset
+    cyp = cyp - offsetcol
+    
+    nr = np.max(yp) - np.min(yp) + 1
+    
+    alphaP = np.zeros(shape=(nr,), dtype=int)
+    for i in range(nr):
+        alphaP[i] = len( np.argwhere(yp==i).flatten() )
+    
+    alpha = np.zeros(shape=(nr,), dtype=int)
+    alphaB = np.zeros(shape=(nr,), dtype=int)
+    
+    alphaB[nr-1] = 1
+    alpha[nr-1] = alphaB[nr-1] + alphaP[nr-1]
+    
+    for i in range(nr-1,-1,-1):
+        if alphaP[i]==0:
+            alpha[i] = alpha[i+1]
+            alphaB[i] = alpha[i+1]
+        else:
+            ind = np.argwhere(yp==i).flatten()
+            nbi = np.max(cyp[ind]) + 1
+            alpha[i] = nbi
+            alphaB[i] = alpha[i] - alphaP[i]
+    
+    return alpha, alphaB, alphaP, offset
+
+
+
+def get_orthogonal_units(alpha):
+    """
+    Generate the first orthogonal unit for the irrep alpha
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    
+    Returns
+    -------
+    o : numpy array
+        orthogonal unit
+    
+    Description
+    -----------
+    
+    """
+    print('Calling DEPRECATED get_orthogonal_units')
+    
+    # build all SYTs associated to the irrep alpha
+    Y = get_SYT(alpha)
+    falpha = Y.shape[0]
+    CY = get_column(Y)
+    
+    # construct matrices of adjacent transpositions
+    P = get_adjacent_transposition_matrices(alpha, Y, CY)
+    
+    # get all permutations of S_n
+    n = np.sum(alpha)
+    ps = itertools.permutations(np.arange(0, n, dtype=int))
+    nn = math.factorial(n)
+    
+    import time
+    '''
+    #----------------------
+    # not the optimal method
+    #----------------------
+    # compute the matrices of the permutations, and then their inverse
+    start = time.perf_counter()
+    sigmaMat = [scipy.sparse.eye(falpha)] * nn
+    sigmaMatinverse0 = [None] * nn
+    for i, sigma in enumerate(ps):
+        at = permutation_to_adjacent_transpositions(np.array(sigma, dtype=int))
+        for j in range(0, len(at)):
+            sigmaMat[i] = sigmaMat[i] @ P[at[j]]
+        sigmaMatinverse0[i] = scipy.sparse.linalg.inv(sigmaMat[i])
+    end = time.perf_counter()
+    elapsed1 = end-start
+    print("Elapsed method 1 = {}s".format(elapsed1))
+    #----------------------
+    '''
+    
+    #----------------------
+    # better
+    #----------------------
+    # compute the matrices of the inverse permutations, obtained by reading
+    # the sequence of adjacent transpositions in reverse order
+    ps = itertools.permutations(np.arange(0, n, dtype=int))
+    start = time.perf_counter()
+    sigmaMatinverse = [scipy.sparse.eye(falpha)] * nn
+    for i, sigma in enumerate(ps):
+        at = permutation_to_adjacent_transpositions(np.array(sigma, dtype=int))
+        for j in range(0, len(at)):
+            sigmaMatinverse[i] = P[at[j]] @ sigmaMatinverse[i]
+    end = time.perf_counter()
+    elapsed2 = end-start
+    print("Elapsed method 2 = {}s".format((elapsed2)))
+    #print("factor = {}s".format(elapsed1/elapsed2))
+    
+    '''
+    #----------------------
+    # verify equivalence of 2 methods
+    #----------------------
+    for i in range(0, nn):
+        res = np.linalg.norm(sigmaMatinverse0[i].toarray()-sigmaMatinverse[i].toarray())
+        if res>1.0e-14:
+            print('Problem: matrix of inverse is not inverse of matrix. i=', i, ' res = ', res)
+    #----------------------
+    '''
+    
+    # compute orthogonal units
+    orthogonalUnits = [[None] * nn] * nn
+    
+    for r in range(falpha):
+        for s in range(falpha):
+            orthogonalUnits[r][s] = np.zeros(nn, dtype=float)
+            for i in range(nn):
+                orthogonalUnits[r][s][sigma] = sigmaMatinverse[sigma][s,r]
+            orthogonalUnits[r][s] *= falpha/nn
+    
+    return orthogonalUnits
+
+
+
 def fullsimplify_development(ydev, cydev, coeff):
     # Sum coefficients of equal SYTs and remove SYTs having vanishing 
     # coefficients.
@@ -3030,6 +3538,88 @@ class PartialLookupTool:
 
 
 
+def get_adjacent_transposition_matrix(alpha, Y, CY, k):
+    """
+    Get matrix of adjacent transposition P_{k, k+1}
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    Y : numpy array
+        SYTs associated to irrep alpha
+    k : int
+        transposition to obtain
+    
+    Returns
+    -------
+    Pk : scipy.sparse.csr_matrix
+        matrix of adjacent transposition P_{k, k+1}
+    
+    Description
+    -----------
+    Computes the adjacent transposition P_{k, k+1} for the irrep alpha
+    """
+    
+    NY = Y.shape[0]
+    
+    Pk_diagval = np.zeros(shape=(NY,), dtype=float)
+    Pk_offdiagrowindex = np.zeros(shape=(NY, ), dtype=int)
+    Pk_offdiagcolindex = np.zeros(shape=(NY, ), dtype=int)
+    Pk_offdiagval = np.zeros(shape=(NY, ), dtype=float)
+    
+    offdiagcounter = int(0)
+    
+    for i in range(0, NY):
+        
+        y = Y[i]
+        cy = CY[i]
+        
+        if Pk_diagval[i]==0:
+            
+            if y[k]==y[k+1]:
+            
+                Pk_diagval[i] = 1
+            
+            else:
+                
+                c1 = cy[k]
+                c2 = cy[k+1]
+                
+                if c1==c2:
+                    Pk_diagval[i] = -1
+                else:
+                    rho = 1.0/get_axial_distance(y, cy, k, k+1)
+                    yfriend = np.copy(y)
+                    yfriend[k] = y[k+1]
+                    yfriend[k+1] = y[k]
+                    
+                    # index = np.argwhere(np.sum(np.abs(self.Y - yfriend), axis=1) < 1e-13).flatten()[0]
+                    index = i + np.argwhere(np.sum(np.abs(Y[i:,:] - yfriend), axis=1)<1.0e-13).flatten()[0]
+                    
+                    # diagonal elements
+                    Pk_diagval[i] = -rho
+                    Pk_diagval[index] = rho
+                    
+                    # off-diagonal elements
+                    Pk_offdiagrowindex[offdiagcounter] = i
+                    Pk_offdiagcolindex[offdiagcounter] = index
+                    Pk_offdiagval[offdiagcounter] = np.sqrt(1.0-rho**2)
+                    offdiagcounter += 1        
+    
+    
+    Pkdiag = scipy.sparse.diags(Pk_diagval[k], offsets=0, shape=(NY, NY))
+    Pkoffdiag = scipy.sparse.csr_matrix(
+                    (Pk_offdiagval[k, 0:offdiagcounter], 
+                    (Pk_offdiagrowindex[0:offdiagcounter], 
+                     Pk_offdiagcolindex[0:offdiagcounter])), 
+                    shape=(NY, NY))    
+    Pk = Pkdiag + Pkoffdiag + Pkoffdiag.transpose()
+    
+    return Pk
+
+
+
 def get_adjacent_transposition_matrices(alpha, Y, CY):
     """
     Get all matrices of adjacent transpositions
@@ -3053,6 +3643,12 @@ def get_adjacent_transposition_matrices(alpha, Y, CY):
     """
     
     n = np.sum(alpha)
+    P = [None] * (n-1)
+    
+    for k in range(n-1):
+        P[k] = get_adjacent_transposition_matrix(alpha, Y, CY, k)
+    
+    '''
     NY = Y.shape[0]
     
     Pk_diagval = np.zeros(shape=(n-1, NY), dtype=float)
@@ -3115,6 +3711,7 @@ def get_adjacent_transposition_matrices(alpha, Y, CY):
                          Pk_offdiagcolindex[k, 0:offdiagcounter[k]])), 
                         shape=(NY, NY))    
         P[k] = Pkdiag + Pkoffdiag + Pkoffdiag.transpose()
+    '''
     
     return P
 
