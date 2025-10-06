@@ -3030,6 +3030,96 @@ class PartialLookupTool:
 
 
 
+def get_adjacent_transposition_matrices(alpha, Y, CY):
+    """
+    Get all matrices of adjacent transpositions
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    Y : numpy array
+        SYTs associated to irrep alpha
+    
+    Returns
+    -------
+    P : list
+        matrices of adjacent transpositions P_{k, k+1}
+    
+    Description
+    -----------
+    Computes the n-1 (where n is the number of boxes in alpha) adjacent transpositions
+    P_{k, k+1} for the irrep alpha.
+    """
+    
+    n = np.sum(alpha)
+    NY = Y.shape[0]
+    
+    Pk_diagval = np.zeros(shape=(n-1, NY), dtype=float)
+    Pk_offdiagrowindex = np.zeros(shape=(n-1, NY), dtype=int)
+    Pk_offdiagcolindex = np.zeros(shape=(n-1, NY), dtype=int)
+    Pk_offdiagval = np.zeros(shape=(n-1, NY), dtype=float)
+    
+    offdiagcounter = np.zeros(shape=(n-1, ), dtype=int)
+    
+    for k in range(0, n-1):
+        
+        count = 0
+        
+        for i in range(0, NY):
+            
+            y = Y[i]
+            cy = CY[i]
+            
+            if Pk_diagval[k, i]==0:
+                
+                if y[k]==y[k+1]:
+                
+                    Pk_diagval[k, i] = 1
+                
+                else:
+                    
+                    c1 = cy[k]
+                    c2 = cy[k+1]
+                    
+                    if c1==c2:
+                        Pk_diagval[k, i] = -1
+                    else:
+                        rho = 1.0/get_axial_distance(y, cy, k, k+1)
+                        yfriend = np.copy(y)
+                        yfriend[k] = y[k+1]
+                        yfriend[k+1] = y[k]
+                        
+                        # index = np.argwhere(np.sum(np.abs(self.Y - yfriend), axis=1) < 1e-13).flatten()[0]
+                        index = i + np.argwhere(np.sum(np.abs(Y[i:,:] - yfriend), axis=1)<1.0e-13).flatten()[0]
+                        
+                        # diagonal elements
+                        Pk_diagval[k, i] = -rho
+                        Pk_diagval[k, index] = rho
+                        
+                        # off-diagonal elements
+                        Pk_offdiagrowindex[k, count] = i
+                        Pk_offdiagcolindex[k, count] = index
+                        Pk_offdiagval[k, count] = np.sqrt(1.0-rho**2)
+                        count += 1
+        
+        offdiagcounter[k] = count
+    
+    P = [None] * (n-1)
+    
+    for k in range(0, n-1):
+        Pkdiag = scipy.sparse.diags(Pk_diagval[k], offsets=0, shape=(NY, NY))
+        Pkoffdiag = scipy.sparse.csr_matrix(
+                        (Pk_offdiagval[k, 0:offdiagcounter[k]], 
+                        (Pk_offdiagrowindex[k, 0:offdiagcounter[k]], 
+                         Pk_offdiagcolindex[k, 0:offdiagcounter[k]])), 
+                        shape=(NY, NY))    
+        P[k] = Pkdiag + Pkoffdiag + Pkoffdiag.transpose()
+    
+    return P
+
+
+
 class SUNFundamental:
     
     def __init__(self, Ns, N, alpha, lattice):
@@ -3050,89 +3140,24 @@ class SUNFundamental:
         self.CY = get_column(self.Y)
 
     def sun_hamiltonian(self):
-        # Compute the matrix of the SU(N) Heisenberg model
-        # 
-        
-        NH = self.falpha
+        """
+        Compute the Hamiltonian
+        """
         
         listtranspositions, nbtranspositions = get_transpositions(self.lattice.links)
         
-        Pdiagk = np.zeros((self.n-1, NH)) # value of diagonal elements
-        Lnondiagk = np.zeros((self.n-1, NH)) # indices des lignes des éléments hors-diagonaux
-        Cnondiagk = np.zeros((self.n-1, NH)) # indices des colonnes des éléments hors-diagonaux
-        Valnondiag = np.zeros((self.n-1, NH)) # valeurs des indices hors-diagonaux
-    
-        numbernondiag = np.zeros((self.n-1, ), dtype=int); # number of off-diag elements for each transposition
+        P = get_adjacent_transposition_matrices(self.alpha, self.Y, self.CY)
         
-        for k in range(0, self.n-1):
-            
-            count = 0
-            
-            for i in range(0, NH):
-                
-                y = np.copy(self.Y[i, :])
-                cy = np.copy(self.CY[i, :])
-                
-                if Pdiagk[k, i]==0:
-                    if y[k]==y[k+1]:
-                        Pdiagk[k, i] = 1
-                    else:
-                        
-                        c1 = cy[k]
-                        c2 = cy[k+1]
-                        
-                        if c1==c2:
-                            Pdiagk[k, i] = -1
-                        else:
-                            rho = 1.0/get_axial_distance(y, cy, k, k+1)
-                            yfriend = np.copy(y)
-                            yfriend[k] = y[k+1]
-                            yfriend[k+1] = y[k]
-                            
-                            # index = np.argwhere(np.sum(abs(self.Y - yfriend), axis=1) < 1e-13).flatten()[0]
-                            index = i + np.argwhere(np.sum(abs(self.Y[i:,:] - yfriend), axis=1)<1.0e-13).flatten()[0]
-                            
-                            Pdiagk[k, i] = -rho;
-                            Pdiagk[k, index] = rho;
-                    
-                            # non diagonal element
-                            Lnondiagk[k, count] = i # index of row
-                            Cnondiagk[k, count] = index # index of column
-                            Valnondiag[k, count] = np.sqrt(1.0-rho**2) # non-diagonal value
-                            count += 1
-                        # end if c1==c2
-                    # end if y[k]==y[k+1]
-                # end if Pdiagk[k,i]==0
-            # end for i
-            
-            numbernondiag[k] = count;
-            
-        # end for k
+        H = scipy.sparse.csr_matrix((self.falpha, self.falpha))
         
-        H = scipy.sparse.csr_matrix((NH, NH))
-        
-        nlinks = self.lattice.nlinks
-        
-        for j in range(0, nlinks):
-            
-            Hj = scipy.sparse.eye(NH)
-            
+        for j in range(0, self.lattice.nlinks):
+            Hj = scipy.sparse.eye(self.falpha)
             for l in range(nbtranspositions[j]-1, -1, -1):
-                
                 k = listtranspositions[j][l]
-                
-                Uk = scipy.sparse.diags(Pdiagk[k,:], offsets=0, shape=(NH,NH))
-                
-                Ukoffdiag = scipy.sparse.csr_matrix((Valnondiag[k, 0:numbernondiag[k]], (Lnondiagk[k, 0:numbernondiag[k]], Cnondiagk[k, 0:numbernondiag[k]])), shape=(NH, NH))
-                
-                Uk += Ukoffdiag
-                Uk += Ukoffdiag.transpose()
-                
-                Hj = Uk @ Hj
-            
-            H = H + Hj
+                Hj = P[k] @ Hj
+            H += Hj
         
-        H = 0.5*(H + H.transpose())
+        #H = 0.5*(H + H.transpose())
         
         return H
 
