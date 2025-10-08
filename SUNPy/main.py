@@ -17,6 +17,7 @@ import Lattice
 #sigma=np.array([3,2,5,0,1,4,6,8,7], dtype=int)
 #at = sun.permutation_to_adjacent_transpositions(sigma)
 
+'''
 alpha = np.array([5, 3, 2], dtype=int)
 Y = sun.get_SYT(alpha)
 CY = sun.get_column(Y)
@@ -28,7 +29,36 @@ particles = np.array([4, 5, 6])
 alphaTot, alphaB, alphaP, offset = sun.get_subshape(y, cy, particles)
 
 subY = sun.get_subSYT(alphaTot, alphaB)
+'''
 
+N = int(3)
+Ns = int(6)
+alpha = np.array([Ns, Ns, Ns], dtype=int)
+beta_loc = np.array([[2, 1, 0]], dtype=int)
+beta = np.repeat(beta_loc, Ns, axis=0)
+beta_loc = beta_loc.flatten()
+Y, CY = sun.get_SYT_general(alpha, beta)
+ortho = sun.OrthogonalUnits(beta_loc, only00='True')
+y = Y[3]
+cy = CY[3]
+particles = np.array([6, 7, 8], dtype=int)
+particles = np.array([9, 10, 11], dtype=int)
+alphaM, alphaB, alphaP, offset = sun.get_subshape(y, cy, particles)
+YM = sun.get_subSYT(alphaM, alphaB, order='LLOS')
+YMc = sun.fill_subSYT(YM, alphaM, fill_type='smallest')
+CYMc = sun.get_column(YMc)
+particles_shifted = particles - particles[0] + np.sum(alphaB)
+P = [None] * (len(particles_shifted) -  1)
+for i in range(0, len(particles_shifted)-1):
+    P[i] = sun.get_adjacent_transposition_matrix(alphaM, YMc, CYMc, k=particles_shifted[i])
+
+Proj = sun.get_projector(beta_loc, y, cy, particles)
+
+V = sun.get_local_states(y, cy, beta, site=3)
+
+genBasis = sun.GeneralBasis(alpha, beta, N)
+
+#######################
 
 '''
 sigmaMat, sigmaMatinverse, sigmaMatinverse2 = sun.get_orthogonal_units(alpha)

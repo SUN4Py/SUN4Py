@@ -208,17 +208,17 @@ def get_SYT(alpha, order='LLOS'):
 
 
 
-def get_subSYT(alpha, alpha0, order='iLLOS'):
+def get_subSYT(alpha, alphaB, order='iLLOS'):
     """
     Build all SYTs associated to the subshape alpha-alpha0
     
-    where alpha0===alphaB is the base top-left irrep
+    where alphaB is the base top-left irrep
     
     Inputs
     ------
     alpha : numpy array
         irrep
-    alpha0[alphaB] : numpy array
+    alphaB : numpy array
         base top-left irrep
     order : str
         [default] 'iLLOS' or 'LLOS'
@@ -240,45 +240,45 @@ def get_subSYT(alpha, alpha0, order='iLLOS'):
     """
     
     n = np.sum(alpha)
-    n0 = np.sum(alpha0)
+    nB = np.sum(alphaB)
     
     nl = len(np.argwhere(alpha>0).flatten())
-    nl0 = len(np.argwhere(alpha0>0).flatten())
+    nlB = len(np.argwhere(alphaB>0).flatten())
     
-    if (nl<nl0):
+    if (nl<nlB):
         sys.exit('Problem: irreps alpha and alpha0 do not match')
     
-    if not len(alpha)==len(alpha0):
-        sys.exit('Problem: alpha and alpha0 do not have the same number of elements.')
+    if not len(alpha)==len(alphaB):
+        sys.exit('Problem: alpha and alphaB do not have the same number of elements.')
+    
+    if len(np.argwhere(alpha<alphaB).flatten())>0:
+        sys.exit('Problem: alphaB is not contained in alpha.')
     
     alphap = np.copy(alpha)
-    alpha0p = np.copy(alpha0)
+    alphaBp = np.copy(alphaB)
     alphap = np.hstack([alpha, 0])
-    alpha0p = np.hstack([alpha0, 0])
+    alphaBp = np.hstack([alphaB, 0])
     
-    alpha_r = alphap - alpha0p
-    n1 = n - n0
+    #if len(np.argwhere(alphap<alphaBp).flatten())>0:
+    #    sys.exit('Problem: alphaB is not contained in alpha.')
     
-    if len(np.argwhere(alpha_r<0).flatten())>0:
-        sys.exit('Problem: alpha0 is not contained in alpha.')
-    
-    Y = np.zeros(shape=(1, n1), dtype=int)
+    nP = n - nB
+    Y = np.zeros(shape=(1, nP), dtype=int)
     
     NY = int(1)
     
-    for j in range(n1-1, -1, -1):
+    for j in range(nP-1, -1, -1):
         
         cpt = int(0)
-        Ynew = np.zeros(shape=(0, n1), dtype=int)
+        Ynew = np.zeros(shape=(0, nP), dtype=int)
         
         for q in range(0, NY):
-            
             # generate the remaining shape
             alphap_q = np.copy(alphap)
-            for t in range(n1-1, j, -1):
+            for t in range(nP-1, j, -1):
                 alphap_q[Y[q][t]] -= 1
             
-            alphap_r = alphap_q - alpha0p
+            alphap_r = alphap_q - alphaBp
             
             ind = np.argwhere(alphap_r>0).flatten()
             
@@ -289,16 +289,11 @@ def get_subSYT(alpha, alpha0, order='iLLOS'):
                     ytmp[j] = ind[t]
                     Ynew = np.vstack([Ynew, ytmp])
                     cpt += 1
-                # end  if
-            # end for t
-        # end for q
         NY = cpt
         Y = np.copy(Ynew)
-    # end for j
     
     if order=='LLOS':
         Y = np.flipud(Y)
-        
     
     return Y
 
@@ -2402,7 +2397,7 @@ def permutation_to_adjacent_transpositions(sigma):
 
 class OrthogonalUnits:
     
-    def __init__(self, alpha):
+    def __init__(self, alpha, only00='True'):
         self.alpha = alpha
         
         # build all SYTs associated to the irrep alpha
@@ -2434,12 +2429,227 @@ class OrthogonalUnits:
                 self.sigmaMat[i] = self.sigmaMat[i] @ P[at[j]]
                 self.sigmaMatinverse[i] = P[at[j]] @ self.sigmaMatinverse[i]
         
-        self.coeffs = np.zeros(shape=(self.falpha, self.falpha, self.nn))
-        for r in range(self.falpha):
-            for s in range(self.falpha):
-                for i in range(self.nn):
-                    self.coeffs[r][s][i] = self.sigmaMatinverse[i][s,r]
+        if only00==True:
+            self.coeffs = np.zeros(shape=(1, 1, self.nn))
+            for i in range(self.nn):
+                self.coeffs[0][0][i] = self.sigmaMatinverse[i][0,0]
+        else:
+            self.coeffs = np.zeros(shape=(self.falpha, self.falpha, self.nn))
+            for r in range(self.falpha):
+                for s in range(self.falpha):
+                    for i in range(self.nn):
+                        self.coeffs[r][s][i] = self.sigmaMatinverse[i][s,r]
         self.coeffs *= self.falpha/self.nn
+
+
+
+def get_projector(beta_loc, y, cy, particles):
+    """
+    
+    """
+    
+    particles = np.sort(particles)
+    npart = len(particles)
+    
+    # get the (0, 0) orthogonal unit
+    ortho = OrthogonalUnits(beta_loc, only00='True')
+    
+    # identify locations of boxes associated to the particles
+    alphaM, alphaB, alphaP, offset = get_subshape(y, cy, particles)
+    
+    # get associated SYTs
+    YM = get_subSYT(alphaM, alphaB, order='LLOS')
+    YMc = fill_subSYT(YM, alphaM, fill_type='smallest')
+    CYMc = get_column(YMc)
+    NYMc = YMc.shape[0]
+    
+    # get matrices of adjacent transpositions of these boxes
+    particles_shifted = particles - particles[0] + np.sum(alphaB)
+    P = [None] * (npart -  1)
+    for i in range(0, npart-1):
+        P[i] = get_adjacent_transposition_matrix(alphaM, YMc, CYMc, k=particles_shifted[i])
+        
+    # build matrix of projector
+    Proj = scipy.sparse.csr_matrix((NYMc, NYMc))
+    for i in range(ortho.nn):
+        Permuti = get_matrix_permutation(P, ortho.adjaTranspo[i])
+        Proj += ortho.coeffs[0,0][i] * Permuti
+    
+    return Proj
+
+
+
+def sg_null_space(A, rcond=None):
+    u, s, vh = scipy.linalg.svd(A, full_matrices=True)
+    M, N = u.shape[0], vh.shape[1]
+    if rcond is None:
+        rcond = np.finfo(s.dtype).eps * max(M, N)
+    tol = np.amax(s) * rcond
+    num = np.sum(s > tol, dtype=int)
+    Q = vh[num:,:].T.conj()
+    return Q
+
+
+
+def get_local_states(y, cy, beta, site):
+    """
+    
+    """
+    
+    beta_loc = beta[site]
+    
+    particles = np.sum(np.sum(beta[0:site])) + np.arange(0, np.sum(beta_loc))
+    
+    Proj = get_projector(beta_loc, y, cy, particles)
+    n = Proj.shape[0]
+    
+    if n==1:
+        if abs(Proj[0,0]-1)<1.0e-13:
+            V = np.array([1.0], dtype=float)
+        else:
+            V = np.array(shape=(0,), dtype=float)
+    else:
+        
+        #ns = scipy.linalg.null_space( (Proj - scipy.sparse.eye(n)).toarray(), overwrite_a=False )
+        ns = sg_null_space( (Proj - scipy.sparse.eye(n)).toarray() )
+        
+        d = ns.shape[1] # dimension of null space
+        if d>0:
+            V = ns
+            for i in range(d):
+                if V[0,i]<0:
+                    V[:,i] *= (-1.0)
+        else:
+            V = np.array(shape=(0,), dtype=float)
+    
+    return V
+
+
+
+class GeneralBasis:
+    
+    def __init__(self, alpha, beta, N):
+        self.alpha = alpha
+        self.beta = beta
+        self.N = N
+        self.Ns = beta.shape[0]
+        
+        self.Y, self.CY = get_SYT_general(self.alpha, self.beta)
+        self.NY = self.Y.shape[0]
+        
+        # TO DO: To be improved in the future. Compute orthogonal units for the 
+        # different irreps appearing in beta
+        beta_loc = beta[0] # here assume same irrep on each site
+        self.orthoUnit = OrthogonalUnits(beta_loc, only00='True')
+        
+        self.VVV = [[None] * self.Ns] * self.NY
+        self.dimB = np.zeros(shape=(self.Ns, self.NY), dtype=int)
+        
+        for site in range(self.Ns):
+            for i in range(self.NY):
+                self.VVV[i][site] = get_local_states(self.Y[i], self.CY[i], beta, site)
+                if self.VVV[i][site].shape[0]>0:
+                    self.dimB[site, i] = self.VVV[i][site].shape[1]
+        
+        self.statesPerClass = np.prod(self.dimB, axis=0)
+        self.NH = np.sum( self.statesPerClass ) # total Hilbert space dimension
+        
+        if not (self.NH==multiplicity_irrep_mixed(self.alpha, self.beta, self.N)):
+            sys.exit('Problem: Number of states does not match multiplicity.')
+        
+        self.ind = np.argwhere( self.statesPerClass>0 ).flatten()
+        if len(self.ind)!=self.NY:
+            sys.exit('There is ', self.NY-len(self.ind), ' equivalence classes leading to 0 state.')
+        
+        return
+    
+    
+    def get_states(self, ec, sites):
+        """
+        ec : int
+            index of equivalence class
+        sites : numpy array
+            sites to consider
+        """
+        
+        
+        return 0
+
+class SUNGeneral:
+    
+    def __init__(self, alpha, beta, N, lattice):
+        
+        self.N = N
+        self.Ns = beta.shape[0]
+        self.alpha = alpha
+        self.beta = beta
+        self.lattice = lattice
+        
+        self.Basis = GeneralBasis(alpha, beta, N)
+        
+        return
+    
+    def sun_hamiltonian(self):
+        
+        H = scipy.sparse.csr_matrix((self.Basis.NH, self.Basis.NH))
+        
+        for link in self.lattice.links:
+            
+            site1 = link[0]
+            site2 = link[1]
+            
+            m1 = np.sum(self.beta[site1])
+            m2 = np.sum(self.beta[site2])
+            
+            particles1 = np.sum(self.beta[0:site1]) + np.arange(m1)
+            particles2 = np.sum(self.beta[0:site2]) + np.arange(m2)
+            allparticles = np.sum(self.beta[0:site1]) + np.arange(np.sum(self.beta[site1:site2+1]))
+            
+            Hbond = scipy.sparse.csr_matrix((self.Basis.NH, self.Basis.NH))
+            
+            for ec1 in range(self.Basis.NY):
+                
+              y1 = self.Basis.Y[ec1]
+              cy1 = self.Basis.CY[ec1]
+              
+                
+            # end for eqcl1
+            
+            
+            H += Hbond
+        # end for links
+        
+        return H
+
+
+
+def get_matrix_permutation(P, at):
+    """
+    Compute the matrix of a permutation
+    
+    Parameters
+    ----------
+    P : list
+        list of matrices of adjacent transpositions
+    at : numpy array
+        sequence of adjacent transpositions
+    
+    Returns
+    -------
+    M : scipy.sparse.csr_matrix
+        matrix of the permutation
+    
+    Remark
+    ------
+    The permutation should have already been written as a product of adjacent 
+    transpositions
+    """
+    
+    M = scipy.sparse.eye(P[0].shape[0])
+    for k in at:
+        M = M @ P[k]
+    
+    return M
 
 
 
@@ -2458,7 +2668,7 @@ def get_subshape(y, cy, particles):
     
     Returns
     -------
-    alpha : numpy array
+    alphaM : numpy array
         minimal legal irrep
     alphaP : numpy array
         number of boxes associated to particles in each row
@@ -2469,7 +2679,7 @@ def get_subshape(y, cy, particles):
     
     Description
     -----------
-    alphaP + alphaB = alpha
+    alphaP + alphaB = alphaM
     
     Example
     -------
@@ -2484,8 +2694,8 @@ def get_subshape(y, cy, particles):
     
     offset = 0 [there is at least 1 particle in the first row]
     alphaP = [2, 0, 1] = number of particles in each row
-    alpha = [5, 1, 1] = minimal legal irrep which contains the particles at exterior positions
-    alphaB = [3, 1, 0] = base top-left corner irrep such that alphaB + alphaP = alpha
+    alphaM = [5, 1, 1] = minimal legal irrep which contains the particles at exterior positions
+    alphaB = [3, 1, 0] = base top-left corner irrep such that alphaB + alphaP = alphaM
     """
     
     yp = y[particles]
@@ -2504,23 +2714,23 @@ def get_subshape(y, cy, particles):
     for i in range(nr):
         alphaP[i] = len( np.argwhere(yp==i).flatten() )
     
-    alpha = np.zeros(shape=(nr,), dtype=int)
+    alphaM = np.zeros(shape=(nr,), dtype=int)
     alphaB = np.zeros(shape=(nr,), dtype=int)
     
     alphaB[nr-1] = 1
-    alpha[nr-1] = alphaB[nr-1] + alphaP[nr-1]
+    alphaM[nr-1] = alphaB[nr-1] + alphaP[nr-1]
     
     for i in range(nr-1,-1,-1):
         if alphaP[i]==0:
-            alpha[i] = alpha[i+1]
-            alphaB[i] = alpha[i+1]
+            alphaM[i] = alphaM[i+1]
+            alphaB[i] = alphaM[i+1]
         else:
             ind = np.argwhere(yp==i).flatten()
             nbi = np.max(cyp[ind]) + 1
-            alpha[i] = nbi
-            alphaB[i] = alpha[i] - alphaP[i]
+            alphaM[i] = nbi
+            alphaB[i] = alphaM[i] - alphaP[i]
     
-    return alpha, alphaB, alphaP, offset
+    return alphaM, alphaB, alphaP, offset
 
 
 
@@ -3198,6 +3408,7 @@ def print_to_latex(y, **kwargs):
     # Print a SYT to text in LaTeX format, using \ytableau
     # 
     # Optional arguments:
+    #   zerobased [True]
     #   shift
     #   scale
     #   colors : dictionnary with keys-value pairs as i: 'col'
@@ -3207,6 +3418,13 @@ def print_to_latex(y, **kwargs):
         kwargs['shift'] = 0
     if not 'scale' in kwargs:
         kwargs['scale'] = 1
+    if not 'zeroBased' in kwargs:
+        kwargs['zeroBased'] = True
+    
+    if kwargs['zeroBased']==True:
+        szb = int(0)
+    else:
+        szb = int(1)
     
     n = len(y)
     if not 'colors' in kwargs:
@@ -3232,9 +3450,9 @@ def print_to_latex(y, **kwargs):
         # print all numbers of the j-th row
         line = ''
         for k in range(0, len(indj)-1):
-            line += kwargs['colors'][indj[k]] + str(indj[k]+1) + ' & '
+            line += kwargs['colors'][indj[k]] + str(indj[k]+szb) + ' & '
         
-        line += kwargs['colors'][indj[-1]] + str(indj[-1]+1) + ' \\\\ '
+        line += kwargs['colors'][indj[-1]] + str(indj[-1]+szb) + ' \\\\ '
         print(line)
     
     print('\\end{ytableau}}\n')
@@ -3273,6 +3491,14 @@ def print_subSYT_to_latex(y, alpha, **kwargs):
     else:
         kwargs['highcol'] = '*(' + kwargs['highcol'] + ')'
     
+    if not 'zeroBased' in kwargs:
+        kwargs['zeroBased'] = True
+    
+    if kwargs['zeroBased']==True:
+        szb = int(0)
+    else:
+        szb = int(1)
+    
     n = np.sum(alpha)
     n1 = len(y)
     n0 = n - n1
@@ -3306,8 +3532,8 @@ def print_subSYT_to_latex(y, alpha, **kwargs):
             if nb>0:
                 line += str(kwargs['lowcol'] + ' & ')
             for k in range(0, len(indj)-1):
-                line += kwargs['highcol'] + str(indj[k]+1) + ' & '
-            line += kwargs['highcol'] + str(indj[-1]+1) + ' \\\\ '
+                line += kwargs['highcol'] + str(indj[k]+szb) + ' & '
+            line += kwargs['highcol'] + str(indj[-1]+szb) + ' \\\\ '
         
         print(line)
     
@@ -3608,9 +3834,9 @@ def get_adjacent_transposition_matrix(alpha, Y, CY, k):
                     offdiagcounter += 1        
     
     
-    Pkdiag = scipy.sparse.diags(Pk_diagval[k], offsets=0, shape=(NY, NY))
+    Pkdiag = scipy.sparse.diags(Pk_diagval, offsets=0, shape=(NY, NY))
     Pkoffdiag = scipy.sparse.csr_matrix(
-                    (Pk_offdiagval[k, 0:offdiagcounter], 
+                    (Pk_offdiagval[0:offdiagcounter], 
                     (Pk_offdiagrowindex[0:offdiagcounter], 
                      Pk_offdiagcolindex[0:offdiagcounter])), 
                     shape=(NY, NY))    
