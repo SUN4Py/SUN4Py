@@ -1172,7 +1172,7 @@ def get_axial_distance(y, cy, i, j):
     # Compute axial distance from i to j in SYT y (and columns cy).
     # 
     
-    ad = cy[i] - y[i] - cy[j] + y[j];
+    ad = cy[i] - y[i] - cy[j] + y[j]
     
     return ad
 
