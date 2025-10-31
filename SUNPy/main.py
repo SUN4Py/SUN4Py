@@ -32,13 +32,12 @@ subY = sun.get_subSYT(alphaTot, alphaB)
 '''
 
 N = int(3)
-Ns = int(6)
+Ns = int(5)
 alpha = np.array([Ns, Ns, Ns], dtype=int)
-#alpha = np.array([5, 2, 2], dtype=int)
-beta_loc = np.array([[2, 1, 0]], dtype=int)
+alpha = np.array([6, 5, 4], dtype=int)
+beta_loc = np.array([2, 1, 0], dtype=int)
 #beta_loc = np.array([[3, 0, 0]], dtype=int)
-beta = np.repeat(beta_loc, Ns, axis=0)
-beta_loc = beta_loc.flatten()
+beta = np.matlib.repmat(beta_loc, Ns, 1)
 
 '''
 Y, CY = sun.get_SYT_general(alpha, beta)
