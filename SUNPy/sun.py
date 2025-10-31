@@ -12,6 +12,7 @@ import math
 import numpy as np
 import scipy.sparse
 import itertools
+import copy
 
 import partitions
 
@@ -300,12 +301,44 @@ def get_subSYT(alpha, alphaB, order='iLLOS'):
 
 
 def fill_subSYT(Y, alpha, **kwargs):
-    # Fill all remaining boxes of the sub-SYTs in <Y> corresponding to the 
-    # global shape alpha.
-    # 
-    # The convention is to fill the remaining boxes by the largest SYT in the
-    # last letter order sequence, unless fill_type='lowest' is used.
-    # 
+    """
+    Fill all remaining boxes of a collection of sub-SYTs in order to be a 
+    collection of valid SYTs for a given irrep
+    
+    Inputs
+    ------
+    Y : numpy array
+        collection of SYTs
+    alpha : numpy array
+        irrep
+    fill_type : str
+        [default] 'largest' or 'smallest'
+        order of the base filling in LLOS
+    
+    Returns
+    -------
+    Y : numpy array
+        collection of SYTs
+    
+    Example
+    -------
+    Y = np.array([[0, 1, 2], [1, 0, 2]], dtype=int)
+    alpha = np.array([3, 2, 1], dtype=int)
+    
+    The input sub-SYTs are:
+    x x 3         x x 4
+    x 4     and   x 3
+    5             5
+    
+    For fill_type='largest', we have:
+                0 2                 0 2 3     0 2 4
+     filling =  1      --> output = 1 4   and 1 3
+                                    5         5
+    For fill_type='smallest', we have:
+                0 1                 0 1 3     0 1 4
+     filling =  2      --> output = 2 4   and 2 3
+                                    5         5
+    """
     
     if not 'fill_type' in kwargs:
         kwargs['fill_type'] = 'largest'
@@ -2475,7 +2508,7 @@ def get_projector(beta_loc, y, cy, particles):
         Permuti = get_matrix_permutation(P, ortho.adjaTranspo[i])
         Proj += ortho.coeffs[0,0][i] * Permuti
     
-    return Proj
+    return Proj, YMc, CYMc, alphaM, alphaB, alphaP, offset
 
 
 
@@ -2491,8 +2524,39 @@ def sg_null_space(A, rcond=None):
 
 
 
+class LocalStates:
+    
+    def __init__(self, ec, site, y, cy, beta):
+        """
+        ec: equivalence class
+        site: site
+        y : SYT of equivalence class
+        cy : column positions
+        beta : all local irreps
+        """
+        
+        self.site = np.array([site], dtype=int)
+        self.ec = ec
+        self.y = np.copy(y)
+        self.cy = np.copy(cy)
+        beta_loc = np.copy(beta[site])
+        self.particles = np.sum(np.sum(beta[0:site])) + np.arange(0, np.sum(beta_loc))
+        
+        self.coeffs, self.Ydev, self.CYdev, self.alphaM, self.alphaB, self.alphaP, self.offset =  get_local_states(y, cy, beta, site)
+        # recall alphaP + alphaB = alphaM
+        
+        # number of states  !!! CAUTION !!!
+        self.n = self.coeffs.shape[1]
+        
+        return
+    
+
+
+
 def get_local_states(y, cy, beta, site):
     """
+    
+    !!! IMPORTANT: states are stored in column in the output <coeffs> !!!
     
     """
     
@@ -2500,7 +2564,7 @@ def get_local_states(y, cy, beta, site):
     
     particles = np.sum(np.sum(beta[0:site])) + np.arange(0, np.sum(beta_loc))
     
-    Proj = get_projector(beta_loc, y, cy, particles)
+    Proj, YProj, CYProj, alphaM, alphaB, alphaP, offset = get_projector(beta_loc, y, cy, particles)
     n = Proj.shape[0]
     
     if n==1:
@@ -2514,6 +2578,11 @@ def get_local_states(y, cy, beta, site):
         ns = sg_null_space( (Proj - scipy.sparse.eye(n)).toarray() )
         
         d = ns.shape[1] # dimension of null space
+        
+        #---------------------
+        # CAUTION : vectors spanning the null space are stored in the COLUMNS !!!
+        #---------------------
+        
         if d>0:
             V = ns
             for i in range(d):
@@ -2522,7 +2591,9 @@ def get_local_states(y, cy, beta, site):
         else:
             V = np.array(shape=(0,), dtype=float)
     
-    return V
+    coeffs = V
+    
+    return coeffs, YProj, CYProj, alphaM, alphaB, alphaP, offset
 
 
 
@@ -2542,14 +2613,37 @@ class GeneralBasis:
         beta_loc = beta[0] # here assume same irrep on each site
         self.orthoUnit = OrthogonalUnits(beta_loc, only00='True')
         
-        self.VVV = [[None] * self.Ns] * self.NY
+        #self.local_states = [[None] * self.Ns] * self.NY
+        self.local_states = []
         self.dimB = np.zeros(shape=(self.Ns, self.NY), dtype=int)
         
+        si = int(0)
+        
         for site in range(self.Ns):
+            
+            print(site)
+            
             for i in range(self.NY):
-                self.VVV[i][site] = get_local_states(self.Y[i], self.CY[i], beta, site)
-                if self.VVV[i][site].shape[0]>0:
-                    self.dimB[site, i] = self.VVV[i][site].shape[1]
+                #self.local_states[i][site] = get_local_states(self.Y[i], self.CY[i], beta, site)
+                
+                self.local_states.append(LocalStates(i, site, self.Y[i], self.CY[i], beta))
+                
+                #--------------------
+                # NOT WORKING FOR SOME WEIRD PYTHON REASON
+                #   THIS GENERATES REFERENCES INSTEAD OF NEW OBJECTS SOMEHOW
+                #loc_st = LocalStates(i, site, self.Y[i], self.CY[i], beta)
+                #self.local_states[i][site] = loc_st
+                #--------------------
+                
+                '''
+                # NEEDS TO BE REPLACED ACCORDING TO NEW INDEXING
+                if self.local_states[i][site].coeffs.shape[0]>0:
+                    self.dimB[site, i] = self.local_states[i][site].coeffs.shape[1]                
+                '''
+                if self.local_states[si].coeffs.shape[0]>0:
+                    self.dimB[site, i] = self.local_states[si].coeffs.shape[1]
+                
+                si += 1
         
         self.statesPerClass = np.prod(self.dimB, axis=0)
         self.NH = np.sum( self.statesPerClass ) # total Hilbert space dimension
@@ -2564,16 +2658,86 @@ class GeneralBasis:
         return
     
     
-    def get_states(self, ec, sites):
+    
+    def __get_index_sec(self, ec, site):
+        
+        si = site*self.NY + ec
+        
+        return si
+    
+    
+    
+    def get_states_of_class(self, ec, sites):
         """
+        Compute all states corresponding to a given equivalence class, as a 
+        development on multiple sites
+        
         ec : int
             index of equivalence class
         sites : numpy array
             sites to consider
         """
         
+        site1 = np.min(sites)
+        site2 = np.max(sites)
         
-        return 0
+        si = self.__get_index_sec(ec, site2)
+        out = copy.deepcopy(self.local_states[si])
+
+        mtot = np.sum(self.beta[site2])
+        
+        for site in range(site2-1, site1-1, -1):
+            
+            si = self.__get_index_sec(ec, site)
+            local_states_to_add = copy.deepcopy(self.local_states[si])
+            m_to_add = np.sum(self.beta[site])
+            
+            diffoffset = out.offset - local_states_to_add.offset
+            
+            # diffoffset > 0 ==> <site>+1 particles start at a row BELOW <site> particles
+            # diffoffset < 0 ==> <site>+1 particles start at a row ABOVE <site> particles
+            # diffoffset = 0 ==> <site>+1 particles start at the same row as <site> particles
+            
+            if (diffoffset==0):
+                off1 = 0
+                off2 = 0
+            elif (diffoffset>0):
+                off1 = 0
+                off2 = diffoffset
+            else: # thus diffoffset<0
+                off1 = -diffoffset
+                off2 = 0
+            
+            # build new SYTs
+            
+            # number of SYTs in total development so far
+            q = out.Ydev.shape[0]
+            
+            # number of SYTs in the developments at <site>
+            qadd = local_states_to_add.Ydev.shape[0]
+            
+            # merge SYTs
+            A = np.repeat(local_states_to_add.Ydev[:,-m_to_add:] + off1, repeats=q, axis=0)
+            B = np.matlib.repmat(out.Ydev[:,-mtot:] + off2, qadd, 1)
+            out.Ydev = np.concatenate((A, B), axis=1)
+            
+            # compute coefficients
+            out.coeffs = np.kron(local_states_to_add.coeffs, out.coeffs)
+            
+            # update attributes
+            out.offset = min(out.offset, local_states_to_add.offset)
+            out.particles = np.sort( np.concatenate( (out.particles, local_states_to_add.particles) ) )
+            out.site = np.sort( np.concatenate( (out.site, np.array([site]) ) ) )
+            out.n *= local_states_to_add.n
+            
+            mtot += m_to_add
+        
+        # update shapes
+        out.alphaM, out.alphaB, out.alphaP, out.offset = get_subshape(out.y, out.cy, out.particles)
+        
+        return out
+
+
 
 class SUNGeneral:
     
@@ -2589,6 +2753,209 @@ class SUNGeneral:
         
         return
     
+    
+    
+    def __check_conditions_equivalence_class(self, ec1, ec2, particles1, particles2):
+        """
+        Check if 2 equivalence classes are compatible
+        
+        Returns
+        -------
+        iseq : Bool
+            True if ec1 and ec2 are compatible
+        """
+        
+        y1 = self.Basis.Y[ec1]
+        cy1 = self.Basis.CY[ec1]
+        y2 = self.Basis.Y[ec2]
+        cy2 = self.Basis.CY[ec2]
+        
+        p1 = np.min(particles1)
+        p2 = np.max(particles2)
+        n = self.Basis.Y.shape[1]
+        
+        iseq = True
+            
+        # all particles before p1 must be identically placed
+        i = int(1)
+        while (i<p1):
+            if not ( (y1[i]==y2[i]) & (cy1[i]==cy2[i]) ):
+                iseq = False
+                return iseq
+            i += 1
+        
+        # all particles after p2 must be identically placed
+        i = p2 + 1
+        while (i<n):                
+            if not ( (y1[i]==y2[i]) & (cy1[i]==cy2[i]) ):
+                iseq = False
+                return iseq
+            i += 1   
+        
+        # vectorize the above
+        iseq2 = True
+        ylowdiff = np.sum(abs(y1[:p1] - y2[:p1]))
+        if not ylowdiff==0:
+            iseq2 = False
+        yhidiff = np.sum(abs(y1[p2+1:] - y2[p2+1:]))
+        if not yhidiff==0:
+            iseq2 = False
+        if iseq2==False:
+            sys.exit('Problem: we should not have entered here')
+        
+        # check that there is at most 1 interchange
+        v1 = np.vstack((y1[particles1], cy1[particles1])).T
+        v2 = np.vstack((y2[particles1], cy2[particles1])).T
+        
+        cpt = int(0)
+        for j in range(0, len(particles1)):
+            pj = v1[j, :]
+            # search pj in v2
+            ind = np.argwhere( np.sum(abs( v2 - pj ), axis=1)==0 ).flatten()
+            if len(ind)==0:
+                cpt += 1
+        
+        if cpt>1:
+            iseq = False
+        
+        return iseq
+    
+    
+    
+    def __get_sister_equivalence_class(self, ec1, particles1, particles2):
+        """
+        Determine the relevant equivalence classes for the <bra|
+        """
+        
+        ind_ec2 = np.array([ec1], dtype=int)
+        
+        # one should parallelize this loop, taking care of the creation (append) of ind_ec2
+        for ec2 in range(ec1+1, self.Basis.NY):
+            iseq = self.__check_conditions_equivalence_class(ec1, ec2, particles1, particles2)
+            if iseq:
+                ind_ec2 = np.hstack((ind_ec2, ec2))
+            
+        return ind_ec2
+    
+    
+    
+    def __find_index_state(self, ec, site1, site2):
+        """
+        Find the indices in the global basis of states of a given equivalence class
+        for a set of sites
+        
+        Returns
+        -------
+        index : numpy array
+            array of dimension n x U
+            n = number of states
+            U = number of duplicates
+            
+            the i-th state of the equivalence class must be duplicated at 
+            positions index[i,:]
+        """
+        
+        # Recall that
+        #   self.Basis.dimB : self.Basis.Ns x self.Basis.NY : number of states at (site, eqclass)
+        # 
+        #   self.Basis.statesPerClass : self.Basis.NY : number of states for each equivalence class
+        # 
+        #   self.Basis.NH : int : total Hilbert space dimension
+        
+        
+        # distribution of states among the different sites in the class
+        statesSpEq = self.Basis.dimB[:, ec]
+        
+        # number of states generated by the input sites
+        NbStates = np.prod(statesSpEq[site1:site2+1])
+        
+        # number of states BEFORE input equivalence class
+        offsetClass = np.sum(self.Basis.statesPerClass[:ec])
+        
+        # number of states in the input equivalence class
+        statesEqcl = self.Basis.statesPerClass[ec]
+        
+        # number of times duplication will occur
+        nDublicates = statesEqcl // NbStates
+        
+        if site1>0:
+            mL = np.prod(statesSpEq[:site1])
+        else:
+            mL = int(1)
+        
+        if site2==self.Basis.Ns:
+            mR = int(1)
+        else:
+            mR = np.prod(statesSpEq[site2+1:])
+        
+        assert mL*mR == nDublicates
+        
+        if site1+1==site2:
+            
+            m1 = statesSpEq[site1]
+            m2 = statesSpEq[site2]
+            
+            # Duplicate because of offset Right
+            index1 = np.arange(offsetClass, offsetClass+mR)
+            l1 = len(index1)
+            
+            # Duplicate because of site2
+            index2 = np.zeros(shape=(m2, l1), dtype=int)
+            index2[0, :] = index1
+            
+            for i2 in range(1, m2):
+                index2[i2, :] = index2[i2-1, :] + mR
+    
+            # Duplicate because of site1
+            index3 = np.zeros(shape=(m2*m1, l1), dtype=int)
+            index3[:m2, :] = index2
+    
+            for i1 in range(1, m1):
+                index3[i1*m2:(i1+1)*m2, :] = index3[(i1-1)*m2:i1*m2, :] + m2*mR
+            
+            
+            # Duplicate because of offset Left
+            index4 = np.zeros(shape=(m2*m1, l1*mL), dtype=int)
+            
+            assert mR == index3.shape[1]
+            
+            index4[:,:mR] = index3
+    
+            for iL in range(1, mL):
+                index4[:,iL*mR:(iL+1)*mR] = index4[:, (iL-1)*mR:iL*mR] + m1*m2*mR
+            
+            index = index4
+            
+        else:
+            
+            mS = np.prod(statesSpEq[site1:site2+1])
+            assert mS==NbStates
+            # thus mS should not be recomputed
+            
+            # duplicate because of offset Right
+            index1 = np.arange(offsetClass, offsetClass+mR)
+            l1 = len(index1)
+            
+            # duplicate because of site1--site2
+            index2 = np.zeros(shape=(mS, l1), dtype=int)
+            
+            index2[0, :] = index1
+            for i2 in range(1, mS):
+                index2[i2, :] = index2[i2-1, :] + mR
+            
+            # Duplicate because of offset Left
+            index3 = np.zeros(shape=(mS, l1*mL), dtype=int)
+            
+            index3[:, :mR] = index2
+            for iL in range(1, mL):
+                index3[:, iL*mR:(iL+1)*mR] = index3[:,(iL-1)*mR:iL*mR] + mS*mR
+            
+            index = index3
+        
+        return index
+    
+    
+    
     def sun_hamiltonian(self):
         
         H = scipy.sparse.csr_matrix((self.Basis.NH, self.Basis.NH))
@@ -2597,28 +2964,236 @@ class SUNGeneral:
             
             site1 = link[0]
             site2 = link[1]
+
+            print('==========================')
+            print('link = ', site1, ' -- ', site2)
+            print('==========================')
             
             m1 = np.sum(self.beta[site1])
             m2 = np.sum(self.beta[site2])
             
             particles1 = np.sum(self.beta[0:site1]) + np.arange(m1)
             particles2 = np.sum(self.beta[0:site2]) + np.arange(m2)
+            
+            # all particles from site1 to site2
             allparticles = np.sum(self.beta[0:site1]) + np.arange(np.sum(self.beta[site1:site2+1]))
             
             Hbond = scipy.sparse.csr_matrix((self.Basis.NH, self.Basis.NH))
             
             for ec1 in range(self.Basis.NY):
+                # generates the states living on all sites [site1, ... , site2]
+                states_class1 = self.Basis.get_states_of_class(ec=ec1, sites=link)
+                states_class1.Ydev = fill_subSYT(states_class1.Ydev, states_class1.alphaM, fill_type='largest')
                 
-              y1 = self.Basis.Y[ec1]
-              cy1 = self.Basis.CY[ec1]
-              
                 
-            # end for eqcl1
-            
+                # generate all SYTs associated to [site1, ..., site2], in LLOS order ---> Yall_ec1_ordered
+                Yall_ec1_ordered = get_subSYT(states_class1.alphaM, states_class1.alphaB, order='iLLOS')
+                Yall_ec1_ordered = fill_subSYT(Yall_ec1_ordered, states_class1.alphaM, fill_type='largest')
+                CYall_ec1_ordered = get_column(Yall_ec1_ordered)
+                
+                
+                
+                
+                # create a new matrix which will contain all coefficients again
+                # this matrix is of dimension: #SYTs x #states
+                coeffs1 = np.zeros(shape=(Yall_ec1_ordered.shape[0], states_class1.n), dtype=float)
+                
+                
+                
+                
+                
+                # re-index components of states living on all sites [site1, ..., site2]
+                # onto the full local basis              
+                index_map1 = np.zeros(states_class1.Ydev.shape[0], dtype=int)
+                for i in range(0, states_class1.Ydev.shape[0]):
+                    ind = np.argwhere( np.sum(abs(Yall_ec1_ordered - states_class1.Ydev[i]), axis=1) < 1e-13).flatten()
+                    assert len(ind)==1
+                    index_map1[i] = ind[0]          
+                coeffs1[index_map1, :] = states_class1.coeffs
+                
+                
+                
+                
+                
+                # generate all matrices of adjacent transpositions from <Yall_ec1_ordered>
+                #P1 = get_adjacent_transposition_matrices(states_class1.alphaM, Yall_ec1_ordered, CYall_ec1_ordered)
+                P1 = []
+                for k in range(np.sum(states_class1.alphaB), np.sum(states_class1.alphaM)-1):
+                    P1.append( get_adjacent_transposition_matrix(states_class1.alphaM, 
+                                                                 Yall_ec1_ordered, 
+                                                                 CYall_ec1_ordered, 
+                                                                 k) )
+                
+                
+                
+                # compute all permutations between site1 and site2
+                perms = np.stack( (np.repeat(particles1, repeats=len(particles2)), 
+                                   np.matlib.repmat(particles2, 1, len(particles1)).flatten()), axis=1 )
+                
+                
+                
+                
+                # Compute shift between global numbering (particles1, particles2)
+                # and state-local numbering
+                shift = -np.min(allparticles) + np.sum(states_class1.alphaB)
+                
+                assert np.max(allparticles)+shift == np.sum(states_class1.alphaM)-1
+                
+                perms += shift
+                
+                
+                
+                
+                # Generate the matrix H0 representing the sum of all transpositions between
+                # particles of site1 and those of site2
+                # 
+                # Example: R = P_{(3,6)} + P_{(3,7)} + P_{(3,8)}
+                #            + P_{(4,6)} + P_{(4,7)} + P_{(4,8)}
+                #            + P_{(5,6)} + P_{(5,7)} + P_{(5,8)}
+                
+                H0 = np.zeros(shape=P1[0].shape, dtype=float)
+                
+                for perm in perms:
+                    # decompose permutation into product of adjacent transpositions
+                    atr = transposition_to_adjacent_transpositions(perm)
+                    # compute matrix of permutation
+                    Hp = get_matrix_permutation(P1, atr-np.sum(states_class1.alphaB))
+                    H0 += Hp.todense()
+                    
+                    
+                # Apply operator H0 on all states belonging to [site1, ..., site2]
+                H0coeffs1 = H0 @ coeffs1
+                
+                
+                
+                
+                # Determine all relevant equivalence classes for the <bra|
+                ind_ec2 = self.__get_sister_equivalence_class(ec1, particles1, particles2)
+                
+                
+                
+                # Iterate over <bra| equivalence class
+                for ec2 in ind_ec2:
+                    
+                    print('ec1 = ', ec1, ' ec2 = ', ec2)                    
+                    
+                    
+                    
+                    # generates the states living on all sites [site1, ... , site2] for the 2nd equiv class
+                    states_class2 = self.Basis.get_states_of_class(ec=ec2, sites=link)
+                    states_class2.Ydev = fill_subSYT(states_class2.Ydev, states_class2.alphaM, fill_type='largest')
+                    
+                    
+                    
+                    
+                    # generate all SYTs associated to [site1, ..., site2], in LLOS order ---> Yall_ec2_ordered
+                    Yall_ec2_ordered = get_subSYT(states_class2.alphaM, states_class2.alphaB, order='iLLOS')
+                    Yall_ec2_ordered = fill_subSYT(Yall_ec2_ordered, states_class2.alphaM, fill_type='largest')
+                    
+                    assert np.sum(abs(Yall_ec1_ordered-Yall_ec2_ordered))==0
+                    # as a consequence, we could save some time by not computing 
+                    # Yall_ec2_ordered
+                    
+                    
+                    
+                    
+                    # create a new matrix which will contain all coefficients again
+                    # this matrix is of dimension: #SYTs x #states
+                    coeffs2 = np.zeros(shape=(Yall_ec2_ordered.shape[0], states_class2.n), dtype=float)
+                    
+                    
+                    
+                    
+                    # re-index components of states living on all sites [site1, ..., site2]
+                    # onto the full local basis              
+                    index_map2 = np.zeros(states_class2.Ydev.shape[0], dtype=int)
+                    for i in range(0, states_class2.Ydev.shape[0]):
+                        ind = np.argwhere( np.sum(abs(Yall_ec2_ordered - states_class2.Ydev[i]), axis=1) < 1e-13).flatten()
+                        assert len(ind)==1
+                        index_map2[i] = ind[0]
+                    coeffs2[index_map2, :] = states_class2.coeffs
+                    
+                    if ec2==ec1:
+                        assert np.linalg.norm(coeffs1-coeffs2)<1.0e-13
+                    
+                    
+                    
+                    
+                    
+                    
+                    # build local interaction Hamiltonian
+                    Hloc = coeffs2.T @ H0coeffs1
+                    # Hloc is of dimension states_class2.n x states_class1.n
+                    
+                    
+                    
+                    
+                    
+                    # duplicate and embedd elements in interaction Hamiltonian in full basis
+                    ind_st_1 = self.__find_index_state(ec1, site1, site2)
+                    ind_st_2 = self.__find_index_state(ec2, site1, site2)
+                    
+                    # number of duplicates
+                    D1 = ind_st_1.shape[1]
+                    
+                    n1 = coeffs1.shape[1]
+                    n2 = coeffs2.shape[1]
+                    
+                    assert D1==ind_st_2.shape[1]
+                    
+                    
+                    print('n1 = ', n1, ' n2 = ', n2, ' D = ', D1)
+                    
+                    
+                    # duplicate elements
+                    HTemp = scipy.sparse.csr_matrix((self.Basis.NH, self.Basis.NH))
+                    
+                    for row in range(0, n2):
+                        for col in range(0, n1):
+                            newrows = ind_st_2[row]
+                            newcols = ind_st_1[col]
+                            
+                            assert len(newrows)==D1
+                            assert len(newcols)==D1
+                            
+                            for i in range(0, D1):
+                                rowi = newrows[i]
+                                coli = newcols[i]
+                                HTemp[rowi, coli] = Hloc[row, col]
+                                if not ec1==ec2:
+                                    HTemp[coli, rowi] = Hloc[row, col]
+                                    
+                    
+                    '''
+                    rowTemp = np.zeros(shape=n1*n2*D1, dtype=int)
+                    colTemp = np.zeros(shape=n1*n2*D1, dtype=int)
+                    valTemp = np.zeros(shape=n1*n2*D1, dtype=float)
+                    
+                    cpt = int(0)
+                    
+                    for ii in range(0, D1):
+                        rs = ind_st_1[:, ii]
+                        cs = ind_st_2[:, ii]
+                        rowTemp[cpt:cpt+n1*n2] = np.matlib.repmat(rs, 1, n2).flatten()
+                        colTemp[cpt:cpt+n1*n2] = np.matlib.repmat(cs, 1, n1)
+                        valTemp[cpt:cpt+n1*n2] = np.reshape(Hloc.T, newshape=n1*n2) # (col row),
+                        
+                        cpt += n1*n2
+                    
+                    
+                    HTemp = scipy.sparse.csr_matrix(
+                            (valTemp, (rowTemp, colTemp)),
+                            shape=(self.Basis.NH, self.Basis.NH))
+                    
+                    if not ec1==ec2:
+                        HTemp += HTemp.T
+                    '''
+                    
+                    
+                    Hbond += HTemp
             
             H += Hbond
-        # end for links
-        
+            
         return H
 
 
@@ -3869,10 +4444,10 @@ def get_adjacent_transposition_matrices(alpha, Y, CY):
     """
     
     n = np.sum(alpha)
-    P = [None] * (n-1)
+    P = []
     
     for k in range(n-1):
-        P[k] = get_adjacent_transposition_matrix(alpha, Y, CY, k)
+        P.append( get_adjacent_transposition_matrix(alpha, Y, CY, k) )
     
     '''
     NY = Y.shape[0]

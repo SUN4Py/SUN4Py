@@ -34,9 +34,13 @@ subY = sun.get_subSYT(alphaTot, alphaB)
 N = int(3)
 Ns = int(6)
 alpha = np.array([Ns, Ns, Ns], dtype=int)
+#alpha = np.array([5, 2, 2], dtype=int)
 beta_loc = np.array([[2, 1, 0]], dtype=int)
+#beta_loc = np.array([[3, 0, 0]], dtype=int)
 beta = np.repeat(beta_loc, Ns, axis=0)
 beta_loc = beta_loc.flatten()
+
+'''
 Y, CY = sun.get_SYT_general(alpha, beta)
 ortho = sun.OrthogonalUnits(beta_loc, only00='True')
 y = Y[3]
@@ -55,8 +59,41 @@ for i in range(0, len(particles_shifted)-1):
 Proj = sun.get_projector(beta_loc, y, cy, particles)
 
 V = sun.get_local_states(y, cy, beta, site=3)
+'''
 
-genBasis = sun.GeneralBasis(alpha, beta, N)
+#genBasis = sun.GeneralBasis(alpha, beta, N)
+
+#ls = genBasis.get_states_of_class(ec=int(1), sites=np.array([2, 3], dtype=int))
+
+
+
+
+lattice = Lattice.Lattice(Ns=Ns, typeLattice='chain', isPBC=False)
+
+'''
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+symmEngine = sun.SUNSymmetric(Ns, N, 3, alpha, lattice)
+Hsymm = symmEngine.sun_hamiltonian()
+Esymm, PSIsymm = scipy.sparse.linalg.eigsh(Hsymm, k=1, which='SA')
+EGSsymm = Esymm[0]
+print('SYMM GS Energy: ', EGSsymm)
+print('SYMM GS Energy per site: ', EGSsymm/Ns)
+print('------------')
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+'''
+
+engine = sun.SUNGeneral(alpha, beta, N, lattice)
+H = engine.sun_hamiltonian()
+
+if H.shape[0]==1:
+    H = H.todense()
+    EGS = H[0,0]
+else:
+    E, PSI = scipy.sparse.linalg.eigsh(H, k=1, which='SA')
+    EGS = E[0]
+
+print('GS Energy: ', EGS)
+print('GS Energy per site: ', EGS/Ns)
 
 #######################
 
