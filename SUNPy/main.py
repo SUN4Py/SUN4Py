@@ -9,6 +9,7 @@ Created on Fri Jun 30 11:39:13 2023
 
 import numpy as np
 import scipy.sparse
+import time
 
 import sun
 import Lattice
@@ -82,7 +83,11 @@ print('------------')
 '''
 
 engine = sun.SUNGeneral(alpha, beta, N, lattice)
+
+start = time.perf_counter()
 H = engine.sun_hamiltonian()
+end = time.perf_counter()
+print("Elapsed gen = {}s".format((end - start)))
 
 if H.shape[0]==1:
     H = H.todense()
