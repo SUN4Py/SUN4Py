@@ -11,6 +11,8 @@ import sys
 import math
 import numpy as np
 import scipy.sparse
+import scipy.linalg
+import scipy.sparse.linalg
 import itertools
 import copy
 
@@ -3023,19 +3025,16 @@ class SUNGeneral:
                 
                 # Generate the matrix Hint representing the sum of all transpositions between
                 # particles of site1 and those of site2
-                # 
-                # Example: Hint = P_{(3,6)} + P_{(3,7)} + P_{(3,8)}
-                #               + P_{(4,6)} + P_{(4,7)} + P_{(4,8)}
-                #               + P_{(5,6)} + P_{(5,7)} + P_{(5,8)}
-                
-                Hint = np.zeros(shape=P1[0].shape, dtype=float)
+                #Hint = np.zeros(shape=P1[0].shape, dtype=float)
+                Hint = scipy.sparse.csr_matrix(P1[0].shape)
                 
                 for perm in perms:
                     # decompose permutation into product of adjacent transpositions
                     atr = transposition_to_adjacent_transpositions(perm)
                     # compute matrix of permutation
                     Hp = get_matrix_permutation(P1, atr-np.sum(states_class1.alphaB))
-                    Hint += Hp.todense()
+                    #Hint += Hp.todense()
+                    Hint += Hp
                 
                 # Apply operator H0 on all states belonging to [site1, ..., site2]
                 Hcoeffs1 = Hint @ coeffs1
@@ -3097,7 +3096,13 @@ class SUNGeneral:
                     
                     assert nD==ind_st_2.shape[1]                    
                     
+                    #---------------------------------------
                     # duplicate elements
+                    
+                    '''
+                    #---------------------------------------                
+                    # METHOD 1 - for loops
+                    #---------------------------------------                
                     HTemp = scipy.sparse.csr_matrix((self.Basis.NH, self.Basis.NH))
                     
                     for row in range(0, n2):
@@ -3114,33 +3119,31 @@ class SUNGeneral:
                                 HTemp[rowi, coli] = Hloc[row, col]
                                 if not ec1==ec2:
                                     HTemp[coli, rowi] = Hloc[row, col]
-                                    
-                    
+                    #---------------------------------------                
                     '''
-                    rowTemp = np.zeros(shape=n1*n2*D1, dtype=int)
-                    colTemp = np.zeros(shape=n1*n2*D1, dtype=int)
-                    valTemp = np.zeros(shape=n1*n2*D1, dtype=float)
                     
-                    cpt = int(0)
-                    
-                    for ii in range(0, D1):
-                        rs = ind_st_1[:, ii]
-                        cs = ind_st_2[:, ii]
-                        rowTemp[cpt:cpt+n1*n2] = np.matlib.repmat(rs, 1, n2).flatten()
-                        colTemp[cpt:cpt+n1*n2] = np.matlib.repmat(cs, 1, n1)
-                        valTemp[cpt:cpt+n1*n2] = np.reshape(Hloc.T, newshape=n1*n2) # (col row),
-                        
-                        cpt += n1*n2
-                    
-                    
+                    #---------------------------------------                
+                    # METHOD 2 - vectorized
+                    #---------------------------------------                
+                    rows = np.matlib.repmat(ind_st_2, 1, n1)
+                    rows = np.reshape(rows, (nD*n1*n2, ))
+                    cols = np.matlib.repmat(ind_st_1, n2, 1)
+                    cols = np.reshape(cols, (nD*n1*n2, ))
+                    vals = np.repeat(Hloc, repeats=nD)
                     HTemp = scipy.sparse.csr_matrix(
-                            (valTemp, (rowTemp, colTemp)),
-                            shape=(self.Basis.NH, self.Basis.NH))
-                    
+                             (vals, (rows, cols)),
+                             shape=(self.Basis.NH, self.Basis.NH))
                     if not ec1==ec2:
                         HTemp += HTemp.T
-                    '''
                     
+                    #---------------------------------------
+                    '''
+                    #---------------------------------------
+                    # Check
+                    #---------------------------------------
+                    assert np.linalg.norm(HTemp.todense() - HTemp2.todense())<1.0e-13
+                    #---------------------------------------
+                    '''
                     Hbond += HTemp
             
             H += Hbond

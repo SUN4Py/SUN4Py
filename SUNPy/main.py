@@ -8,11 +8,39 @@ Created on Fri Jun 30 11:39:13 2023
 # Copyright 2023 Samuel GOZEL, GNU GPLv3
 
 import numpy as np
+import numpy.matlib
 import scipy.sparse
 import time
 
 import sun
 import Lattice
+
+'''
+nD = int(3)
+n1 = int(4)
+n2 = int(2)
+
+ind_st_1 = np.array([[4, 8, 12],[5,9,13],[6,10,14],[7,11,15]],dtype=int)
+ind_st_2 = np.array([[1,7,13],[4,10,16]], dtype=int)
+
+Hloc = np.reshape(np.arange(1, 9)/10 + np.arange(1, 9), (2, 4))
+
+row = np.matlib.repmat(ind_st_2, 1, n1)
+row = np.reshape(row, (nD*n1*n2, ))
+
+col = np.matlib.repmat(ind_st_1, n2, 1)
+col = np.reshape(col, (nD*n1*n2, ))
+
+elems = np.repeat(Hloc, repeats=nD)
+
+import sys
+sys.exit('')
+'''
+
+
+
+
+
 
 
 #sigma=np.array([3,2,5,0,1,4,6,8,7], dtype=int)
