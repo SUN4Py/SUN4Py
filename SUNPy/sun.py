@@ -2676,12 +2676,6 @@ class GeneralBasis:
         self.Y, self.CY = get_SYT_general(self.alpha, self.beta)
         self.NY = self.Y.shape[0]
         
-        # TO DO: To be improved in the future. Compute orthogonal units for the 
-        # different irreps appearing in beta
-        #beta_loc = beta[0] # here assume same irrep on each site # UNUSED
-        #self.orthoUnit = OrthogonalUnits(beta_loc, only00='True') # UNUSED
-        
-        #self.local_states = [[None] * self.Ns] * self.NY
         self.local_states = []
         self.dimB = np.zeros(shape=(self.Ns, self.NY), dtype=int)
         
