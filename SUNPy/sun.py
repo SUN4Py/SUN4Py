@@ -3972,14 +3972,29 @@ def developp_antisymmetric(alpha, y, cy, m, n1, n2):
 
 
 def print_to_latex(y, **kwargs):
-    # Print a SYT to text in LaTeX format, using \ytableau
-    # 
-    # Optional arguments:
-    #   zerobased [True]
-    #   shift
-    #   scale
-    #   colors : dictionnary with keys-value pairs as i: 'col'
-    # 
+    """
+    Print SYT to text in LaTeX format, using \ytableau
+    
+    Parameters
+    ----------
+    y : numpy array
+        SYT
+    zeroBased : bool
+        optional [True]
+        if True, SYT is filled from 0 to n-1 (n=number of boxes in irrep)
+        if False, SYT is filled from 1 to n
+    shift : float
+        optional [0] vertical shift
+    scale : float
+        optional [1] scaling coefficient of size of ytableau
+    colors : dict
+        key-value pairs, box-to-color
+    
+    Remark
+    ------
+    The formatting assumes the following definition in the tex preamble:
+    \newcommand{\shsc}[3]{\mathrel{\raisebox{#1}{\protect\scalebox{#2}{#3}}}}
+    """
     
     if not 'shift' in kwargs:
         kwargs['shift'] = 0
@@ -3995,16 +4010,18 @@ def print_to_latex(y, **kwargs):
     
     n = len(y)
     if not 'colors' in kwargs:
-        c = [''] * n
-        kwargs['colors'] = {i: c[i] for i in range(0, n)}
+        cols = {i: '' for i in range(0, n)}
     else:
         allkeys = [i for i in range(0, n)]
+        cols = {}
         for i in allkeys:
             if i in kwargs['colors'].keys():
                 if not ((kwargs['colors'][i][0:2]=='*(') and (kwargs['colors'][i][-1:]==')')):
-                    kwargs['colors'][i] = '*('+kwargs['colors'][i]+')'
+                    cols[i] = '*('+kwargs['colors'][i]+')'
+                else:
+                    cols[i] = kwargs['colors'][i]
             else:
-                kwargs['colors'][i] = ''
+                cols[i] = ''
     
     nl = np.max(y) + 1 # number of rows in the shape
     
@@ -4017,9 +4034,9 @@ def print_to_latex(y, **kwargs):
         # print all numbers of the j-th row
         line = ''
         for k in range(0, len(indj)-1):
-            line += kwargs['colors'][indj[k]] + str(indj[k]+szb) + ' & '
+            line += cols[indj[k]] + str(indj[k]+szb) + ' & '
         
-        line += kwargs['colors'][indj[-1]] + str(indj[-1]+szb) + ' \\\\ '
+        line += cols[indj[-1]] + str(indj[-1]+szb) + ' \\\\ '
         print(line)
     
     print('\\end{ytableau}}\n')
@@ -4029,19 +4046,28 @@ def print_to_latex(y, **kwargs):
 
 
 def print_subSYT_to_latex(y, alpha, **kwargs):
-    # Print the subSYT <y> in LaTeX format, using \ytableau.
-    # 
-    # Details:
-    #  1) <alpha> is the global shape associated to <y>.
-    #  2) <y> is of length n1, corresponding to the number of boxes in the
-    #     remainder shape <alpha>-alpha0, where alpha0 is the subshape of alpha
-    #
-    # Optional arguments:
-    #   shift
-    #   scale
-    #   lowcol      color for low part (alpha0)
-    #   highcol     color for high part (<alpha>-alpha0)
-    # 
+    """
+    Print a sub-SYT to text in LaTeX format, using \ytableau
+    
+    Parameters
+    ----------
+    y : numpy array
+        sub-SYT
+    alpha : numpy array
+        total irrep
+    shift : float
+        optional [0] vertical shift
+    scale : float
+        optional [1] scaling coefficient of size of ytableau
+    lowcol : str
+        color for the base part
+    highcol : str
+        color for the relevant part
+    Remark
+    ------
+    The formatting assumes the following definition in the tex preamble:
+    \newcommand{\shsc}[3]{\mathrel{\raisebox{#1}{\protect\scalebox{#2}{#3}}}}
+    """
     
     if not 'shift' in kwargs:
         kwargs['shift'] = 0
