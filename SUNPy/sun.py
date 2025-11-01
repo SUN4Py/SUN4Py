@@ -2602,6 +2602,24 @@ def get_local_states(y, cy, beta, site):
 class GeneralBasis:
     
     def __init__(self, alpha, beta, N):
+        """
+        Generate basis of states as tensor product of local states on each site
+        for each equivalence class
+        
+        Parameters
+        ----------
+        alpha : numpy array
+            global irrep
+        beta : numpy array
+            collection of local irreps on each site
+        N : int
+            SU(N)
+        """
+        
+        print('==========================')
+        print('Generating basis')
+        print('==========================')
+        
         self.alpha = alpha
         self.beta = beta
         self.N = N
@@ -2612,8 +2630,8 @@ class GeneralBasis:
         
         # TO DO: To be improved in the future. Compute orthogonal units for the 
         # different irreps appearing in beta
-        beta_loc = beta[0] # here assume same irrep on each site
-        self.orthoUnit = OrthogonalUnits(beta_loc, only00='True')
+        #beta_loc = beta[0] # here assume same irrep on each site # UNUSED
+        #self.orthoUnit = OrthogonalUnits(beta_loc, only00='True') # UNUSED
         
         #self.local_states = [[None] * self.Ns] * self.NY
         self.local_states = []
@@ -2622,29 +2640,10 @@ class GeneralBasis:
         si = int(0)
         
         for site in range(self.Ns):
-            
-            print(site)
-            
             for i in range(self.NY):
-                #self.local_states[i][site] = get_local_states(self.Y[i], self.CY[i], beta, site)
-                
                 self.local_states.append(LocalStates(i, site, self.Y[i], self.CY[i], beta))
-                
-                #--------------------
-                # NOT WORKING FOR SOME WEIRD PYTHON REASON
-                #   THIS GENERATES REFERENCES INSTEAD OF NEW OBJECTS SOMEHOW
-                #loc_st = LocalStates(i, site, self.Y[i], self.CY[i], beta)
-                #self.local_states[i][site] = loc_st
-                #--------------------
-                
-                '''
-                # NEEDS TO BE REPLACED ACCORDING TO NEW INDEXING
-                if self.local_states[i][site].coeffs.shape[0]>0:
-                    self.dimB[site, i] = self.local_states[i][site].coeffs.shape[1]                
-                '''
                 if self.local_states[si].coeffs.shape[0]>0:
                     self.dimB[site, i] = self.local_states[si].coeffs.shape[1]
-                
                 si += 1
         
         self.statesPerClass = np.prod(self.dimB, axis=0)
@@ -2674,10 +2673,22 @@ class GeneralBasis:
         Compute all states corresponding to a given equivalence class, as a 
         development on multiple sites
         
+        Parameters
+        ----------
         ec : int
             index of equivalence class
         sites : numpy array
-            sites to consider
+            sites on which to compute the states
+        
+        Returns
+        -------
+        out : LocalStates
+            states
+        
+        Remark
+        ------
+        This corresponds to performing a kronecker product of local states to 
+        generate a collection of states living on several sites
         """
         
         site1 = np.min(sites)
@@ -2706,11 +2717,9 @@ class GeneralBasis:
             elif (diffoffset>0):
                 off1 = 0
                 off2 = diffoffset
-            else: # thus diffoffset<0
+            else:
                 off1 = -diffoffset
                 off2 = 0
-            
-            # build new SYTs
             
             # number of SYTs in total development so far
             q = out.Ydev.shape[0]
@@ -2718,7 +2727,7 @@ class GeneralBasis:
             # number of SYTs in the developments at <site>
             qadd = local_states_to_add.Ydev.shape[0]
             
-            # merge SYTs
+            # "kronecker cross" SYTs (merging)
             A = np.repeat(local_states_to_add.Ydev[:,-m_to_add:] + off1, repeats=q, axis=0)
             B = np.matlib.repmat(out.Ydev[:,-mtot:] + off2, qadd, 1)
             out.Ydev = np.concatenate((A, B), axis=1)
@@ -2777,43 +2786,41 @@ class SUNGeneral:
         n = self.Basis.Y.shape[1]
         
         iseq = True
-            
+        
         # all particles before p1 must be identically placed
         i = int(1)
         while (i<p1):
             if not ( (y1[i]==y2[i]) & (cy1[i]==cy2[i]) ):
-                iseq = False
-                return iseq
+                return False
             i += 1
         
         # all particles after p2 must be identically placed
         i = p2 + 1
         while (i<n):                
             if not ( (y1[i]==y2[i]) & (cy1[i]==cy2[i]) ):
-                iseq = False
-                return iseq
+                return False
             i += 1   
-        
-        # vectorize the above
+        '''
+        # vectorize the above - not really faster
         iseq2 = True
         ylowdiff = np.sum(abs(y1[:p1] - y2[:p1]))
         if not ylowdiff==0:
             iseq2 = False
+            return iseq
         yhidiff = np.sum(abs(y1[p2+1:] - y2[p2+1:]))
         if not yhidiff==0:
             iseq2 = False
+            return iseq
         if iseq2==False:
             sys.exit('Problem: we should not have entered here')
-        
+        '''
         # check that there is at most 1 interchange
         v1 = np.vstack((y1[particles1], cy1[particles1])).T
         v2 = np.vstack((y2[particles1], cy2[particles1])).T
         
         cpt = int(0)
         for j in range(0, len(particles1)):
-            pj = v1[j, :]
-            # search pj in v2
-            ind = np.argwhere( np.sum(abs( v2 - pj ), axis=1)==0 ).flatten()
+            ind = np.argwhere( np.sum(abs( v2 - v1[j, :] ), axis=1)==0 ).flatten()
             if len(ind)==0:
                 cpt += 1
         
@@ -2827,6 +2834,11 @@ class SUNGeneral:
     def __get_sister_equivalence_class(self, ec1, particles1, particles2):
         """
         Determine the relevant equivalence classes for the <bra|
+        
+        Returns
+        -------
+        ind_ec2 : numpy array
+            indices of compatible equivalence classes
         """
         
         ind_ec2 = np.array([ec1], dtype=int)
@@ -2836,7 +2848,7 @@ class SUNGeneral:
             iseq = self.__check_conditions_equivalence_class(ec1, ec2, particles1, particles2)
             if iseq:
                 ind_ec2 = np.hstack((ind_ec2, ec2))
-            
+        
         return ind_ec2
     
     
