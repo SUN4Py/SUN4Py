@@ -3973,7 +3973,7 @@ def developp_antisymmetric(alpha, y, cy, m, n1, n2):
 
 def print_to_latex(y, **kwargs):
     """
-    Print SYT to text in LaTeX format, using \ytableau
+    Print a SYT to text in LaTeX format, using \ytableau
     
     Parameters
     ----------
@@ -4063,6 +4063,7 @@ def print_subSYT_to_latex(y, alpha, **kwargs):
         color for the base part
     highcol : str
         color for the relevant part
+    
     Remark
     ------
     The formatting assumes the following definition in the tex preamble:
