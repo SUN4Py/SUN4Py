@@ -2620,33 +2620,26 @@ class LocalStates:
                                                                 self.y, 
                                                                 self.cy, 
                                                                 self.particles)
-        n = Proj.shape[0]
+        NY = Proj.shape[0]
         
-        if n==1:
+        if NY==1:
             if abs(Proj[0,0]-1)<1.0e-13:
-                V = np.array([1.0], dtype=float)
+                V = np.array([[1.0]], dtype=float)
                 self.n = int(1)
             else:
-                V = np.array(shape=(0,), dtype=float)
+                V = np.zeros(shape=(0, 0), dtype=float)
                 self.n = int(0)
         else:
-            
-            #ns = scipy.linalg.null_space( (Proj - scipy.sparse.eye(n)).toarray(), overwrite_a=False )
-            ns = sg_null_space( (Proj - scipy.sparse.eye(n)).toarray() )
-            
-            d = ns.shape[1] # dimension of null space
-            self.n = d
-            
-            #---------------------
-            # CAUTION : vectors spanning the null space are stored in the COLUMNS !!!
-            #---------------------
-            if d>0:
-                V = ns
-                for i in range(d):
+            #V = scipy.linalg.null_space( (Proj - scipy.sparse.eye(n)).toarray(), overwrite_a=False )
+            V = sg_null_space( (Proj - scipy.sparse.eye(NY)).toarray() )            
+            self.n = V.shape[1] # dimension of null space
+            # vectors spanning the null space of Proj are stored in the columns of V
+            if self.n>0:
+                for i in range(self.n):
                     if V[0,i]<0:
                         V[:,i] *= (-1.0)
             else:
-                V = np.array(shape=(0,), dtype=float)
+                V = np.zeros(shape=(NY, 0), dtype=float)
         
         self.coeffs = V
         

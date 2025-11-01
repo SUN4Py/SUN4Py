@@ -62,10 +62,12 @@ subY = sun.get_subSYT(alphaTot, alphaB)
 
 N = int(3)
 Ns = int(5)
-alpha = np.array([Ns, Ns, Ns], dtype=int)
+#alpha = np.array([Ns, Ns, Ns], dtype=int)
+#alpha = np.array([4, 3, 1], dtype=int)
 alpha = np.array([6, 5, 4], dtype=int)
-beta_loc = np.array([2, 1, 0], dtype=int)
-#beta_loc = np.array([[3, 0, 0]], dtype=int)
+#beta_loc = np.array([3, 0, 0], dtype=int)
+#beta_loc = np.array([[1, 1, 0]], dtype=int)
+beta_loc = np.array([[2, 1, 0]], dtype=int)
 beta = np.matlib.repmat(beta_loc, Ns, 1)
 
 '''
