@@ -2750,7 +2750,7 @@ class GeneralBasis:
     
     
     
-    def find_index_state(self, ec, site1, site2):
+    def find_indices(self, ec, site1, site2):
         """
         Find the indices in the global basis of states of a given equivalence class
         for a set of sites
@@ -3097,8 +3097,8 @@ class SUNGeneral:
                     # Hloc is of dimension states_class2.n x states_class1.n
                     
                     # duplicate and embedd elements in interaction Hamiltonian in full basis
-                    ind_st_1 = self.Basis.find_index_state(ec1, site1, site2)
-                    ind_st_2 = self.Basis.find_index_state(ec2, site1, site2)
+                    ind_st_1 = self.Basis.find_indices(ec1, site1, site2)
+                    ind_st_2 = self.Basis.find_indices(ec2, site1, site2)
                     
                     # number of duplicates
                     nD = ind_st_1.shape[1]
