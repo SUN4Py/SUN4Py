@@ -8,120 +8,48 @@ Created on Fri Jun 30 11:39:13 2023
 # Copyright 2023 Samuel GOZEL, GNU GPLv3
 
 import numpy as np
-import numpy.matlib
 import scipy.sparse
 import time
 
 import sun
 import Lattice
 
-'''
-nD = int(3)
-n1 = int(4)
-n2 = int(2)
 
-ind_st_1 = np.array([[4, 8, 12],[5,9,13],[6,10,14],[7,11,15]],dtype=int)
-ind_st_2 = np.array([[1,7,13],[4,10,16]], dtype=int)
-
-Hloc = np.reshape(np.arange(1, 9)/10 + np.arange(1, 9), (2, 4))
-
-row = np.matlib.repmat(ind_st_2, 1, n1)
-row = np.reshape(row, (nD*n1*n2, ))
-
-col = np.matlib.repmat(ind_st_1, n2, 1)
-col = np.reshape(col, (nD*n1*n2, ))
-
-elems = np.repeat(Hloc, repeats=nD)
-
-import sys
-sys.exit('')
-'''
-
-
-
-
-
-
-
-#sigma=np.array([3,2,5,0,1,4,6,8,7], dtype=int)
-#at = sun.permutation_to_adjacent_transpositions(sigma)
-
-'''
-alpha = np.array([5, 3, 2], dtype=int)
-Y = sun.get_SYT(alpha)
-CY = sun.get_column(Y)
-
-y = Y[44] # check nb 3
-cy = CY[44]
-sun.print_to_latex(y)
-particles = np.array([4, 5, 6])
-alphaTot, alphaB, alphaP, offset = sun.get_subshape(y, cy, particles)
-
-subY = sun.get_subSYT(alphaTot, alphaB)
-'''
-
+# Example of creation and diagonalization of Heisenberg Hamiltonian with local
+# adjoint irrep on each site
 N = int(3)
 Ns = int(5)
-#alpha = np.array([Ns, Ns, Ns], dtype=int)
-#alpha = np.array([4, 3, 1], dtype=int)
-alpha = np.array([6, 5, 4], dtype=int)
-#beta_loc = np.array([3, 0, 0], dtype=int)
-#beta_loc = np.array([[1, 1, 0]], dtype=int)
-beta_loc = np.array([[2, 1, 0]], dtype=int)
+alpha = np.array([6, 5, 4], dtype=int) # global target sector
+beta_loc = np.array([2, 1, 0], dtype=int) # local irrep
+beta = np.matlib.repmat(beta_loc, Ns, 1) # same local irrep on each site
+
+'''
+# using different irreps at the edges
+beta_loc_edge = np.array([2, 1, 0], dtype=int)
+beta_loc_bulk = np.array([3, 0, 0], dtype=int)
 beta = np.matlib.repmat(beta_loc, Ns, 1)
-
+beta[0] = beta_loc_edge
+beta[-1] = beta_loc_edge
 '''
-Y, CY = sun.get_SYT_general(alpha, beta)
-ortho = sun.OrthogonalUnits(beta_loc, only00='True')
-y = Y[3]
-cy = CY[3]
-particles = np.array([6, 7, 8], dtype=int)
-particles = np.array([9, 10, 11], dtype=int)
-alphaM, alphaB, alphaP, offset = sun.get_subshape(y, cy, particles)
-YM = sun.get_subSYT(alphaM, alphaB, order='LLOS')
-YMc = sun.fill_subSYT(YM, alphaM, fill_type='smallest')
-CYMc = sun.get_column(YMc)
-particles_shifted = particles - particles[0] + np.sum(alphaB)
-P = [None] * (len(particles_shifted) -  1)
-for i in range(0, len(particles_shifted)-1):
-    P[i] = sun.get_adjacent_transposition_matrix(alphaM, YMc, CYMc, k=particles_shifted[i])
-
-Proj = sun.get_projector(beta_loc, y, cy, particles)
-
-V = sun.get_local_states(y, cy, beta, site=3)
-'''
-
-#genBasis = sun.GeneralBasis(alpha, beta, N)
-
-#ls = genBasis.get_states_of_class(ec=int(1), sites=np.array([2, 3], dtype=int))
-
-
-
 
 lattice = Lattice.Lattice(Ns=Ns, typeLattice='chain', isPBC=False)
 
-'''
-#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-symmEngine = sun.SUNSymmetric(Ns, N, 3, alpha, lattice)
-Hsymm = symmEngine.sun_hamiltonian()
-Esymm, PSIsymm = scipy.sparse.linalg.eigsh(Hsymm, k=1, which='SA')
-EGSsymm = Esymm[0]
-print('SYMM GS Energy: ', EGSsymm)
-print('SYMM GS Energy per site: ', EGSsymm/Ns)
-print('------------')
-#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-'''
-
+start = time.perf_counter()
 engine = sun.SUNGeneral(alpha, beta, N, lattice)
+end = time.perf_counter()
+print("Elapsed init general = {}s".format((end - start)))
 
 start = time.perf_counter()
 H = engine.sun_hamiltonian()
 end = time.perf_counter()
-print("Elapsed gen = {}s".format((end - start)))
+print("Elapsed Hamiltonian general = {}s".format((end - start)))
 
 if H.shape[0]==1:
-    H = H.todense()
     EGS = H[0,0]
+elif H.shape[0]<100:
+    H = H.todense()
+    E, _ = np.linalg.eigh(H)
+    EGS = E[0]
 else:
     E, PSI = scipy.sparse.linalg.eigsh(H, k=1, which='SA')
     EGS = E[0]
@@ -129,35 +57,10 @@ else:
 print('GS Energy: ', EGS)
 print('GS Energy per site: ', EGS/Ns)
 
-#######################
+
 
 '''
-sigmaMat, sigmaMatinverse, sigmaMatinverse2 = sun.get_orthogonal_units(alpha)
-for i in range(0, len(sigmaMat)):
-    sigmaMat[i] = sigmaMat[i].toarray()
-    sigmaMatinverse[i] = sigmaMatinverse[i].toarray()
-    sigmaMatinverse2[i] = sigmaMatinverse2[i].toarray()
-'''
-
-'''
-for i in range(0, len(sigmaMat)):
-    res = np.linalg.norm(sigmaMatinverse[i]-sigmaMatinverse2[i])
-    if res>1.0e-14:
-        print(i)
-'''
-
-'''
-ortho = sun.OrthogonalUnits(alpha)
-
-for i in range(ortho.nn):
-    print('-------------')
-    print(ortho.permutations[i])
-    print(ortho.adjaTranspo[i])
-    #print( np.linalg.norm( (ortho.sigmaMat[i] - ortho.sigmaMatv2[i]).toarray() ) )
-    #print(ortho.coeffs[0,0][i])
-'''
-
-'''
+# Example for symmetric local constraints with m particles per site
 N = int(3)
 m = int(1)
 alpha = np.array([4, 3, 2], dtype=int)
@@ -181,45 +84,38 @@ EGS = E[0]
 print('GS Energy: ', E[0])
 '''
 
-
 '''
+# This shows how to use get_subSYT, fill_subSYT and how to print SYTs to text
+# for LaTeX
+# 
+#         x x o                 x x               o
+# alpha = x o     ---> alphaB = x    ; alphaP = o
+#         x o                   x               o
+# 
 alpha = np.array([3, 2, 2], dtype=int)
-alpha0 = np.array([2, 1, 1], dtype=int)
-alpha1 = alpha - alpha0
+alphaB = np.array([2, 1, 1], dtype=int)
+alphaP = alpha - alphaB
 
-Y1 = sun.get_subSYT(alpha, alpha0)
-# Y2 = sun.fill_subSYT(Y1, alpha, fill_type='largest')
-
+Y1 = sun.get_subSYT(alpha, alphaB)
 for i in range(0, Y1.shape[0]):
     sun.print_subSYT_to_latex(Y1[i], alpha, highcol='col2')
+
+Y2 = sun.fill_subSYT(Y1, alpha, fill_type='largest')
+cols = {0: 'blue', 1: 'blue', 2: 'blue', 3: 'red', 4: 'green'}
+for i in range(0, Y2.shape[0]):
+    sun.print_to_latex(Y2[i], colors=cols)
 '''
 
 
 '''
-N = int(3)
-alpha = np.array([3, 2, 2], dtype=int)
-NY = sun.multiplicity(alpha)
-n = np.sum(alpha)
-nlookupboxes = int(4)
-Yalpha = sun.get_SYT(alpha, order='iLLOS')
-
-lkptool = sun.PartialLookupTool(N, alpha, nlookupboxes)
-lkptool.init_lookup()
-
-for i in range(0, Yalpha.shape[0]):
-    ii = lkptool.get_index(Yalpha[i])
-for i in range(0, NY):
-    y = lkptool.get_SYT(i)
-'''
-
-
-'''
-import time
+# This shows that for symmetric local irreps on each site, the general code 
+# for computing the SYTs is much slower than the dedicated symmetric routine
 
 N = int(3)
-alpha=np.array([8, 8, 8], dtype=int)
-beta=np.array([[3,0,0],[3,0,0],[3,0,0],[3,0,0],[3,0,0],[3,0,0],[3,0,0],[3,0,0]],dtype=int)
-
+Ns = int(8)
+alpha = np.array([Ns, Ns, Ns], dtype=int)
+beta_loc = np.array([3, 0, 0], dtype=int)
+beta = np.matlib.repmat(beta_loc, Ns, 1)
 
 start = time.perf_counter()
 Ysymm = sun.get_SYT_symm(alpha, 3, order='iLLOS')
@@ -237,4 +133,6 @@ start = time.perf_counter()
 Ygen, CYgen = sun.get_SYT_general(alpha, beta, N)
 end = time.perf_counter()
 print("Elapsed gen = {}s".format((end - start)))
+
+assert np.linalg.norm(Ysymm - Ygen)==0
 '''
