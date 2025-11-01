@@ -21,9 +21,19 @@ import partitions
 
 
 def get_column(Y):
-    # extract column positions for all SYTs in Y.
-    # Y: array of SYTs, each row is a SYT
-    # 
+    """
+    Extract column positions in SYTs
+    
+    Parameters
+    ----------
+    Y : numpy array
+        collection of SYTs
+    
+    Returns
+    -------
+    CY : numpy array
+        collection of column positions
+    """
     
     if len(Y.shape)==1:
         NY = 1
@@ -42,8 +52,19 @@ def get_column(Y):
 
 
 def transpose_shape(alpha):
-    # Transpose the irrep alpha (each row becomes a column).
-    # 
+    """
+    Transpose an irrep (map rows to columns)
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    
+    Returns
+    -------
+    alphaT : numpy array
+        transposed shape
+    """
     
     alphaT = np.zeros(alpha[0], dtype=int)
     for i in range(0, len(alpha)):
@@ -54,14 +75,26 @@ def transpose_shape(alpha):
 
 
 def casimir_quadratic(alpha):
-    # Compute the permutational quadratic Casimir of an irrep.
-    # 
-    # Refs:
-    # - Eq. (31) of PRB 97, 134420 (2018)
-    # - Eq. (4-25) [for a different formulation] of Group Representation Theory
-    #   for Physicists, Jian-Quan Chen, Jialun Ping and Fan Wang 
-    # - K. Pilch and A. N. Schellekens, J. of Mathematical Physics 25, 3455 (1984)
-    # 
+    """
+    Compute the permutational quadratic Casimir of an irrep
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    
+    Returns
+    -------
+    c : float
+        permutational quadratic casimir
+    
+    References
+    ----------
+    - Eq. (31) of PRB 97, 134420 (2018)
+    - Eq. (4-25) [for a different formulation] of Group Representation Theory
+      for Physicists, Jian-Quan Chen, Jialun Ping and Fan Wang 
+    - K. Pilch and A. N. Schellekens, J. of Mathematical Physics 25, 3455 (1984)
+    """
     
     k = len(np.argwhere(alpha>0).flatten())
     s = transpose_shape(alpha[0:k])
@@ -75,16 +108,26 @@ def casimir_quadratic(alpha):
     lvec = np.arange(1, k+1)
     cprime = 0.5 * ( np.sum(alpha[0:k]*(alpha[0:k] - 2*lvec + 1)) )
     
-    if not cprime==c:
-        sys.exit('Problem computing Casimir')
+    assert cprime==c
     
     return c
 
 
 
 def multiplicity(alpha):
-    # Compute the total number of SYTs associated to the shape alpha.
-    # 
+    """
+    Compute the total number of SYTs associated to the irrep alpha
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    
+    Returns
+    -------
+    falpha : int
+        number of SYTs
+    """
     
     n = np.sum(alpha)
     nl = len(np.argwhere(alpha>0))
@@ -135,18 +178,32 @@ def multiplicity(alpha):
 
 
 def get_SYT(alpha, order='LLOS'):
-    # Get all SYTs for the irrep alpha.
-    # 
-    # By default, in the resulting array, the SYTs are sorted in the ascending
-    # order of the Last Letter Order Sequence, namely:
-    #   Y[0,:] < Y[1,:] < Y[2,:] < ... < Y[-1,:]
-    # 
-    # This can be changed by setting order='iLLOS' in the input arguments.
-    # 
-    # Remarks: 
-    # - the output is an array where SYTs are in the rows
-    # - Y[i,0] = 0, namely the top left box is row=0, coluumn=0 (Python convention)
-    # 
+    """
+    Get all SYTs for the irrep alpha
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    order : str
+        optional ['LLOS']/'iLLOS' order according to the Last Letter Order Sequence
+    
+    Returns
+    -------
+    Y : numpy array
+        collection of SYTs (stored in the rows of Y)
+    
+    Remark
+    ------
+    - Y[i][0] = 0, namely the top left box is row=0, column=0 (Python convention)
+    - By default, in the resulting array, the SYTs are sorted in the ascending
+      order of the Last Letter Order Sequence, namely:
+          Y[0] < Y[1] < Y[2] < ... < Y[-1] (order='LLOS')
+    - increasing order of LLOS (order='LLOS'):
+        1st  SYT: numbers filled row-wise
+        last SYT: numbers filled column-wise
+        (the opposite for 'iLLOS')
+    """
     
     n = np.sum(alpha)
     falpha = multiplicity(alpha)
@@ -384,13 +441,23 @@ def fill_subSYT(Y, alpha, **kwargs):
 
 
 def index_to_SYT(i, alpha, order):
-    # Build the SYT corresponding to index <i> in the <order> for the irrep alpha.
-    # 
-    # Inputs:
-    #   i       index, ranging from 0 to multiplicity(alpha)-1
-    #   alpha   irrep
-    #   order   'LLOS' or 'iLLOS', to specify in which order the index is taken
-    # 
+    """
+    Build the SYT corresponding to its index among the collection of all SYTs
+    
+    Parameters
+    ----------
+    i : int
+        index
+    alpha : numpy array
+        irrep
+    order : str
+        'LLOS' or 'iLLOS' order according to the Last Letter Order Sequence
+    
+    Returns
+    -------
+    y : numpy array
+        SYT
+    """
     
     if order=='LLOS':
         y = index_to_SYT_LLOS(i, alpha, order)
@@ -404,24 +471,29 @@ def index_to_SYT(i, alpha, order):
 
 
 def index_to_SYT_LLOS(i, alpha, order='LLOS'):
-    # Build the SYT corresponding to index <i> in <order> for the irrep <alpha>.
-    # 
-    # Inputs:
-    #   i       index, ranging from 0 to multiplicity(alpha)-1
-    #   alpha   irrep
-    #   order   [optional] default: order='LLOS', to specify in which order the index is taken
-    # 
-    # recall: increasing order of LLOS:
-    #   1st  SYT: numbers filled row-wise
-    #   last SYT: numbers filled column-wise
-    # 
-    # Remarks:
-    #   - The default order is the increasing order of the LLOS, unless the user 
-    #     puts order='iLLOS' (for inverse Last Letter Order Sequence)
-    #   - If the user puts order='iLLOS', the algorithm needs to compute the 
-    #     multiplicity of the irrep <alpha>. It is thus better to use 
-    #     index_to_SYT_iLLOS(i, alpha) to save execution time.
-    # 
+    """
+    Build the SYT corresponding to its index among the collection of all SYTs
+    
+    Parameters
+    ----------
+    i : int
+        index
+    alpha : numpy array
+        irrep
+    order : str
+        optional [default: 'LLOS'] or 'iLLOS' order according to the Last Letter Order Sequence
+    
+    Returns
+    -------
+    y : numpy array
+        SYT
+    
+    Remarks
+    -------
+    For order='iLLOS', the algorithm needs to compute the multiplicity of the 
+    input irrep. It is thus better to use index_to_SYT_iLLOS(i, alpha) to save
+    execution time
+    """
     
     alphap = np.copy(alpha)
     n = np.sum(alphap)
@@ -461,24 +533,29 @@ def index_to_SYT_LLOS(i, alpha, order='LLOS'):
 
 
 def index_to_SYT_iLLOS(i, alpha, order='iLLOS'):
-    # Build the SYT corresponding to index <i> in <order> for the irrep <alpha>.
-    # 
-    # Inputs:
-    #   i       index, ranging from 0 to multiplicity(alpha)-1
-    #   alpha   irrep
-    #   order   [optional] default: order='iLLOS', to specify in which order the index is taken
-    # 
-    # recall: iLLOS = inverse Last Letter Order Sequence:
-    #   1st  SYT: numbers filled column-wise
-    #   last SYT: numbers filled row-wise
-    # 
-    # Remarks:
-    #   - The default order is the decreasing order of the LLOS (so-called iLLOS), 
-    #     unless the user puts order='LLOS'.
-    #   - If the user puts order='LLOS', the algorithm needs to compute the 
-    #     multiplicity of the irrep <alpha>. It is thus better to use 
-    #     index_to_SYT_LLOS(i, alpha) to save execution time.
-    # 
+    """
+    Build the SYT corresponding to its index among the collection of all SYTs
+    
+    Parameters
+    ----------
+    i : int
+        index
+    alpha : numpy array
+        irrep
+    order : str
+        optional [default: 'iLLOS'] or 'LLOS' order according to the Last Letter Order Sequence
+    
+    Returns
+    -------
+    y : numpy array
+        SYT
+    
+    Remarks
+    -------
+    For order='LLOS', the algorithm needs to compute the multiplicity of the 
+    input irrep. It is thus better to use index_to_SYT_LLOS(i, alpha) to save
+    execution time
+    """
     
     alphap = np.copy(alpha)
     n = np.sum(alphap)
