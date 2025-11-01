@@ -2993,7 +2993,7 @@ class SUNGeneral:
                 states_class1 = self.Basis.get_states_of_class(ec=ec1, sites=link)
                 states_class1.Ydev = fill_subSYT(states_class1.Ydev, states_class1.alphaM, fill_type='largest')
                 
-                # generate all SYTs associated to [site1, ..., site2], in LLOS order ---> Yall_ec1_ordered
+                # generate all SYTs associated to [site1, ..., site2]
                 Yall_ordered = get_subSYT(states_class1.alphaM, states_class1.alphaB, order='iLLOS')
                 Yall_ordered = fill_subSYT(Yall_ordered, states_class1.alphaM, fill_type='largest')
                 CYall_ordered = get_column(Yall_ordered)
@@ -3014,7 +3014,8 @@ class SUNGeneral:
                 
                 # compute all transpositions between site1 and site2
                 perms = np.stack( (np.repeat(particles1, repeats=len(particles2)), 
-                                   np.matlib.repmat(particles2, 1, len(particles1)).flatten()), axis=1 )
+                                   np.matlib.repmat(particles2, 1, len(particles1)).flatten()),
+                                   axis=1 )
                 
                 # Compute shift between global numbering (particles1, particles2)
                 # and state-local numbering
@@ -3067,7 +3068,6 @@ class SUNGeneral:
                     n2 = coeffs2.shape[1]
                     assert nD==ind_st_2.shape[1]                    
                     
-                    # duplicate elements
                     rows = np.matlib.repmat(ind_st_2, 1, n1)
                     rows = np.reshape(rows, (nD*n1*n2, ))
                     cols = np.matlib.repmat(ind_st_1, n2, 1)
@@ -3077,7 +3077,9 @@ class SUNGeneral:
                              (vals, (rows, cols)),
                              shape=(self.Basis.NH, self.Basis.NH))
                     if not ec1==ec2:
-                        HTemp += HTemp.T
+                        HTemp += scipy.sparse.csr_matrix(
+                                    (vals, (cols, rows)),
+                                    shape=(self.Basis.NH, self.Basis.NH))
                     
                     Hbond += HTemp
             
