@@ -409,41 +409,58 @@ def test_partial_lookup_get_index(N, alpha, nlookupboxes):
     # GENERAL (ADJOINT)
     #:::::::::::::::::::::::::::::::::::::::::::
     # N=3, Ns=2
-    (np.array([2,2,2], dtype=int), int(3), 'adjoint', int(3), False, -3.0),
-    (np.array([3,2,1], dtype=int), int(3), 'adjoint', int(3), False, 0.0),
-    (np.array([3,3,0], dtype=int), int(3), 'adjoint', int(3), False, 3.0),
-    (np.array([4,1,1], dtype=int), int(3), 'adjoint', int(3), False, 3.0),
-    (np.array([4,2,0], dtype=int), int(3), 'adjoint', int(3), False, 5.0),
+    (np.array([2,2,2], dtype=int), int(3), 'general::adjoint', int(3), False, -3.0),
+    (np.array([3,2,1], dtype=int), int(3), 'general::adjoint', int(3), False, 0.0),
+    (np.array([3,3,0], dtype=int), int(3), 'general::adjoint', int(3), False, 3.0),
+    (np.array([4,1,1], dtype=int), int(3), 'general::adjoint', int(3), False, 3.0),
+    (np.array([4,2,0], dtype=int), int(3), 'general::adjoint', int(3), False, 5.0),
     #:::::::::::::::::::::::::::::::::::::::::::
     # N=3, Ns=3
-    (np.array([3,3,3], dtype=int), int(3), 'adjoint', int(3), False, 0.0),
-    (np.array([4,3,2], dtype=int), int(3), 'adjoint', int(3), False, -2.0),
-    (np.array([4,4,1], dtype=int), int(3), 'adjoint', int(3), False, 1.0),
+    (np.array([3,3,3], dtype=int), int(3), 'general::adjoint', int(3), False, 0.0),
+    (np.array([4,3,2], dtype=int), int(3), 'general::adjoint', int(3), False, -2.0),
+    (np.array([4,4,1], dtype=int), int(3), 'general::adjoint', int(3), False, 1.0),
     #:::::::::::::::::::::::::::::::::::::::::::
     # N=3, Ns=4
-    (np.array([4,4,4], dtype=int), int(3), 'adjoint', int(3), False, -3.928203230275505),
-    (np.array([5,4,3], dtype=int), int(3), 'adjoint', int(3), False, -2.088218984750024),
+    (np.array([4,4,4], dtype=int), int(3), 'general::adjoint', int(3), False, -3.928203230275505),
+    (np.array([5,4,3], dtype=int), int(3), 'general::adjoint', int(3), False, -2.088218984750024),
     #:::::::::::::::::::::::::::::::::::::::::::
     # N=3, Ns=5
-    (np.array([5,5,5], dtype=int), int(3), 'adjoint', int(3), False, -2.3409737774146677),
-    (np.array([6,5,4], dtype=int), int(3), 'adjoint', int(3), False, -3.4623044036159474),
+    (np.array([5,5,5], dtype=int), int(3), 'general::adjoint', int(3), False, -2.3409737774146677),
+    (np.array([6,5,4], dtype=int), int(3), 'general::adjoint', int(3), False, -3.4623044036159474),
+    #:::::::::::::::::::::::::::::::::::::::::::
+    # GENERAL (SYMM)
+    #:::::::::::::::::::::::::::::::::::::::::::
+    # N=3, Ns=4, m=3
+    (np.array([4,4,4], dtype=int), int(3), 'general::symmetric', int(3), False, -3.0),
+    (np.array([5,4,3], dtype=int), int(3), 'general::symmetric', int(3), False, -5.758895915294917),
+    #:::::::::::::::::::::::::::::::::::::::::::
+    # GENERAL (ANTISYMM)
+    #:::::::::::::::::::::::::::::::::::::::::::
+    # N=3, Ns=4, m=2
+    (np.array([3,3,2], dtype=int), int(2), 'general::antisymmetric', int(3), False, 0.585786437626905),
+    (np.array([4,3,1], dtype=int), int(2), 'general::antisymmetric', int(3), False, 2.585786437626907),
 ])
 def test_energy(alpha, m, symmetry, N, isPBC, expected):
+    Ns = np.sum(alpha)//m
+    lattice = Lattice.Lattice(Ns=Ns, typeLattice='chain', isPBC=isPBC)
     if m==1:
-        Ns = np.sum(alpha)
-        lattice = Lattice.Lattice(Ns=Ns, typeLattice='chain', isPBC=isPBC)
         Engine = sun.SUNFundamental(Ns, N, alpha, lattice)
-    else:
-        Ns = np.sum(alpha)//m
-        lattice = Lattice.Lattice(Ns=Ns, typeLattice='chain', isPBC=isPBC)
+    else:        
         if symmetry=='symmetric':
             Engine = sun.SUNSymmetric(Ns, N, m, alpha, lattice)
         elif symmetry=='antisymmetric':
             Engine = sun.SUNAntiSymmetric(Ns, N, m, alpha, lattice)
-        elif symmetry=='adjoint':
-            beta_loc = np.zeros(shape=N, dtype=int)
-            beta_loc[0] = int(2)
-            beta_loc[1:-1] = int(1)
+        elif 'general' in symmetry:
+            if 'adjoint' in symmetry:
+                beta_loc = np.zeros(shape=N, dtype=int)
+                beta_loc[0] = int(2)
+                beta_loc[1:-1] = int(1)
+            elif '::symmetric' in symmetry:
+                beta_loc = np.zeros(shape=N, dtype=int)
+                beta_loc[0] = m
+            elif '::antisymmetric' in symmetry:
+                beta_loc = np.zeros(shape=N, dtype=int)
+                beta_loc[:m] = int(1)
             beta = np.matlib.repmat(beta_loc, Ns, 1)
             Engine = sun.SUNGeneral(alpha, beta, N, lattice)
         else:
