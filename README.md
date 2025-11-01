@@ -1,17 +1,17 @@
 # SUNPy
 A Python3 library for solving SU(N) Heisenberg models
 
-SUNPy (for SU(_N_)Py) is a Python library for solving the SU(_N_) Heisenberg model on a lattice making full use of the SU(_N_) symmetry through standard Young tableaux.
+SUNPy (for SU(_N_)Py) is a Python library for solving the SU(_N_) Heisenberg model (or any other SU(_N_)-symmetric model) on a lattice making full use of the SU(_N_) symmetry through standard Young tableaux.
 
 ## Features
 
-- Compute the number of partitions of an integer _n_.
-- Compute basic quantities related to irreps of SU(_N_) (dimension, number of SYTs, quadratic Casimir, etc ...).
+- Compute basic quantities related to irreducible representations of SU(_N_) (dimension, number of standard Young tableaux, quadratic Casimir, etc ...).
 - Generate standard Young tableaux for any irreducible representation of SU(_N_).
-- Solve Heisenberg-like models on any lattice, for any target irreducible representation.
-- Currently only for the fundamental, symmetric or antisymmetric irrep on each site. Any irrep on each site still to be implemented.
+- Solve Heisenberg-like models on any lattice, for any target irreducible representation, and any local constraints (even space-anisotropic).
 
-SUNPy is by no means expected to execute on large systems. SUNPy has not been developped with the aim of reaching performance.
+By local constraints, we understand different SU(_N_) "spins" (or SU(_N_) qubits/qudits), which are nothing but irreducible representations of the Lie algebra su(_N_).
+
+SUNPy is by no means expected to execute on the largest systems. SUNPy has not been developped with the aim of reaching performance. More on this below.
 
 ## Prerequisites
 
@@ -47,10 +47,12 @@ The code is licensed under GNU GPL-v3.0 as given in the file LICENSE.
 
 ## Authors
 
-Samuel Gozel, [samuel.gozel@psi.ch](mailto:samuel.gozel@psi.ch)
+Samuel Gozel
 
 ## References
 
-[Phys. Rev. Lett. 113, 127204 (2014)](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.113.127204)
+[Phys. Rev. Lett. 113, 127204 (2014)](https://doi.org/10.1103/PhysRevLett.113.127204)
 
-[Phys. Rev. B 93, 155134 (2016)](https://journals.aps.org/prb/abstract/10.1103/PhysRevB.93.155134)
+[Phys. Rev. B 93, 155134 (2016)](https://doi.org/10.1103/PhysRevB.93.155134)
+
+[Phys. Rev. B 96, 115159 (2017)](https://doi.org/10.1103/PhysRevB.96.115159)
