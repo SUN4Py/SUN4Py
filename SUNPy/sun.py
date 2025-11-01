@@ -2793,10 +2793,12 @@ class GeneralBasis:
         
         assert mL*mR == nDublicates
         
+        m1 = statesSpEq[site1]
+        m2 = statesSpEq[site2]
+        assert m1*m2 == NbStates
+        
+        '''
         if site1+1==site2:
-            
-            m1 = statesSpEq[site1]
-            m2 = statesSpEq[site2]
             
             # Duplicate because of offset Right
             index1 = np.arange(offsetClass, offsetClass+mR)
@@ -2830,28 +2832,28 @@ class GeneralBasis:
             index = index4
             
         else:
-            
-            mS = NbStates
-            
-            # duplicate because of offset Right
-            index1 = np.arange(offsetClass, offsetClass+mR)
-            l1 = len(index1)
-            
-            # duplicate because of site1--site2
-            index2 = np.zeros(shape=(mS, l1), dtype=int)
-            
-            index2[0, :] = index1
-            for i2 in range(1, mS):
-                index2[i2, :] = index2[i2-1, :] + mR
-            
-            # Duplicate because of offset Left
-            index3 = np.zeros(shape=(mS, l1*mL), dtype=int)
-            
-            index3[:, :mR] = index2
-            for iL in range(1, mL):
-                index3[:, iL*mR:(iL+1)*mR] = index3[:,(iL-1)*mR:iL*mR] + mS*mR
-            
-            index = index3
+        '''    
+        mS = NbStates
+        
+        # duplicate because of offset Right
+        index1 = np.arange(offsetClass, offsetClass+mR)
+        l1 = len(index1)
+        
+        # duplicate because of site1--site2
+        index2 = np.zeros(shape=(mS, l1), dtype=int)
+        
+        index2[0, :] = index1
+        for i2 in range(1, mS):
+            index2[i2, :] = index2[i2-1, :] + mR
+        
+        # Duplicate because of offset Left
+        index3 = np.zeros(shape=(mS, l1*mL), dtype=int)
+        
+        index3[:, :mR] = index2
+        for iL in range(1, mL):
+            index3[:, iL*mR:(iL+1)*mR] = index3[:,(iL-1)*mR:iL*mR] + mS*mR
+        
+        index = index3
         
         return index
     
