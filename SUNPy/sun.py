@@ -2690,8 +2690,7 @@ class GeneralBasis:
         for site in range(self.Ns):
             for i in range(self.NY):
                 self.local_states.append(LocalStates(i, site, self.Y[i], self.CY[i], beta))
-                if self.local_states[si].coeffs.shape[0]>0:
-                    self.dimB[site, i] = self.local_states[si].coeffs.shape[1]
+                self.dimB[site, i] = self.local_states[si].n
                 si += 1
         
         self.statesPerClass = np.prod(self.dimB, axis=0)
