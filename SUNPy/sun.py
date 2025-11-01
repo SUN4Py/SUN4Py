@@ -2999,13 +2999,10 @@ class SUNGeneral:
                 CYall_ordered = get_column(Yall_ordered)
                 
                 # re-index components of states onto the full local basis
-                coeffs1 = np.zeros(shape=(Yall_ordered.shape[0], states_class1.n), dtype=float)
-                index_map1 = np.zeros(states_class1.Ydev.shape[0], dtype=int)
-                for i in range(0, states_class1.Ydev.shape[0]):
-                    ind = np.argwhere( np.sum(abs(Yall_ordered - states_class1.Ydev[i]), axis=1) < 1e-13).flatten()
-                    assert len(ind)==1
-                    index_map1[i] = ind[0]       
-                coeffs1[index_map1, :] = states_class1.coeffs
+                coeffs1 = reorder_development(Yall_ordered, 
+                                              states_class1.Ydev, 
+                                              states_class1.coeffs, 
+                                              'cols')
                 
                 # generate all matrices of adjacent transpositions from <Yall_ordered>
                 P1 = []
@@ -3053,13 +3050,10 @@ class SUNGeneral:
                     if ec2==ec1:
                         coeffs2 = coeffs1
                     else:
-                        coeffs2 = np.zeros(shape=(Yall_ordered.shape[0], states_class2.n), dtype=float)
-                        index_map2 = np.zeros(states_class2.Ydev.shape[0], dtype=int)
-                        for i in range(0, states_class2.Ydev.shape[0]):
-                            ind = np.argwhere( np.sum(abs(Yall_ordered - states_class2.Ydev[i]), axis=1) < 1e-13).flatten()
-                            assert len(ind)==1
-                            index_map2[i] = ind[0]
-                        coeffs2[index_map2, :] = states_class2.coeffs
+                        coeffs2 = reorder_development(Yall_ordered, 
+                                                      states_class2.Ydev, 
+                                                      states_class2.coeffs, 
+                                                      'cols')
                     
                     # build local interaction Hamiltonian
                     Hloc = coeffs2.T @ Hcoeffs1
@@ -3091,6 +3085,61 @@ class SUNGeneral:
             
         return H
 
+
+
+def reorder_development(Ynew, Ydev, coeffdev, layout):
+    """
+    Reorder a collection of developments (states) onto a new basis
+    
+    Parameters
+    ----------
+    Ynew : numpy array
+        new ordered basis of SYTs
+    Ydev : numpy array
+        SYTs of developments (states)
+    coeffdev : numpy array
+        expansion coefficients
+    layout : str
+        storage layout followed by coeffdev ['rows' or 'cols']
+    
+    Returns
+    -------
+    out : numpy array
+        expansion coefficients in basis defined by input Ynew
+    
+    Remark
+    ------
+    The output layout is identical to the input layout
+    """
+    
+    assert Ynew.shape[1]==Ydev.shape[1]
+    
+    n = Ydev.shape[0] # number of SYTs in each development
+    NY = Ynew.shape[0] # dimension of new basis
+    
+    if layout=='rows':
+        Nstates = coeffdev.shape[0]
+        assert coeffdev.shape[1]==n
+        out = np.zeros(shape=(Nstates, NY), dtype=float)
+    elif layout=='cols':
+        Nstates = coeffdev.shape[1]
+        assert coeffdev.shape[0]==n
+        out = np.zeros(shape=(NY, Nstates), dtype=float)
+    else:
+        sys.exit('Undefined layout')
+    
+    index_map = np.zeros(n, dtype=int)
+    for i in range(0, n):
+        ind = np.argwhere( np.sum(abs(Ynew - Ydev[i]), axis=1) < 1e-13).flatten()
+        assert len(ind)==1
+        index_map[i] = ind[0]
+    
+    if layout=='rows':
+        out[:, index_map] = coeffdev
+    else:
+        out[index_map, :] = coeffdev
+    
+    return out
 
 
 def get_matrix_permutation(P, at):
