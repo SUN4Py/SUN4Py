@@ -2764,15 +2764,7 @@ class GeneralBasis:
             
             the i-th state of the equivalence class must be duplicated at 
             positions index[i,:]
-        """
-        
-        # Recall that
-        #   self.Basis.dimB : self.Basis.Ns x self.Basis.NY : number of states at (site, eqclass)
-        # 
-        #   self.Basis.statesPerClass : self.Basis.NY : number of states for each equivalence class
-        # 
-        #   self.Basis.NH : int : total Hilbert space dimension
-        
+        """        
         
         # distribution of states among the different sites in the class
         statesSpEq = self.dimB[:, ec]
@@ -2839,9 +2831,7 @@ class GeneralBasis:
             
         else:
             
-            mS = np.prod(statesSpEq[site1:site2+1])
-            assert mS==NbStates
-            # thus mS should not be recomputed
+            mS = NbStates
             
             # duplicate because of offset Right
             index1 = np.arange(offsetClass, offsetClass+mR)
