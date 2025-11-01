@@ -2480,7 +2480,31 @@ class OrthogonalUnits:
 
 def get_projector(beta_loc, y, cy, particles):
     """
+    Compute projector onto a local irrep from an orthogonal unit
     
+    Parameters
+    ----------
+    beta_loc : numpy array
+        local irrep for projector
+    y : numpy array
+        SYT of equivalence class
+    cy : numpy array
+        associated column positions
+    particles : numpy array
+        positions in the SYT corresponding to the local irrep
+    
+    Returns
+    -------
+    Proj : scipy.sparse.csr.csr_matrix
+        Projector onto local irrep, expressed in a basis of SYTs
+    YMc : numpy array
+        basis of SYTs used to express the projector
+    CYMc : numpy array
+        associated column positions
+    alphaM, alphaB, alphaP : numpy arrays
+        alphaB+alphaP = alphaM ; alphaM minimal irrep
+    offset : int
+        row offset of particles
     """
     
     particles = np.sort(particles)
@@ -2502,7 +2526,11 @@ def get_projector(beta_loc, y, cy, particles):
     particles_shifted = particles - particles[0] + np.sum(alphaB)
     P = [None] * (npart -  1)
     for i in range(0, npart-1):
-        P[i] = get_adjacent_transposition_matrix(alphaM, YMc, CYMc, k=particles_shifted[i])
+        P[i] = get_adjacent_transposition_matrix(
+                    alphaM, 
+                    YMc, 
+                    CYMc, 
+                    k=particles_shifted[i])
         
     # build matrix of projector
     Proj = scipy.sparse.csr_matrix((NYMc, NYMc))
