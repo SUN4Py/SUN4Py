@@ -2530,88 +2530,99 @@ class LocalStates:
     
     def __init__(self, ec, site, y, cy, beta):
         """
-        ec: equivalence class
-        site: site
-        y : SYT of equivalence class
-        cy : column positions
-        beta : all local irreps
+        Generate the local states for an equivalence class at a given site
+        
+        Parameters
+        ----------
+        ec : int
+            index of equivalence class
+        site : int
+            site
+        y : numpy array
+            SYT of equivalence class
+        cy : numpy array
+            associated column positions
+        beta : numpy array
+            all local irreps
+        
+        Remark
+        ------
+        States are obtained by computing the kernel of a projector obtained 
+        from orthogonal units
         """
         
         self.site = np.array([site], dtype=int)
         self.ec = ec
         self.y = np.copy(y)
         self.cy = np.copy(cy)
+        self.beta = np.copy(beta)
         beta_loc = np.copy(beta[site])
         self.particles = np.sum(np.sum(beta[0:site])) + np.arange(0, np.sum(beta_loc))
         
-        self.coeffs, self.Ydev, self.CYdev, self.alphaM, self.alphaB, self.alphaP, self.offset = get_local_states(y, cy, beta, site)
-        # recall alphaP + alphaB = alphaM
-        
-        # number of states  !!! CAUTION !!!
-        self.n = self.coeffs.shape[1]
+        self.__get_local_states()
         
         return
     
-
-
-
-def get_local_states(y, cy, beta, site):
-    """
-    Compute the states at a local site, obtained as the kernel of the projector
-    onto the local irrep
     
-    Returns
-    -------
-    coeffs : numpy array
-        expansion coefficients
-        states are stored in the columns
-    YProj : numpy array
-        SYTs
-    CYProj : numpy array
-        associated column positions
-    alphaM, alphaB, alphaP  : numpy arrays
-        alphaB+alphaP=alphaM ; alphaM minimal irrep
-    offset : int
-        row offset
-    """
     
-    beta_loc = beta[site]
-    
-    particles = np.sum(np.sum(beta[0:site])) + np.arange(0, np.sum(beta_loc))
-    
-    Proj, YProj, CYProj, alphaM, alphaB, alphaP, offset = get_projector(
-                                                            beta_loc, 
-                                                            y, 
-                                                            cy, 
-                                                            particles)
-    n = Proj.shape[0]
-    
-    if n==1:
-        if abs(Proj[0,0]-1)<1.0e-13:
-            V = np.array([1.0], dtype=float)
+    def __get_local_states(self):
+        """
+        Compute the states at a local site, obtained as the kernel of the projector
+        onto the local irrep
+        
+        Returns
+        -------
+        coeffs : numpy array
+            expansion coefficients
+            states are stored in the columns
+        YProj : numpy array
+            SYTs
+        CYProj : numpy array
+            associated column positions
+        alphaM, alphaB, alphaP  : numpy arrays
+            alphaB+alphaP=alphaM ; alphaM minimal irrep
+        offset : int
+            row offset
+        """
+        
+        beta_loc = self.beta[self.site[0]]
+        
+        Proj, self.Ydev, self.CYdev, self.alphaM, self.alphaB, self.alphaP, self.offset = get_projector(
+                                                                beta_loc, 
+                                                                self.y, 
+                                                                self.cy, 
+                                                                self.particles)
+        n = Proj.shape[0]
+        
+        if n==1:
+            if abs(Proj[0,0]-1)<1.0e-13:
+                V = np.array([1.0], dtype=float)
+                self.n = int(1)
+            else:
+                V = np.array(shape=(0,), dtype=float)
+                self.n = int(0)
         else:
-            V = np.array(shape=(0,), dtype=float)
-    else:
+            
+            #ns = scipy.linalg.null_space( (Proj - scipy.sparse.eye(n)).toarray(), overwrite_a=False )
+            ns = sg_null_space( (Proj - scipy.sparse.eye(n)).toarray() )
+            
+            d = ns.shape[1] # dimension of null space
+            self.n = d
+            
+            #---------------------
+            # CAUTION : vectors spanning the null space are stored in the COLUMNS !!!
+            #---------------------
+            if d>0:
+                V = ns
+                for i in range(d):
+                    if V[0,i]<0:
+                        V[:,i] *= (-1.0)
+            else:
+                V = np.array(shape=(0,), dtype=float)
         
-        #ns = scipy.linalg.null_space( (Proj - scipy.sparse.eye(n)).toarray(), overwrite_a=False )
-        ns = sg_null_space( (Proj - scipy.sparse.eye(n)).toarray() )
+        self.coeffs = V
         
-        d = ns.shape[1] # dimension of null space
-        
-        #---------------------
-        # CAUTION : vectors spanning the null space are stored in the COLUMNS !!!
-        #---------------------
-        if d>0:
-            V = ns
-            for i in range(d):
-                if V[0,i]<0:
-                    V[:,i] *= (-1.0)
-        else:
-            V = np.array(shape=(0,), dtype=float)
-    
-    coeffs = V
-    
-    return coeffs, YProj, CYProj, alphaM, alphaB, alphaP, offset
+        return
 
 
 
