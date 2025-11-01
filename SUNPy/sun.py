@@ -2544,7 +2544,7 @@ class LocalStates:
         beta_loc = np.copy(beta[site])
         self.particles = np.sum(np.sum(beta[0:site])) + np.arange(0, np.sum(beta_loc))
         
-        self.coeffs, self.Ydev, self.CYdev, self.alphaM, self.alphaB, self.alphaP, self.offset =  get_local_states(y, cy, beta, site)
+        self.coeffs, self.Ydev, self.CYdev, self.alphaM, self.alphaB, self.alphaP, self.offset = get_local_states(y, cy, beta, site)
         # recall alphaP + alphaB = alphaM
         
         # number of states  !!! CAUTION !!!
@@ -2557,16 +2557,33 @@ class LocalStates:
 
 def get_local_states(y, cy, beta, site):
     """
+    Compute the states at a local site, obtained as the kernel of the projector
+    onto the local irrep
     
-    !!! IMPORTANT: states are stored in column in the output <coeffs> !!!
-    
+    Returns
+    -------
+    coeffs : numpy array
+        expansion coefficients
+        states are stored in the columns
+    YProj : numpy array
+        SYTs
+    CYProj : numpy array
+        associated column positions
+    alphaM, alphaB, alphaP  : numpy arrays
+        alphaB+alphaP=alphaM ; alphaM minimal irrep
+    offset : int
+        row offset
     """
     
     beta_loc = beta[site]
     
     particles = np.sum(np.sum(beta[0:site])) + np.arange(0, np.sum(beta_loc))
     
-    Proj, YProj, CYProj, alphaM, alphaB, alphaP, offset = get_projector(beta_loc, y, cy, particles)
+    Proj, YProj, CYProj, alphaM, alphaB, alphaP, offset = get_projector(
+                                                            beta_loc, 
+                                                            y, 
+                                                            cy, 
+                                                            particles)
     n = Proj.shape[0]
     
     if n==1:
@@ -2584,7 +2601,6 @@ def get_local_states(y, cy, beta, site):
         #---------------------
         # CAUTION : vectors spanning the null space are stored in the COLUMNS !!!
         #---------------------
-        
         if d>0:
             V = ns
             for i in range(d):
@@ -2707,19 +2723,19 @@ class GeneralBasis:
             
             diffoffset = out.offset - local_states_to_add.offset
             
-            # diffoffset > 0 ==> <site>+1 particles start at a row BELOW <site> particles
-            # diffoffset < 0 ==> <site>+1 particles start at a row ABOVE <site> particles
-            # diffoffset = 0 ==> <site>+1 particles start at the same row as <site> particles
+            # diffoffset>0 ==> site+1 particles start at a row BELOW site particles
+            # diffoffset<0 ==> site+1 particles start at a row ABOVE site particles
+            # diffoffset==0 ==> site+1 particles start at the same row as site particles
             
             if (diffoffset==0):
-                off1 = 0
-                off2 = 0
+                off1 = int(0)
+                off2 = int(0)
             elif (diffoffset>0):
-                off1 = 0
+                off1 = int(0)
                 off2 = diffoffset
             else:
                 off1 = -diffoffset
-                off2 = 0
+                off2 = int(0)
             
             # number of SYTs in total development so far
             q = out.Ydev.shape[0]
@@ -2744,7 +2760,10 @@ class GeneralBasis:
             mtot += m_to_add
         
         # update shapes
-        out.alphaM, out.alphaB, out.alphaP, out.offset = get_subshape(out.y, out.cy, out.particles)
+        out.alphaM, out.alphaB, out.alphaP, out.offset = get_subshape(
+                                                            out.y, 
+                                                            out.cy, 
+                                                            out.particles)
         
         return out
     
