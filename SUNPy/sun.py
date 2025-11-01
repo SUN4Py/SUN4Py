@@ -2864,22 +2864,6 @@ class GeneralBasis:
             index = index3
         
         return index
-
-
-
-class SUNGeneral:
-    
-    def __init__(self, alpha, beta, N, lattice):
-        
-        self.N = N
-        self.Ns = beta.shape[0]
-        self.alpha = alpha
-        self.beta = beta
-        self.lattice = lattice
-        
-        self.Basis = GeneralBasis(alpha, beta, N)
-        
-        return
     
     
     
@@ -2893,14 +2877,14 @@ class SUNGeneral:
             True if ec1 and ec2 are compatible
         """
         
-        y1 = self.Basis.Y[ec1]
-        cy1 = self.Basis.CY[ec1]
-        y2 = self.Basis.Y[ec2]
-        cy2 = self.Basis.CY[ec2]
+        y1 = self.Y[ec1]
+        cy1 = self.CY[ec1]
+        y2 = self.Y[ec2]
+        cy2 = self.CY[ec2]
         
         p1 = np.min(particles1)
         p2 = np.max(particles2)
-        n = self.Basis.Y.shape[1]
+        n = self.Y.shape[1]
         
         iseq = True
         
@@ -2948,9 +2932,9 @@ class SUNGeneral:
     
     
     
-    def __get_sister_equivalence_class(self, ec1, particles1, particles2):
+    def get_sister_equivalence_class(self, ec1, particles1, particles2):
         """
-        Determine the relevant equivalence classes for the <bra|
+        Determine the relevant equivalence classes coupling with an input class
         
         Returns
         -------
@@ -2961,12 +2945,28 @@ class SUNGeneral:
         ind_ec2 = np.array([ec1], dtype=int)
         
         # one should parallelize this loop, taking care of the creation (append) of ind_ec2
-        for ec2 in range(ec1+1, self.Basis.NY):
+        for ec2 in range(ec1+1, self.NY):
             iseq = self.__check_conditions_equivalence_class(ec1, ec2, particles1, particles2)
             if iseq:
                 ind_ec2 = np.hstack((ind_ec2, ec2))
         
         return ind_ec2
+
+
+
+class SUNGeneral:
+    
+    def __init__(self, alpha, beta, N, lattice):
+        
+        self.N = N
+        self.Ns = beta.shape[0]
+        self.alpha = alpha
+        self.beta = beta
+        self.lattice = lattice
+        
+        self.Basis = GeneralBasis(alpha, beta, N)
+        
+        return
     
     
     
@@ -3052,7 +3052,7 @@ class SUNGeneral:
                 Hcoeffs1 = Hint @ coeffs1
                 
                 # Determine all relevant equivalence classes for the <bra|
-                ind_ec2 = self.__get_sister_equivalence_class(ec1, particles1, particles2)
+                ind_ec2 = self.Basis.get_sister_equivalence_class(ec1, particles1, particles2)
                 
                 # Iterate over <bra| equivalence class
                 for ec2 in ind_ec2:
