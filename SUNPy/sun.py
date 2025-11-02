@@ -158,7 +158,7 @@ def multiplicity(alpha):
             arnum[i] = 1
     
     # we further reduce by finding common divisors among prime numbers
-    divisors = np.array([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31], dtype=int) # 11 first prime numbers
+    divisors = np.array([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31], dtype=int)
     for i in range(0, len(arnum)):
         for t in range(0, 4): # 4 repetitions of the loop below
             for d in divisors:
@@ -965,9 +965,21 @@ def SYT_to_index_symm(y, alpha, m, order='LLOS'):
 
 
 def binary_search_SYT(y, Y):
-    # Search the index of SYT <y> in the list of all SYTs <Y> through a binary
-    # search.
-    # 
+    """
+    Search the index of a SYT in a collection of SYTs using binary search
+    
+    Parameters
+    ----------
+    y : numpy array
+        SYT
+    Y : numpy array
+        collection of SYTs
+    
+    Returns
+    -------
+    m : int
+        index of y in Y
+    """
     
     NY = Y.shape[0]
     n = Y.shape[1]
@@ -997,10 +1009,22 @@ def binary_search_SYT(y, Y):
 
 
 def multiplicity_symm(alpha, m):
-    # Compute the total number of SYTs for the irrep alpha, satisfying the 
-    # constraints of local symmetry with m particles per site in the symmetric
-    # irrep.
-    # 
+    """
+    Compute the total number of SYTs associated to the irrep alpha for local 
+    m-box symmetric constraints
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    m : int
+        number of boxes in local symmetric irrep
+    
+    Returns
+    -------
+    kostka : int
+        number of SYTs
+    """
     
     if not np.sum(alpha)%m==0:
         sys.exit('Problem: number of boxes in alpha must be a multiple of m')
@@ -1179,8 +1203,19 @@ def multiplicity_symm(alpha, m):
 
 
 def get_bottom_corner(alpha):
-    # Extract the bottom corners of the shape alpha.
-    # 
+    """
+    Extract the bottom corners of an irrep
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    
+    Returns
+    -------
+    bc : numpy array
+        rows of bottom corners
+    """
     
     alphap = np.hstack([alpha, 0])
     delta = alpha - alphap[1:]
@@ -1246,8 +1281,9 @@ def get_transpositions(links):
 
 
 def get_axial_distance(y, cy, i, j):
-    # Compute axial distance from i to j in SYT y (and columns cy).
-    # 
+    """
+    Compute axial distance from i to j in SYT y (and columns cy)
+    """
     
     ad = cy[i] - y[i] - cy[j] + y[j]
     
@@ -1255,9 +1291,28 @@ def get_axial_distance(y, cy, i, j):
 
 
 def get_new_shape(alpha, y):
-    # Get the remaining shape once all boxes corrresponding to the particles 
-    # already placed in y are removed from alpha
-    # 
+    """
+    Extract remaining irrep from a subSYT associated to an irrep
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    y : numpy array
+        partially-filled SYT
+    
+    Returns
+    -------
+    alphap : numpy array
+        irrep of free boxes
+        
+    Example
+    -------
+    alpha = [3, 2, 1], y = [-1, -1, -1, -1, 2, 0]
+                  x x 5               x x
+    partial SYT = x x   ---> alphap = x x = [2, 2]
+                  4
+    """
     
     n = len(y)
     idst = np.argwhere(y>=0).flatten()
@@ -1342,7 +1397,7 @@ def dim_irrep_sun(alpha, N):
         denomvec = np.array([1], dtype=int)
     else:
         # we further reduce by finding common divisors among prime numbers
-        divisors = np.array([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31], dtype=int) # 11 first prime numbers
+        divisors = np.array([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31], dtype=int)
         for d in divisors:
             for t in range(0, 4): # 4 repetitions of the loops below
                 for i in range(0, len(numvec)):
@@ -1361,12 +1416,21 @@ def dim_irrep_sun(alpha, N):
 
 
 def get_SSYT(alpha, N):
-    # Get the collection of semi-standard Young tableaux for the irrep alpha of
-    # SU(N).
-    # 
-    # Output:
-    #   vec     numpy array. The SSYTs are in rows in vec
-    # 
+    """
+    Get all semi-standard Young tableaux of an irrep
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    N : int
+        SU(N)
+    
+    Returns
+    -------
+    vec : numpy array
+        collection of SSYTs
+    """
     
     nl = len(np.argwhere(alpha>0).flatten())
     if nl>N:
@@ -1391,7 +1455,9 @@ def get_SSYT(alpha, N):
     # create max pattern
     vec[0,0:N] = np.copy(alpha)
     for p in range(1, N):
-        vec[0, p+long_ligne_offset[1:N-p+1]-1] = np.full(shape=(1, N-p), fill_value=vec[0, p-1], dtype=int)
+        vec[0, p+long_ligne_offset[1:N-p+1]-1] = np.full(shape=(1, N-p), 
+                                                         fill_value=vec[0, p-1], 
+                                                         dtype=int)
     
     for s in range(1, dimension):
         vectemp = np.copy(vec[s-1, :])
@@ -1422,11 +1488,34 @@ def get_SSYT(alpha, N):
 
 
 def tensor_product_irrep(alpha1, alpha2, N):
-    # Compute the tensor product of two irreps of SU(N).
-    # 
-    # Remark:
-    # - The total number of boxes is preserved.
-    # 
+    """
+    Tensor product of two irreps
+    
+    Parameters
+    ----------
+    alpha1 : numpy array
+        irrep
+    alpha2 : numpy array
+        irrep
+    N : int
+        SU(N)
+    
+    Returns
+    -------
+    alpha : numpy array
+        collection of irreps
+    
+    Remarks
+    -------
+    - Number of boxes is preserved (columns with N boxes are not removed)
+    - Irreps with non-trivial multiplicities appear as many times in alpha
+    
+    Example
+    -------
+    SU(3), alpha1 = alpha2 = adjoint = [2, 1, 0]
+        [2, 1, 0] x [2, 1, 0] = singlet + 2xadjoint + [3, 0, 0] + [3, 3, 0] + [4, 2, 0]
+        out: alpha = [[4, 2, 0], [3, 3, 0], [4, 1, 1], [3, 2, 1], [3, 2, 1], [2, 2, 2]]
+    """
     
     nl1 = len(np.argwhere(alpha1>0).flatten())
     nl2 = len(np.argwhere(alpha2>0).flatten())
@@ -1521,11 +1610,21 @@ def tensor_product_irrep(alpha1, alpha2, N):
 
 
 def reduce_shape(alpha):
-    # Count the number of occurences of all shapes contained in the input
-    # 
-    # Input: 
-    #   alpha   collection of irreps. irreps are stored in the rows
-    # 
+    """
+    Count number of occurences of each irrep
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        collection of irreps, with potential repetitions
+    
+    Returns
+    -------
+    alpha1 : numpy array
+        collection of unique irreps
+    multi1 : numpy array
+        multiplicity of each irrep in alpha1
+    """
     
     if len(alpha.shape)==1:
         # there is only one shape
@@ -1557,8 +1656,34 @@ def reduce_shape(alpha):
 
 
 def merge_shapes(alpha1, multi1, alpha2, multi2):
-    # merge two combinations of shapes with their multiplicities.
-    # 
+    """
+    Add two decompositions of irreps
+    
+    Parameters
+    ----------
+    alpha1 : numpy array
+        collection of irreps
+    multi1 : numpy array
+        multiplicities of irreps in alpha1
+    alpha2 : numpy array
+        collection of irreps
+    multi2 : numpy array
+        multiplicities of irreps in alpha2
+    
+    Returns
+    -------
+    alpha : numpy array
+        collection of irreps
+    multi : numpy array
+        multiplicities of irreps in alpha
+    
+    Remarks
+    -------
+    \left( \oplus_{j=0}^{N_1} \mu^{(1)}_j \alpha^{(1)}_j \right) 
+        \oplus \left( \oplus_{j=0}^{N_2} \mu^{(2)}_j \alpha^{(2)}_j \right)
+        ------
+    This operation
+    """
     
     n1 = len(multi1)
     n2 = len(multi2)
@@ -1593,12 +1718,23 @@ def merge_shapes(alpha1, multi1, alpha2, multi2):
 
 
 def multiplicity_irrep_mixed(alpha, beta, N):
-    # Compute the number of times that alpha occurs in the tensor product of 
-    # all irreps in beta.
-    # 
-    # Remark:
-    # - beta must be a numpy array of irreps, each irrep stored in the rows.
-    # 
+    """
+    Compute the multiplicity of an irrep in the tensor product of several irreps
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        target irrep
+    beta : numpy array
+        collection of local irreps in the tensor product
+    N : int
+        SU(N)
+    
+    Returns
+    -------
+    fmixedalpha : int
+        multiplicity of alpha in the tensor product of all irreps in beta
+    """
     
     n = np.sum(alpha)
     
@@ -1618,7 +1754,7 @@ def multiplicity_irrep_mixed(alpha, beta, N):
         Ns = 1
         beta = np.reshape(beta, (Ns, -1))
     else:
-        # irreps are stored in the rowss
+        # irreps are stored in the rows
         Ns = beta.shape[0]
     
     if Ns==1:
@@ -1836,15 +1972,19 @@ def get_list_irreps(N, num_irreps, n):
 
 
 def get_SYT_symm(alpha, m, order='LLOS'):
-    # Compute all SYTs for the irrep alpha with m particles per site in the 
-    # symmetric irrep with m boxes.
-    # 
-    # By default, in the resulting array, the SYTs are sorted in the ascending
-    # order of the Last Letter Order Sequence, namely:
-    #   Y[0,:] < Y[1,:] < Y[2,:] < ... < Y[-1,:]
-    # 
-    # This can be changed by setting order='iLLOS' in the input arguments.
-    # 
+    """
+    Compute all SYTs for an irrep alpha satisfying local constraints defined by
+    a symmetric irrep with m boxes
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        target irrep
+    m : int
+        number of particles per site (in the symmetric irrep)
+    order : str
+        optional [default: 'LLOS'] or 'iLLOS' order of output SYTs
+    """
 
     n = np.sum(alpha)
     Ns = n//m
@@ -1956,15 +2096,19 @@ def get_SYT_symm(alpha, m, order='LLOS'):
 
 
 def get_SYT_antisymm(alpha, m, order='LLOS'):
-    # Compute all SYTs for the irrep alpha with m particles per site in the 
-    # antisymmetric irrep with m boxes.
-    # 
-    # By default, in the resulting array, the SYTs are sorted in the ascending
-    # order of the Last Letter Order Sequence, namely:
-    #   Y[0,:] < Y[1,:] < Y[2,:] < ... < Y[-1,:]
-    # 
-    # This can be changed by setting order='iLLOS' in the input arguments.
-    # 
+    """
+    Compute all SYTs for an irrep alpha satisfying local constraints defined by
+    an anti-symmetric irrep with m boxes
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        target irrep
+    m : int
+        number of particles per site (in the anti-symmetric irrep)
+    order : str
+        optional [default: 'LLOS'] or 'iLLOS' order of output SYTs
+    """
     
     n = np.sum(alpha)
     Ns = n//m
@@ -2620,6 +2764,10 @@ def get_projector(beta_loc, y, cy, particles):
 
 
 def sg_null_space(A, rcond=None):
+    """
+    Basic implementation for
+        scipy.linalg.null_space( A, rcond=None )
+    """
     u, s, vh = scipy.linalg.svd(A, full_matrices=True)
     M, N = u.shape[0], vh.shape[1]
     if rcond is None:
