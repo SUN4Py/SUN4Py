@@ -7,9 +7,9 @@ SUNPy (for SU(_N_)Py) is a Python library for solving the SU(_N_) Heisenberg mod
 
 - Compute basic quantities related to irreducible representations of SU(_N_) (dimension, number of standard Young tableaux, quadratic Casimir, etc ...).
 - Generate standard Young tableaux for any irreducible representation of SU(_N_).
-- Solve Heisenberg-like models on any lattice, for any target irreducible representation, and any local constraints (even space-anisotropic).
+- Solve Heisenberg-like models on any lattice, for any target irreducible representation, and any local constraints.
 
-By local constraints, we understand different SU(_N_) "spins" (or SU(_N_) qubits/qudits), which are nothing but irreducible representations of the Lie algebra su(_N_).
+By local constraints, we understand different SU(_N_) "spins", which are nothing but irreducible representations of the Lie algebra su(_N_).
 
 SUNPy is by no means expected to execute on the largest systems. SUNPy has not been developped with the aim of reaching performance. More on this below.
 
