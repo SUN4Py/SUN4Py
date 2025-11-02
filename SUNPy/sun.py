@@ -4682,44 +4682,33 @@ class SUNSymmetric:
         
     
     def sun_hamiltonian(self):
-        # Compute the matrix of the SU(N) Heisenberg model
-        # 
         
         H = scipy.sparse.csr_matrix((self.NY, self.NY))
         
-        nlinks = self.lattice.nlinks
-        
-        for j in range(0, nlinks):
+        for link in self.lattice.links:
             
-            Hj = scipy.sparse.csr_matrix((self.NY, self.NY))
+            Hbond = scipy.sparse.csr_matrix((self.NY, self.NY))
             
             for i in range(0, self.NY):
                 
-                y = np.copy(self.Y[i, :])
-                cy = np.copy(self.CY[i, :])
+                ydev, cydev, coeffdev = developp_symmetric(
+                                            self.alpha, 
+                                            self.Y[i], 
+                                            self.CY[i], 
+                                            self.m, 
+                                            link[0], 
+                                            link[1])
+                ndev = len(coeffdev)                
+                row = np.full(shape=(ndev,), fill_value=i, dtype=int)
+                col = np.zeros(shape=(ndev,), dtype=int)
                 
-                y2, cy2, coeff2 = developp_symmetric(self.alpha, y, cy, self.m, self.lattice.links[j][0], self.lattice.links[j][1])
-                ny2 = len(coeff2)
-                
-                row = np.full(shape=(ny2,), fill_value=i, dtype=int)
-                col = np.zeros(shape=(ny2,), dtype=int)
-                
-                for t in range(0, ny2):
-                    yfriend = np.copy(y2[t, :])
-                    # search index
-                    index = np.argwhere(np.sum(abs(self.Y - yfriend), axis=1) < 1e-13).flatten()[0]
-                    
+                for t in range(0, ndev):
+                    index = np.argwhere(np.sum(abs(self.Y - ydev[t]), axis=1) < 1e-13).flatten()[0]                    
                     col[t] = index
-                    
-                # end for t
                 
-                Hj += scipy.sparse.csr_matrix( (coeff2, (row, col)), shape=(self.NY, self.NY))
-                
-            # end for i
+                Hbond += scipy.sparse.csr_matrix( (coeffdev, (row, col)), shape=(self.NY, self.NY))
             
-            H += Hj
-        
-        # end for j
+            H += Hbond
         
         H = 0.5 * (H + H.transpose())
         
@@ -4752,44 +4741,33 @@ class SUNAntiSymmetric:
         
     
     def sun_hamiltonian(self):
-        # Compute the matrix of the SU(N) Heisenberg model
-        # 
         
         H = scipy.sparse.csr_matrix((self.NY, self.NY))
         
-        nlinks = self.lattice.nlinks
-        
-        for j in range(0, nlinks):
+        for link in self.lattice.links:
             
-            Hj = scipy.sparse.csr_matrix((self.NY, self.NY))
+            Hbond = scipy.sparse.csr_matrix((self.NY, self.NY))
             
             for i in range(0, self.NY):
                 
-                y = np.copy(self.Y[i, :])
-                cy = np.copy(self.CY[i, :])
+                ydev, cydev, coeffdev = developp_antisymmetric(
+                                            self.alpha, 
+                                            self.Y[i], 
+                                            self.CY[i], 
+                                            self.m, 
+                                            link[0], 
+                                            link[1])
+                ndev = len(coeffdev)
+                row = np.full(shape=(ndev,), fill_value=i, dtype=int)
+                col = np.zeros(shape=(ndev,), dtype=int)
                 
-                y2, cy2, coeff2 = developp_antisymmetric(self.alpha, y, cy, self.m, self.lattice.links[j][0], self.lattice.links[j][1])
-                ny2 = len(coeff2)
-                
-                row = np.full(shape=(ny2,), fill_value=i, dtype=int)
-                col = np.zeros(shape=(ny2,), dtype=int)
-                
-                for t in range(0, ny2):
-                    yfriend = np.copy(y2[t, :])
-                    # search index
-                    index = np.argwhere(np.sum(abs(self.Y - yfriend), axis=1) < 1e-13).flatten()[0]
-                    
+                for t in range(0, ndev):
+                    index = np.argwhere(np.sum(abs(self.Y - ydev[t]), axis=1) < 1e-13).flatten()[0]
                     col[t] = index
-                    
-                # end for t
                 
-                Hj += scipy.sparse.csr_matrix( (coeff2, (row, col)), shape=(self.NY, self.NY))
-                
-            # end for i
+                Hbond += scipy.sparse.csr_matrix( (coeffdev, (row, col)), shape=(self.NY, self.NY))
             
-            H += Hj
-        
-        # end for j
+            H += Hbond
         
         H = 0.5 * (H + H.transpose())
         
