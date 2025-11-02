@@ -12,11 +12,17 @@ import scipy.sparse
 import time
 
 import sun
+import edfund
+import edsymm
+import edgeneral
 import Lattice
 
 
 # Example of creation and diagonalization of Heisenberg Hamiltonian with local
 # adjoint irrep on each site
+
+
+
 N = int(3)
 Ns = int(5)
 alpha = np.array([6, 5, 4], dtype=int) # global target sector
@@ -35,7 +41,7 @@ beta[-1] = beta_loc_edge
 lattice = Lattice.Lattice(Ns=Ns, typeLattice='chain', isPBC=False)
 
 start = time.perf_counter()
-engine = sun.SUNGeneral(alpha, beta, N, lattice)
+engine = edgeneral.SUNGeneral(alpha, beta, N, lattice)
 end = time.perf_counter()
 print("Elapsed init general = {}s".format((end - start)))
 
@@ -71,9 +77,9 @@ lattice = Lattice.Lattice(Ns=Ns, typeLattice='chain', isPBC=False)
 
 # build SU(N) engine
 if m==1:
-    Engine = sun.SUNFundamental(Ns=Ns, N=N, alpha=alpha, lattice=lattice)
+    Engine = edfund.SUNFundamental(Ns=Ns, N=N, alpha=alpha, lattice=lattice)
 else:
-    Engine = sun.SUNSymmetric(Ns=Ns, N=N, m=m, alpha=alpha, lattice=lattice)
+    Engine = edsymm.SUNSymmetric(Ns=Ns, N=N, m=m, alpha=alpha, lattice=lattice)
 
 # construct matrix of Hamiltonian
 H = Engine.sun_hamiltonian()
