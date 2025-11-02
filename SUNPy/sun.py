@@ -11,15 +11,27 @@ import sys
 import math
 import numpy as np
 import scipy.sparse
+import scipy.linalg
+import scipy.sparse.linalg
 
 import partitions
 
 
 
-def get_column(Y):
-    # extract column positions for all SYTs in Y.
-    # Y: array of SYTs, each row is a SYT
-    # 
+def get_column(Y) -> np.ndarray:
+    """
+    Extract column positions in SYTs
+    
+    Parameters
+    ----------
+    Y : numpy array
+        collection of SYTs
+    
+    Returns
+    -------
+    CY : numpy array
+        collection of column positions
+    """
     
     if len(Y.shape)==1:
         NY = 1
@@ -37,9 +49,20 @@ def get_column(Y):
 
 
 
-def transpose_shape(alpha):
-    # Transpose the irrep alpha (each row becomes a column).
-    # 
+def transpose_shape(alpha) -> np.ndarray:
+    """
+    Transpose an irrep (map rows to columns)
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    
+    Returns
+    -------
+    alphaT : numpy array
+        transposed shape
+    """
     
     alphaT = np.zeros(alpha[0], dtype=int)
     for i in range(0, len(alpha)):
@@ -49,15 +72,27 @@ def transpose_shape(alpha):
 
 
 
-def casimir_quadratic(alpha):
-    # Compute the permutational quadratic Casimir of an irrep.
-    # 
-    # Refs:
-    # - Eq. (31) of PRB 97, 134420 (2018)
-    # - Eq. (4-25) [for a different formulation] of Group Representation Theory
-    #   for Physicists, Jian-Quan Chen, Jialun Ping and Fan Wang 
-    # - K. Pilch and A. N. Schellekens, J. of Mathematical Physics 25, 3455 (1984)
-    # 
+def casimir_quadratic(alpha) -> float:
+    """
+    Compute the permutational quadratic Casimir of an irrep
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    
+    Returns
+    -------
+    c : float
+        permutational quadratic casimir
+    
+    References
+    ----------
+    - Eq. (31) of PRB 97, 134420 (2018)
+    - Eq. (4-25) [for a different formulation] of Group Representation Theory
+      for Physicists, Jian-Quan Chen, Jialun Ping and Fan Wang 
+    - K. Pilch and A. N. Schellekens, J. of Mathematical Physics 25, 3455 (1984)
+    """
     
     k = len(np.argwhere(alpha>0).flatten())
     s = transpose_shape(alpha[0:k])
@@ -71,16 +106,26 @@ def casimir_quadratic(alpha):
     lvec = np.arange(1, k+1)
     cprime = 0.5 * ( np.sum(alpha[0:k]*(alpha[0:k] - 2*lvec + 1)) )
     
-    if not cprime==c:
-        sys.exit('Problem computing Casimir')
+    assert cprime==c
     
     return c
 
 
 
-def multiplicity(alpha):
-    # Compute the total number of SYTs associated to the shape alpha.
-    # 
+def multiplicity(alpha) -> int:
+    """
+    Compute the total number of SYTs associated to the irrep alpha
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    
+    Returns
+    -------
+    falpha : int
+        number of SYTs
+    """
     
     n = np.sum(alpha)
     nl = len(np.argwhere(alpha>0))
@@ -111,7 +156,7 @@ def multiplicity(alpha):
             arnum[i] = 1
     
     # we further reduce by finding common divisors among prime numbers
-    divisors = np.array([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31], dtype=int) # 11 first prime numbers
+    divisors = np.array([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31], dtype=int)
     for i in range(0, len(arnum)):
         for t in range(0, 4): # 4 repetitions of the loop below
             for d in divisors:
@@ -130,19 +175,33 @@ def multiplicity(alpha):
 
 
 
-def get_SYT(alpha, order='LLOS'):
-    # Get all SYTs for the irrep alpha.
-    # 
-    # By default, in the resulting array, the SYTs are sorted in the ascending
-    # order of the Last Letter Order Sequence, namely:
-    #   Y[0,:] < Y[1,:] < Y[2,:] < ... < Y[-1,:]
-    # 
-    # This can be changed by setting order='iLLOS' in the input arguments.
-    # 
-    # Remarks: 
-    # - the output is an array where SYTs are in the rows
-    # - Y[i,0] = 0, namely the top left box is row=0, coluumn=0 (Python convention)
-    # 
+def get_SYT(alpha, order='LLOS') -> np.ndarray:
+    """
+    Get all SYTs for the irrep alpha
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    order : str
+        optional ['LLOS']/'iLLOS' order according to the Last Letter Order Sequence
+    
+    Returns
+    -------
+    Y : numpy array
+        collection of SYTs (stored in the rows of Y)
+    
+    Remark
+    ------
+    - Y[i][0] = 0, namely the top left box is row=0, column=0 (Python convention)
+    - By default, in the resulting array, the SYTs are sorted in the ascending
+      order of the Last Letter Order Sequence, namely:
+          Y[0] < Y[1] < Y[2] < ... < Y[-1] (order='LLOS')
+    - increasing order of LLOS (order='LLOS'):
+        1st  SYT: numbers filled row-wise
+        last SYT: numbers filled column-wise
+        (the opposite for 'iLLOS')
+    """
     
     n = np.sum(alpha)
     falpha = multiplicity(alpha)
@@ -207,50 +266,77 @@ def get_SYT(alpha, order='LLOS'):
 
 
 
-def get_subSYT(alpha, alpha0):
-    # Build all SYTs corresponding to the subshape <alpha>-<alpha0>
-    # 
+def get_subSYT(alpha, alphaB, order='iLLOS') -> np.ndarray:
+    """
+    Build all SYTs associated to the subshape alpha-alpha0
+    
+    where alphaB is the base top-left irrep
+    
+    Inputs
+    ------
+    alpha : numpy array
+        irrep
+    alphaB : numpy array
+        base top-left irrep
+    order : str
+        [default] 'iLLOS' or 'LLOS'
+    
+    Returns
+    -------
+    Y : numpy array
+        SYTs associated to alpha-alphaB
+    
+    Example
+    -------
+    alpha = [3, 1]
+    alphaB = [2, 0]
+    The two SYTs are:
+      |x|x|3|     |x|x|2|
+      |2|      &  |3|
+     y=[1, 0]    y=[0, 1]
+    output: Y=[[1, 0], [0, 1]] (order='iLLOS')
+    """
     
     n = np.sum(alpha)
-    n0 = np.sum(alpha0)
+    nB = np.sum(alphaB)
     
     nl = len(np.argwhere(alpha>0).flatten())
-    nl0 = len(np.argwhere(alpha0>0).flatten())
+    nlB = len(np.argwhere(alphaB>0).flatten())
     
-    if (nl<nl0):
+    if (nl<nlB):
         sys.exit('Problem: irreps alpha and alpha0 do not match')
     
-    if not len(alpha)==len(alpha0):
-        sys.exit('Problem: alpha and alpha0 do not have the same number of elements.')
+    if not len(alpha)==len(alphaB):
+        sys.exit('Problem: alpha and alphaB do not have the same number of elements.')
+    
+    if len(np.argwhere(alpha<alphaB).flatten())>0:
+        sys.exit('Problem: alphaB is not contained in alpha.')
     
     alphap = np.copy(alpha)
-    alpha0p = np.copy(alpha0)
+    alphaBp = np.copy(alphaB)
     alphap = np.hstack([alpha, 0])
-    alpha0p = np.hstack([alpha0, 0])
+    alphaBp = np.hstack([alphaB, 0])
     
-    alpha_r = alphap - alpha0p
-    n1 = n - n0
+    #if len(np.argwhere(alphap<alphaBp).flatten())>0:
+    #    sys.exit('Problem: alphaB is not contained in alpha.')
     
-    if len(np.argwhere(alpha_r<0).flatten())>0:
-        sys.exit('Problem: alpha0 is not contained in alpha.')
-    
-    Y = np.zeros(shape=(1, n1), dtype=int)
+    nP = n - nB
+    Y = np.zeros(shape=(1, nP), dtype=int)
     
     NY = int(1)
     
-    for j in range(n1-1, -1, -1):
+    for j in range(nP-1, -1, -1):
         
         cpt = int(0)
-        Ynew = np.zeros(shape=(0, n1), dtype=int)
+        Ynew = np.zeros(shape=(0, nP), dtype=int)
         
         for q in range(0, NY):
-            
             # generate the remaining shape
             alphap_q = np.copy(alphap)
-            for t in range(n1-1, j, -1):
+            for t in range(nP-1, j, -1):
                 alphap_q[Y[q][t]] -= 1
             
-            alphap_r = alphap_q - alpha0p
+            alphap_r = alphap_q - alphaBp
             
             ind = np.argwhere(alphap_r>0).flatten()
             
@@ -261,24 +347,55 @@ def get_subSYT(alpha, alpha0):
                     ytmp[j] = ind[t]
                     Ynew = np.vstack([Ynew, ytmp])
                     cpt += 1
-                # end  if
-            # end for t
-        # end for q
         NY = cpt
         Y = np.copy(Ynew)
-    # end for j
+    
+    if order=='LLOS':
+        Y = np.flipud(Y)
     
     return Y
 
 
 
-def fill_subSYT(Y, alpha, **kwargs):
-    # Fill all remaining boxes of the sub-SYTs in <Y> corresponding to the 
-    # global shape alpha.
-    # 
-    # The convention is to fill the remaining boxes by the largest SYT in the
-    # last letter order sequence, unless fill_type='lowest' is used.
-    # 
+def fill_subSYT(Y, alpha, **kwargs) -> np.ndarray:
+    """
+    Fill all remaining boxes of a collection of sub-SYTs in order to be a 
+    collection of valid SYTs for a given irrep
+    
+    Inputs
+    ------
+    Y : numpy array
+        collection of SYTs
+    alpha : numpy array
+        irrep
+    fill_type : str
+        [default] 'largest' or 'smallest'
+        order of the base filling in LLOS
+    
+    Returns
+    -------
+    Y : numpy array
+        collection of SYTs
+    
+    Example
+    -------
+    Y = np.array([[0, 1, 2], [1, 0, 2]], dtype=int)
+    alpha = np.array([3, 2, 1], dtype=int)
+    
+    The input sub-SYTs are:
+    x x 3         x x 4
+    x 4     and   x 3
+    5             5
+    
+    For fill_type='largest', we have:
+                0 2                 0 2 3     0 2 4
+     filling =  1      --> output = 1 4   and 1 3
+                                    5         5
+    For fill_type='smallest', we have:
+                0 1                 0 1 3     0 1 4
+     filling =  2      --> output = 2 4   and 2 3
+                                    5         5
+    """
     
     if not 'fill_type' in kwargs:
         kwargs['fill_type'] = 'largest'
@@ -321,14 +438,24 @@ def fill_subSYT(Y, alpha, **kwargs):
 
 
 
-def index_to_SYT(i, alpha, order):
-    # Build the SYT corresponding to index <i> in the <order> for the irrep alpha.
-    # 
-    # Inputs:
-    #   i       index, ranging from 0 to multiplicity(alpha)-1
-    #   alpha   irrep
-    #   order   'LLOS' or 'iLLOS', to specify in which order the index is taken
-    # 
+def index_to_SYT(i, alpha, order) -> np.ndarray:
+    """
+    Build the SYT corresponding to its index among the collection of all SYTs
+    
+    Parameters
+    ----------
+    i : int
+        index
+    alpha : numpy array
+        irrep
+    order : str
+        'LLOS' or 'iLLOS' order according to the Last Letter Order Sequence
+    
+    Returns
+    -------
+    y : numpy array
+        SYT
+    """
     
     if order=='LLOS':
         y = index_to_SYT_LLOS(i, alpha, order)
@@ -341,25 +468,30 @@ def index_to_SYT(i, alpha, order):
 
 
 
-def index_to_SYT_LLOS(i, alpha, order='LLOS'):
-    # Build the SYT corresponding to index <i> in <order> for the irrep <alpha>.
-    # 
-    # Inputs:
-    #   i       index, ranging from 0 to multiplicity(alpha)-1
-    #   alpha   irrep
-    #   order   [optional] default: order='LLOS', to specify in which order the index is taken
-    # 
-    # recall: increasing order of LLOS:
-    #   1st  SYT: numbers filled row-wise
-    #   last SYT: numbers filled column-wise
-    # 
-    # Remarks:
-    #   - The default order is the increasing order of the LLOS, unless the user 
-    #     puts order='iLLOS' (for inverse Last Letter Order Sequence)
-    #   - If the user puts order='iLLOS', the algorithm needs to compute the 
-    #     multiplicity of the irrep <alpha>. It is thus better to use 
-    #     index_to_SYT_iLLOS(i, alpha) to save execution time.
-    # 
+def index_to_SYT_LLOS(i, alpha, order='LLOS') -> np.ndarray:
+    """
+    Build the SYT corresponding to its index among the collection of all SYTs
+    
+    Parameters
+    ----------
+    i : int
+        index
+    alpha : numpy array
+        irrep
+    order : str
+        optional [default: 'LLOS'] or 'iLLOS' order according to the Last Letter Order Sequence
+    
+    Returns
+    -------
+    y : numpy array
+        SYT
+    
+    Remarks
+    -------
+    For order='iLLOS', the algorithm needs to compute the multiplicity of the 
+    input irrep. It is thus better to use index_to_SYT_iLLOS(i, alpha) to save
+    execution time
+    """
     
     alphap = np.copy(alpha)
     n = np.sum(alphap)
@@ -398,25 +530,30 @@ def index_to_SYT_LLOS(i, alpha, order='LLOS'):
 
 
 
-def index_to_SYT_iLLOS(i, alpha, order='iLLOS'):
-    # Build the SYT corresponding to index <i> in <order> for the irrep <alpha>.
-    # 
-    # Inputs:
-    #   i       index, ranging from 0 to multiplicity(alpha)-1
-    #   alpha   irrep
-    #   order   [optional] default: order='iLLOS', to specify in which order the index is taken
-    # 
-    # recall: iLLOS = inverse Last Letter Order Sequence:
-    #   1st  SYT: numbers filled column-wise
-    #   last SYT: numbers filled row-wise
-    # 
-    # Remarks:
-    #   - The default order is the decreasing order of the LLOS (so-called iLLOS), 
-    #     unless the user puts order='LLOS'.
-    #   - If the user puts order='LLOS', the algorithm needs to compute the 
-    #     multiplicity of the irrep <alpha>. It is thus better to use 
-    #     index_to_SYT_LLOS(i, alpha) to save execution time.
-    # 
+def index_to_SYT_iLLOS(i, alpha, order='iLLOS') -> np.ndarray:
+    """
+    Build the SYT corresponding to its index among the collection of all SYTs
+    
+    Parameters
+    ----------
+    i : int
+        index
+    alpha : numpy array
+        irrep
+    order : str
+        optional [default: 'iLLOS'] or 'LLOS' order according to the Last Letter Order Sequence
+    
+    Returns
+    -------
+    y : numpy array
+        SYT
+    
+    Remarks
+    -------
+    For order='LLOS', the algorithm needs to compute the multiplicity of the 
+    input irrep. It is thus better to use index_to_SYT_LLOS(i, alpha) to save
+    execution time
+    """
     
     alphap = np.copy(alpha)
     n = np.sum(alphap)
@@ -455,7 +592,7 @@ def index_to_SYT_iLLOS(i, alpha, order='iLLOS'):
 
 
 
-def index_to_SYT_symm(i, alpha, m, order='LLOS'):
+def index_to_SYT_symm(i, alpha, m, order='LLOS') -> np.ndarray:
     # Build the SYT corresponding to index <i> for the irrep alpha, in the case
     # of local symmetric irrep with <m> boxes (local constraints).
     # 
@@ -599,7 +736,7 @@ def index_to_SYT_symm(i, alpha, m, order='LLOS'):
 
 
 
-def SYT_to_index(y, alpha, order):
+def SYT_to_index(y, alpha, order) -> int:
     # Map a SYT to its index in <order> in the list of all SYTs.
     # 
     # Inputs:
@@ -619,7 +756,7 @@ def SYT_to_index(y, alpha, order):
 
 
 
-def SYT_to_index_LLOS(y, alpha, order='LLOS'):
+def SYT_to_index_LLOS(y, alpha, order='LLOS') -> int:
     # Map a SYT to its index in the list of all SYTs.
     # 
     # The default order is inceasing order of Last Letter Order Sequence, 
@@ -657,7 +794,7 @@ def SYT_to_index_LLOS(y, alpha, order='LLOS'):
 
 
 
-def SYT_to_index_iLLOS(y, alpha, order='iLLOS'):
+def SYT_to_index_iLLOS(y, alpha, order='iLLOS') -> int:
     # Map a SYT to its index in the list of all SYTs.
     # 
     # The default order is decreasing order of Last Letter Order Sequence, 
@@ -694,7 +831,7 @@ def SYT_to_index_iLLOS(y, alpha, order='iLLOS'):
 
 
 
-def SYT_to_index_symm(y, alpha, m, order='LLOS'):
+def SYT_to_index_symm(y, alpha, m, order='LLOS') -> int:
     # Map a SYT to its index in the list of all SYTs.
     # 
     # The default order is inceasing order of Last Letter Order Sequence, 
@@ -825,10 +962,22 @@ def SYT_to_index_symm(y, alpha, m, order='LLOS'):
 
 
 
-def binary_search_SYT(y, Y):
-    # Search the index of SYT <y> in the list of all SYTs <Y> through a binary
-    # search.
-    # 
+def binary_search_SYT(y, Y) -> int:
+    """
+    Search the index of a SYT in a collection of SYTs using binary search
+    
+    Parameters
+    ----------
+    y : numpy array
+        SYT
+    Y : numpy array
+        collection of SYTs
+    
+    Returns
+    -------
+    m : int
+        index of y in Y
+    """
     
     NY = Y.shape[0]
     n = Y.shape[1]
@@ -857,11 +1006,23 @@ def binary_search_SYT(y, Y):
 
 
 
-def multiplicity_symm(alpha, m):
-    # Compute the total number of SYTs for the irrep alpha, satisfying the 
-    # constraints of local symmetry with m particles per site in the symmetric
-    # irrep.
-    # 
+def multiplicity_symm(alpha, m) -> int:
+    """
+    Compute the total number of SYTs associated to the irrep alpha for local 
+    m-box symmetric constraints
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    m : int
+        number of boxes in local symmetric irrep
+    
+    Returns
+    -------
+    kostka : int
+        number of SYTs
+    """
     
     if not np.sum(alpha)%m==0:
         sys.exit('Problem: number of boxes in alpha must be a multiple of m')
@@ -1039,9 +1200,20 @@ def multiplicity_symm(alpha, m):
 
 
 
-def get_bottom_corner(alpha):
-    # Extract the bottom corners of the shape alpha.
-    # 
+def get_bottom_corner(alpha) -> np.ndarray:
+    """
+    Extract the bottom corners of an irrep
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    
+    Returns
+    -------
+    bc : numpy array
+        rows of bottom corners
+    """
     
     alphap = np.hstack([alpha, 0])
     delta = alpha - alphap[1:]
@@ -1083,11 +1255,14 @@ def get_transpositions(links):
     # nbtranspositions[i] = number of transpositions needed to rewrite the
     # permutation of the i-th link as a product of transpositions
     
+    '''
     for i in range(0, nlinks):
         nbtranspositions[i] = 2*abs(links[i][1]-links[i][0]) - 1
+    '''
     
     listtranspositions = [None] * nlinks
     
+    '''
     for i in range(0, nlinks):
         mini = np.min(links[i])
         maxi = np.max(links[i])
@@ -1095,23 +1270,47 @@ def get_transpositions(links):
         listtranspositions[i] = np.zeros((nbtranspositions[i], ), dtype=int)
         listtranspositions[i][0:((nbtranspositions[i]-1)/2+1).astype(int)] = np.arange(mini, maxi)
         listtranspositions[i][((nbtranspositions[i]-1)/2+1).astype(int):] = np.arange(maxi-2, mini-1, -1)
+    '''
+    for i in range(0, nlinks):
+        listtranspositions[i] = transposition_to_adjacent_transpositions(links[i])
+        nbtranspositions[i] = len(listtranspositions[i])
     
     return listtranspositions, nbtranspositions
 
 
-def get_axial_distance(y, cy, i, j):
-    # Compute axial distance from i to j in SYT y (and columns cy).
-    # 
+def get_axial_distance(y, cy, i, j) -> int:
+    """
+    Compute axial distance from i to j in SYT y (and columns cy)
+    """
     
-    ad = cy[i] - y[i] - cy[j] + y[j];
+    ad = cy[i] - y[i] - cy[j] + y[j]
     
     return ad
 
 
-def get_new_shape(alpha, y):
-    # Get the remaining shape once all boxes corrresponding to the particles 
-    # already placed in y are removed from alpha
-    # 
+def get_new_shape(alpha, y) -> np.ndarray:
+    """
+    Extract remaining irrep from a subSYT associated to an irrep
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    y : numpy array
+        partially-filled SYT
+    
+    Returns
+    -------
+    alphap : numpy array
+        irrep of free boxes
+        
+    Example
+    -------
+    alpha = [3, 2, 1], y = [-1, -1, -1, -1, 2, 0]
+                  x x 5               x x
+    partial SYT = x x   ---> alphap = x x = [2, 2]
+                  4
+    """
     
     n = len(y)
     idst = np.argwhere(y>=0).flatten()
@@ -1125,7 +1324,7 @@ def get_new_shape(alpha, y):
 
 
 
-def dim_irrep_sun(alpha, N):
+def dim_irrep_sun(alpha, N) -> int:
     """
     Dimension of irrep of SU(N)
     
@@ -1196,7 +1395,7 @@ def dim_irrep_sun(alpha, N):
         denomvec = np.array([1], dtype=int)
     else:
         # we further reduce by finding common divisors among prime numbers
-        divisors = np.array([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31], dtype=int) # 11 first prime numbers
+        divisors = np.array([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31], dtype=int)
         for d in divisors:
             for t in range(0, 4): # 4 repetitions of the loops below
                 for i in range(0, len(numvec)):
@@ -1214,13 +1413,22 @@ def dim_irrep_sun(alpha, N):
 
 
 
-def get_SSYT(alpha, N):
-    # Get the collection of semi-standard Young tableaux for the irrep alpha of
-    # SU(N).
-    # 
-    # Output:
-    #   vec     numpy array. The SSYTs are in rows in vec
-    # 
+def get_SSYT(alpha, N) -> np.ndarray:
+    """
+    Get all semi-standard Young tableaux of an irrep
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    N : int
+        SU(N)
+    
+    Returns
+    -------
+    vec : numpy array
+        collection of SSYTs
+    """
     
     nl = len(np.argwhere(alpha>0).flatten())
     if nl>N:
@@ -1245,7 +1453,9 @@ def get_SSYT(alpha, N):
     # create max pattern
     vec[0,0:N] = np.copy(alpha)
     for p in range(1, N):
-        vec[0, p+long_ligne_offset[1:N-p+1]-1] = np.full(shape=(1, N-p), fill_value=vec[0, p-1], dtype=int)
+        vec[0, p+long_ligne_offset[1:N-p+1]-1] = np.full(shape=(1, N-p), 
+                                                         fill_value=vec[0, p-1], 
+                                                         dtype=int)
     
     for s in range(1, dimension):
         vectemp = np.copy(vec[s-1, :])
@@ -1275,12 +1485,35 @@ def get_SSYT(alpha, N):
 
 
 
-def tensor_product_irrep(alpha1, alpha2, N):
-    # Compute the tensor product of two irreps of SU(N).
-    # 
-    # Remark:
-    # - The total number of boxes is preserved.
-    # 
+def tensor_product_irrep(alpha1, alpha2, N) -> np.ndarray:
+    """
+    Tensor product of two irreps
+    
+    Parameters
+    ----------
+    alpha1 : numpy array
+        irrep
+    alpha2 : numpy array
+        irrep
+    N : int
+        SU(N)
+    
+    Returns
+    -------
+    alpha : numpy array
+        collection of irreps
+    
+    Remarks
+    -------
+    - Number of boxes is preserved (columns with N boxes are not removed)
+    - Irreps with non-trivial multiplicities appear as many times in alpha
+    
+    Example
+    -------
+    SU(3), alpha1 = alpha2 = adjoint = [2, 1, 0]
+        [2, 1, 0] x [2, 1, 0] = singlet + 2xadjoint + [3, 0, 0] + [3, 3, 0] + [4, 2, 0]
+        out: alpha = [[4, 2, 0], [3, 3, 0], [4, 1, 1], [3, 2, 1], [3, 2, 1], [2, 2, 2]]
+    """
     
     nl1 = len(np.argwhere(alpha1>0).flatten())
     nl2 = len(np.argwhere(alpha2>0).flatten())
@@ -1375,11 +1608,21 @@ def tensor_product_irrep(alpha1, alpha2, N):
 
 
 def reduce_shape(alpha):
-    # Count the number of occurences of all shapes contained in the input
-    # 
-    # Input: 
-    #   alpha   collection of irreps. irreps are stored in the rows
-    # 
+    """
+    Count number of occurences of each irrep
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        collection of irreps, with potential repetitions
+    
+    Returns
+    -------
+    alpha1 : numpy array
+        collection of unique irreps
+    multi1 : numpy array
+        multiplicity of each irrep in alpha1
+    """
     
     if len(alpha.shape)==1:
         # there is only one shape
@@ -1411,8 +1654,34 @@ def reduce_shape(alpha):
 
 
 def merge_shapes(alpha1, multi1, alpha2, multi2):
-    # merge two combinations of shapes with their multiplicities.
-    # 
+    """
+    Add two decompositions of irreps
+    
+    Parameters
+    ----------
+    alpha1 : numpy array
+        collection of irreps
+    multi1 : numpy array
+        multiplicities of irreps in alpha1
+    alpha2 : numpy array
+        collection of irreps
+    multi2 : numpy array
+        multiplicities of irreps in alpha2
+    
+    Returns
+    -------
+    alpha : numpy array
+        collection of irreps
+    multi : numpy array
+        multiplicities of irreps in alpha
+    
+    Remarks
+    -------
+    \left( \oplus_{j=0}^{N_1} \mu^{(1)}_j \alpha^{(1)}_j \right) 
+        \oplus \left( \oplus_{j=0}^{N_2} \mu^{(2)}_j \alpha^{(2)}_j \right)
+        ------
+    This operation
+    """
     
     n1 = len(multi1)
     n2 = len(multi2)
@@ -1446,13 +1715,24 @@ def merge_shapes(alpha1, multi1, alpha2, multi2):
 
 
 
-def multiplicity_irrep_mixed(alpha, beta, N):
-    # Compute the number of times that alpha occurs in the tensor product of 
-    # all irreps in beta.
-    # 
-    # Remark:
-    # - beta must be a numpy array of irreps, each irrep stored in the rows.
-    # 
+def multiplicity_irrep_mixed(alpha, beta, N) -> int:
+    """
+    Compute the multiplicity of an irrep in the tensor product of several irreps
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        target irrep
+    beta : numpy array
+        collection of local irreps in the tensor product
+    N : int
+        SU(N)
+    
+    Returns
+    -------
+    fmixedalpha : int
+        multiplicity of alpha in the tensor product of all irreps in beta
+    """
     
     n = np.sum(alpha)
     
@@ -1472,7 +1752,7 @@ def multiplicity_irrep_mixed(alpha, beta, N):
         Ns = 1
         beta = np.reshape(beta, (Ns, -1))
     else:
-        # irreps are stored in the rowss
+        # irreps are stored in the rows
         Ns = beta.shape[0]
     
     if Ns==1:
@@ -1689,16 +1969,20 @@ def get_list_irreps(N, num_irreps, n):
 
 
 
-def get_SYT_symm(alpha, m, order='LLOS'):
-    # Compute all SYTs for the irrep alpha with m particles per site in the 
-    # symmetric irrep with m boxes.
-    # 
-    # By default, in the resulting array, the SYTs are sorted in the ascending
-    # order of the Last Letter Order Sequence, namely:
-    #   Y[0,:] < Y[1,:] < Y[2,:] < ... < Y[-1,:]
-    # 
-    # This can be changed by setting order='iLLOS' in the input arguments.
-    # 
+def get_SYT_symm(alpha, m, order='LLOS')  -> np.ndarray:
+    """
+    Compute all SYTs for an irrep alpha satisfying local constraints defined by
+    a symmetric irrep with m boxes
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        target irrep
+    m : int
+        number of particles per site (in the symmetric irrep)
+    order : str
+        optional [default: 'LLOS'] or 'iLLOS' order of output SYTs
+    """
 
     n = np.sum(alpha)
     Ns = n//m
@@ -1809,16 +2093,20 @@ def get_SYT_symm(alpha, m, order='LLOS'):
 
 
 
-def get_SYT_antisymm(alpha, m, order='LLOS'):
-    # Compute all SYTs for the irrep alpha with m particles per site in the 
-    # antisymmetric irrep with m boxes.
-    # 
-    # By default, in the resulting array, the SYTs are sorted in the ascending
-    # order of the Last Letter Order Sequence, namely:
-    #   Y[0,:] < Y[1,:] < Y[2,:] < ... < Y[-1,:]
-    # 
-    # This can be changed by setting order='iLLOS' in the input arguments.
-    # 
+def get_SYT_antisymm(alpha, m, order='LLOS') -> np.ndarray:
+    """
+    Compute all SYTs for an irrep alpha satisfying local constraints defined by
+    an anti-symmetric irrep with m boxes
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        target irrep
+    m : int
+        number of particles per site (in the anti-symmetric irrep)
+    order : str
+        optional [default: 'LLOS'] or 'iLLOS' order of output SYTs
+    """
     
     n = np.sum(alpha)
     Ns = n//m
@@ -2108,6 +2396,422 @@ def place_recursive(k, beta_loc, alphap, wvec, cwvec, y, cy, Ynew, CYnew, cpt):
                                                 cpt)
     
     return Ynew, CYnew, cpt
+
+
+
+def permutation_to_cycles(sigma):
+    """
+    Transform a permutation of S_n into a product of disjoint cycles
+    """
+    
+    n = len(sigma)
+    
+    cycles = []
+    used = []
+    
+    f = lambda v : min(set(np.arange(0, n)) - set(v))
+    
+    while not len(used)==n:
+        s = f(used)
+        if sigma[s]==s:
+            used.append(s)
+        else:
+            cycle = np.array([s, sigma[s]], dtype=int)
+            used.append(s)
+            used.append(sigma[s])
+            while not sigma[cycle[-1]]==cycle[0]:
+                cycle = np.append(cycle, sigma[cycle[-1]])
+                used.append(cycle[-1])
+            cycles.append(cycle)
+    return cycles
+
+
+
+def cycle_to_transpositions(cycle):
+    """
+    Transform a cycle nto a product of 2-cycles (transpositions)
+    
+    Parameters
+    ----------
+    cycle : numpy array
+        cycle of S_n
+    
+    Returns
+    -------
+    t : list of numpy arrays
+        product of 2-cycles
+    """
+    
+    t = [None] * (len(cycle)-1)
+    
+    for i in range(0, len(cycle)-1):
+        a = cycle[i]
+        b = cycle[i+1]
+        t[i] = np.array([min(a, b), max(a, b)])
+    
+    return t
+
+
+
+def transposition_to_adjacent_transpositions(t):
+    """
+    Transform an arbitrary 2-cycle (transposition) into a product of adjacent 
+    2-cycles (transpositions)
+    
+    Parameters
+    ----------
+    t : numpy array
+        2-cycle of S_n
+    
+    Returns
+    -------
+    z : numpy array
+        product of adjacent 2-cycles (adjacent transpositions)
+    
+    Example
+    -------
+    t = (2, 5)
+    z = (2, 3)(3, 4)(4, 5)(3, 4)(2, 3) --> z=np.array([2, 3, 4, 3, 2])
+    """
+    
+    a = np.min(t)
+    b = np.max(t)
+    
+    n = 2*abs(b - a) - 1
+    
+    z = np.zeros(shape=(n, ), dtype=int)
+    z[0:((n-1)/2+1).astype(int)] = np.arange(a, b)
+    z[((n-1)/2+1).astype(int):] = np.arange(b-2, a-1, -1)
+    
+    return z
+
+
+
+def permutation_to_adjacent_transpositions_v1(sigma):
+    """
+    Transform a permutation into a product of adjacent 2-cycles (transpositions)
+    
+    Remark
+    ------
+    First method
+    """
+    
+    # Method A:
+    cycles = permutation_to_cycles(sigma)
+    
+    transpositions = []
+    for cycle in cycles:
+        transpositions += cycle_to_transpositions(cycle)
+    
+    at = np.zeros(shape=(0, ), dtype=int)
+    
+    for t in transpositions:
+        z = transposition_to_adjacent_transpositions(t)
+        at = np.append(at, z)
+    
+    # remove potential even number multiplying adjacent 2-cycles, such as (2 3)(2 3)=id
+    atr = reduce_adjacent_transpositions(at)
+    
+    # Method B:
+    
+    
+    return atr
+
+
+
+def reduce_adjacent_transpositions(at):
+    """
+    Remove even numbers of following identical adjacent transposition in a 
+    product of adjacent transpositions
+    
+    Description
+    -----------
+    If a product of adjacent transpositions contains identical elements multiplying
+    each other, replace them by the identity
+    
+    Example
+    -------
+    sigma = {3, 2, 0, 1} (permutation) = (0, 3, 1, 2) = cycle = 
+                                       = (0, 3)(1, 3)(1, 2)
+                                       = (0,1)(1,2)(2,3)(1,2)(0,1)(1,2)(2,3)(1,2)(1,2)
+                                                                              |____|
+                                                                                =id
+                                       = (0,1)(1,2)(2,3)(1,2)(0,1)(1,2)(2,3)
+    at = [0 1 2 1 0 1 2 1 1] ---> atr = [0 1 2 1 0 1 2]
+    """
+    
+    atr = np.zeros(shape=(0,), dtype=int)
+    if len(at)<=1:
+        atr = at
+    else:
+        i = int(0)
+        while i<len(at):
+            cpt = int(1)
+            j = i+1
+            while (j<len(at)):
+                if at[j]==at[i]:
+                    j += 1
+                    cpt += 1
+                else:
+                    break
+            if cpt%2==1:
+                atr = np.append(atr, at[i])
+            i = j
+    
+    return atr
+
+
+
+def permutation_to_transpositions(sigma):
+    """
+    Transform a permutation of S_n into a product of transpositions (2-cycles)
+    
+    Parameters
+    ----------
+    sigma : numpy array
+        permutation of S_n, as a permutation of [0, 1, ..., n-1]
+    
+    Returns
+    -------
+    tau : numpy array
+        transpositions
+    
+    Description
+    -----------
+    Decompose a permutation of S_n (such as (3, 2, 0, 5, 4, 1) \in S_6) as a 
+    product of 2-cycles (transpositions).
+    
+    Example
+    -------
+    sigma = (3, 2, 5, 0, 1, 4, 6, 8, 7) \in S_9
+    ---> sigma = (0, 3)(1, 2)(2, 5)(4, 5)(7, 8)
+    """
+    
+    n = len(sigma)
+    cpt = 0
+    
+    tau = np.zeros(shape=(n, 2), dtype=int)
+    
+    for i in range(0, n):
+        if not sigma[i]==i:
+            tau[cpt] = [i, sigma[i]]
+            j = np.argwhere(sigma==i).flatten()[0]
+            sigma[j] = sigma[i]
+            sigma[i] = i
+            cpt += 1
+    
+    tau = tau[0:cpt,:]
+    
+    return tau
+
+
+
+def permutation_to_adjacent_transpositions_v2(sigma):
+    """
+    Transform a permutation into a product of adjacent 2-cycles (transpositions)
+    
+    Remark
+    ------
+    Second method
+    """
+    
+    transpo = permutation_to_transpositions(sigma)
+    
+    at = np.zeros(shape=(0,), dtype=int)
+    
+    for t in transpo:
+        z = transposition_to_adjacent_transpositions(t)
+        at = np.append(at, z)
+    
+    atr = reduce_adjacent_transpositions(at)
+    
+    return atr
+
+
+
+def permutation_to_adjacent_transpositions(sigma):
+    """
+    Transform a permutation into a product of adjacent 2-cycles (transpositions)
+    
+    Remark
+    ------
+    Provides the best decomposition between the first and second method
+    """
+    at1 = permutation_to_adjacent_transpositions_v1(sigma)
+    at2 = permutation_to_adjacent_transpositions_v2(sigma)
+    
+    if len(at1)<len(at2):
+        atr = at1
+    else:
+        atr = at2
+    
+    return atr
+
+
+
+def reorder_development(Ynew, Ydev, coeffdev, layout):
+    """
+    Reorder a collection of developments (states) onto a new basis
+    
+    Parameters
+    ----------
+    Ynew : numpy array
+        new ordered basis of SYTs
+    Ydev : numpy array
+        SYTs of developments (states)
+    coeffdev : numpy array
+        expansion coefficients
+    layout : str
+        storage layout followed by coeffdev ['rows' or 'cols']
+    
+    Returns
+    -------
+    out : numpy array
+        expansion coefficients in basis defined by input Ynew
+    
+    Remark
+    ------
+    The output layout is identical to the input layout
+    """
+    
+    assert Ynew.shape[1]==Ydev.shape[1]
+    
+    n = Ydev.shape[0] # number of SYTs in each development
+    NY = Ynew.shape[0] # dimension of new basis
+    
+    if layout=='rows':
+        Nstates = coeffdev.shape[0]
+        assert coeffdev.shape[1]==n
+        out = np.zeros(shape=(Nstates, NY), dtype=float)
+    elif layout=='cols':
+        Nstates = coeffdev.shape[1]
+        assert coeffdev.shape[0]==n
+        out = np.zeros(shape=(NY, Nstates), dtype=float)
+    else:
+        sys.exit('Undefined layout')
+    
+    index_map = np.zeros(n, dtype=int)
+    for i in range(0, n):
+        ind = np.argwhere( np.sum(abs(Ynew - Ydev[i]), axis=1) < 1e-13).flatten()
+        assert len(ind)==1
+        index_map[i] = ind[0]
+    
+    if layout=='rows':
+        out[:, index_map] = coeffdev
+    else:
+        out[index_map, :] = coeffdev
+    
+    return out
+
+
+def get_matrix_permutation(P, at):
+    """
+    Compute the matrix of a permutation
+    
+    Parameters
+    ----------
+    P : list
+        list of matrices of adjacent transpositions
+    at : numpy array
+        sequence of adjacent transpositions
+    
+    Returns
+    -------
+    M : scipy.sparse.csr_matrix
+        matrix of the permutation
+    
+    Remark
+    ------
+    The permutation should have already been written as a product of adjacent 
+    transpositions
+    """
+    
+    M = scipy.sparse.eye(P[0].shape[0])
+    for k in at:
+        M = M @ P[k]
+    
+    return M
+
+
+
+def get_subshape(y, cy, particles):
+    """
+    Get the subshape associated to given particles in a SYT
+    
+    Parameters
+    ----------
+    y : numpy array
+        SYT
+    cy : numpy array
+        column positions
+    particles : numpy array
+        boxes to consider for extracting subshape
+    
+    Returns
+    -------
+    alphaM : numpy array
+        minimal legal irrep
+    alphaP : numpy array
+        number of boxes associated to particles in each row
+    alphaB : numpy array
+        base top-left corner irrep
+    offset : int
+        offset compared to initial irrep associated to input SYT
+    
+    Description
+    -----------
+    alphaP + alphaB = alphaM
+    
+    Example
+    -------
+    y = [0, 0, 0, 1, 0, 0, 2, 1, 1, 2]
+    cy = [0, 1, 2, 0, 3, 4, 0, 1, 2, 1]
+    irrep = [5, 3, 1] (not required in the input arguments)
+    particles = [4, 5, 6]
+    The tableau looks like:
+    | 0 | 1 | 2 | 4 | 5 |        | x | x | x | 4 | 5 |      | x | x | x | 4 | 5 |
+    | 3 | 7 | 8 |          --->  | x | x | x |         ---> | x |
+    | 6 | 9 |                    | 6 | x |                  | 6 |
+    
+    offset = 0 [there is at least 1 particle in the first row]
+    alphaP = [2, 0, 1] = number of particles in each row
+    alphaM = [5, 1, 1] = minimal legal irrep which contains the particles at exterior positions
+    alphaB = [3, 1, 0] = base top-left corner irrep such that alphaB + alphaP = alphaM
+    """
+    
+    yp = y[particles]
+    cyp = cy[particles]
+    
+    offset = np.min(yp)
+    offsetcol = np.min(cyp)
+    
+    # shift such that top row and top column are numbered 0
+    yp = yp - offset
+    cyp = cyp - offsetcol
+    
+    nr = np.max(yp) - np.min(yp) + 1
+    
+    alphaP = np.zeros(shape=(nr,), dtype=int)
+    for i in range(nr):
+        alphaP[i] = len( np.argwhere(yp==i).flatten() )
+    
+    alphaM = np.zeros(shape=(nr,), dtype=int)
+    alphaB = np.zeros(shape=(nr,), dtype=int)
+    
+    alphaB[nr-1] = 1
+    alphaM[nr-1] = alphaB[nr-1] + alphaP[nr-1]
+    
+    for i in range(nr-1,-1,-1):
+        if alphaP[i]==0:
+            alphaM[i] = alphaM[i+1]
+            alphaB[i] = alphaM[i+1]
+        else:
+            ind = np.argwhere(yp==i).flatten()
+            nbi = np.max(cyp[ind]) + 1
+            alphaM[i] = nbi
+            alphaB[i] = alphaM[i] - alphaP[i]
+    
+    return alphaM, alphaB, alphaP, offset
 
 
 
@@ -2687,31 +3391,56 @@ def developp_antisymmetric(alpha, y, cy, m, n1, n2):
 
 
 def print_to_latex(y, **kwargs):
-    # Print a SYT to text in LaTeX format, using \ytableau
-    # 
-    # Optional arguments:
-    #   shift
-    #   scale
-    #   colors : dictionnary with keys-value pairs as i: 'col'
-    # 
+    """
+    Print a SYT to text in LaTeX format, using \ytableau
+    
+    Parameters
+    ----------
+    y : numpy array
+        SYT
+    zeroBased : bool
+        optional [True]
+        if True, SYT is filled from 0 to n-1 (n=number of boxes in irrep)
+        if False, SYT is filled from 1 to n
+    shift : float
+        optional [0] vertical shift
+    scale : float
+        optional [1] scaling coefficient of size of ytableau
+    colors : dict
+        key-value pairs, box-to-color
+    
+    Remark
+    ------
+    The formatting assumes the following definition in the tex preamble:
+    \newcommand{\shsc}[3]{\mathrel{\raisebox{#1}{\protect\scalebox{#2}{#3}}}}
+    """
     
     if not 'shift' in kwargs:
         kwargs['shift'] = 0
     if not 'scale' in kwargs:
         kwargs['scale'] = 1
+    if not 'zeroBased' in kwargs:
+        kwargs['zeroBased'] = True
+    
+    if kwargs['zeroBased']==True:
+        szb = int(0)
+    else:
+        szb = int(1)
     
     n = len(y)
     if not 'colors' in kwargs:
-        c = [''] * n
-        kwargs['colors'] = {i: c[i] for i in range(0, n)}
+        cols = {i: '' for i in range(0, n)}
     else:
         allkeys = [i for i in range(0, n)]
+        cols = {}
         for i in allkeys:
             if i in kwargs['colors'].keys():
                 if not ((kwargs['colors'][i][0:2]=='*(') and (kwargs['colors'][i][-1:]==')')):
-                    kwargs['colors'][i] = '*('+kwargs['colors'][i]+')'
+                    cols[i] = '*('+kwargs['colors'][i]+')'
+                else:
+                    cols[i] = kwargs['colors'][i]
             else:
-                kwargs['colors'][i] = ''
+                cols[i] = ''
     
     nl = np.max(y) + 1 # number of rows in the shape
     
@@ -2724,9 +3453,9 @@ def print_to_latex(y, **kwargs):
         # print all numbers of the j-th row
         line = ''
         for k in range(0, len(indj)-1):
-            line += kwargs['colors'][indj[k]] + str(indj[k]+1) + ' & '
+            line += cols[indj[k]] + str(indj[k]+szb) + ' & '
         
-        line += kwargs['colors'][indj[-1]] + str(indj[-1]+1) + ' \\\\ '
+        line += cols[indj[-1]] + str(indj[-1]+szb) + ' \\\\ '
         print(line)
     
     print('\\end{ytableau}}\n')
@@ -2736,19 +3465,29 @@ def print_to_latex(y, **kwargs):
 
 
 def print_subSYT_to_latex(y, alpha, **kwargs):
-    # Print the subSYT <y> in LaTeX format, using \ytableau.
-    # 
-    # Details:
-    #  1) <alpha> is the global shape associated to <y>.
-    #  2) <y> is of length n1, corresponding to the number of boxes in the
-    #     remainder shape <alpha>-alpha0, where alpha0 is the subshape of alpha
-    #
-    # Optional arguments:
-    #   shift
-    #   scale
-    #   lowcol      color for low part (alpha0)
-    #   highcol     color for high part (<alpha>-alpha0)
-    # 
+    """
+    Print a sub-SYT to text in LaTeX format, using \ytableau
+    
+    Parameters
+    ----------
+    y : numpy array
+        sub-SYT
+    alpha : numpy array
+        total irrep
+    shift : float
+        optional [0] vertical shift
+    scale : float
+        optional [1] scaling coefficient of size of ytableau
+    lowcol : str
+        color for the base part
+    highcol : str
+        color for the relevant part
+    
+    Remark
+    ------
+    The formatting assumes the following definition in the tex preamble:
+    \newcommand{\shsc}[3]{\mathrel{\raisebox{#1}{\protect\scalebox{#2}{#3}}}}
+    """
     
     if not 'shift' in kwargs:
         kwargs['shift'] = 0
@@ -2764,6 +3503,14 @@ def print_subSYT_to_latex(y, alpha, **kwargs):
         kwargs['highcol'] = ''
     else:
         kwargs['highcol'] = '*(' + kwargs['highcol'] + ')'
+    
+    if not 'zeroBased' in kwargs:
+        kwargs['zeroBased'] = True
+    
+    if kwargs['zeroBased']==True:
+        szb = int(0)
+    else:
+        szb = int(1)
     
     n = np.sum(alpha)
     n1 = len(y)
@@ -2798,8 +3545,8 @@ def print_subSYT_to_latex(y, alpha, **kwargs):
             if nb>0:
                 line += str(kwargs['lowcol'] + ' & ')
             for k in range(0, len(indj)-1):
-                line += kwargs['highcol'] + str(indj[k]+1) + ' & '
-            line += kwargs['highcol'] + str(indj[-1]+1) + ' \\\\ '
+                line += kwargs['highcol'] + str(indj[k]+szb) + ' & '
+            line += kwargs['highcol'] + str(indj[-1]+szb) + ' \\\\ '
         
         print(line)
     
@@ -3030,6 +3777,88 @@ class PartialLookupTool:
 
 
 
+def get_adjacent_transposition_matrix(alpha, Y, CY, k):
+    """
+    Get matrix of adjacent transposition P_{k, k+1}
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    Y : numpy array
+        SYTs associated to irrep alpha
+    k : int
+        transposition to obtain
+    
+    Returns
+    -------
+    Pk : scipy.sparse.csr_matrix
+        matrix of adjacent transposition P_{k, k+1}
+    
+    Description
+    -----------
+    Computes the adjacent transposition P_{k, k+1} for the irrep alpha
+    """
+    
+    NY = Y.shape[0]
+    
+    Pk_diagval = np.zeros(shape=(NY,), dtype=float)
+    Pk_offdiagrowindex = np.zeros(shape=(NY, ), dtype=int)
+    Pk_offdiagcolindex = np.zeros(shape=(NY, ), dtype=int)
+    Pk_offdiagval = np.zeros(shape=(NY, ), dtype=float)
+    
+    offdiagcounter = int(0)
+    
+    for i in range(0, NY):
+        
+        y = Y[i]
+        cy = CY[i]
+        
+        if Pk_diagval[i]==0:
+            
+            if y[k]==y[k+1]:
+            
+                Pk_diagval[i] = 1
+            
+            else:
+                
+                c1 = cy[k]
+                c2 = cy[k+1]
+                
+                if c1==c2:
+                    Pk_diagval[i] = -1
+                else:
+                    rho = 1.0/get_axial_distance(y, cy, k, k+1)
+                    yfriend = np.copy(y)
+                    yfriend[k] = y[k+1]
+                    yfriend[k+1] = y[k]
+                    
+                    # index = np.argwhere(np.sum(np.abs(self.Y - yfriend), axis=1) < 1e-13).flatten()[0]
+                    index = i + np.argwhere(np.sum(np.abs(Y[i:,:] - yfriend), axis=1)<1.0e-13).flatten()[0]
+                    
+                    # diagonal elements
+                    Pk_diagval[i] = -rho
+                    Pk_diagval[index] = rho
+                    
+                    # off-diagonal elements
+                    Pk_offdiagrowindex[offdiagcounter] = i
+                    Pk_offdiagcolindex[offdiagcounter] = index
+                    Pk_offdiagval[offdiagcounter] = np.sqrt(1.0-rho**2)
+                    offdiagcounter += 1        
+    
+    
+    Pkdiag = scipy.sparse.diags(Pk_diagval, offsets=0, shape=(NY, NY))
+    Pkoffdiag = scipy.sparse.csr_matrix(
+                    (Pk_offdiagval[0:offdiagcounter], 
+                    (Pk_offdiagrowindex[0:offdiagcounter], 
+                     Pk_offdiagcolindex[0:offdiagcounter])), 
+                    shape=(NY, NY))    
+    Pk = Pkdiag + Pkoffdiag + Pkoffdiag.transpose()
+    
+    return Pk
+
+
+
 def get_adjacent_transposition_matrices(alpha, Y, CY):
     """
     Get all matrices of adjacent transpositions
@@ -3053,6 +3882,12 @@ def get_adjacent_transposition_matrices(alpha, Y, CY):
     """
     
     n = np.sum(alpha)
+    P = []
+    
+    for k in range(n-1):
+        P.append( get_adjacent_transposition_matrix(alpha, Y, CY, k) )
+    
+    '''
     NY = Y.shape[0]
     
     Pk_diagval = np.zeros(shape=(n-1, NY), dtype=float)
@@ -3115,188 +3950,6 @@ def get_adjacent_transposition_matrices(alpha, Y, CY):
                          Pk_offdiagcolindex[k, 0:offdiagcounter[k]])), 
                         shape=(NY, NY))    
         P[k] = Pkdiag + Pkoffdiag + Pkoffdiag.transpose()
+    '''
     
     return P
-
-
-
-class SUNFundamental:
-    
-    def __init__(self, Ns, N, alpha, lattice):
-        
-        if not np.sum(alpha)==Ns:
-            sys.exit('Problem: number of boxes in alpha must match Ns')
-        
-        if not lattice.Ns==Ns:
-            sys.exit('lattice object does not have the correct number of sites.')
-        
-        self.N = N
-        self.Ns = Ns
-        self.alpha = np.copy(alpha)
-        self.n = np.sum(self.alpha)
-        self.falpha = multiplicity(self.alpha)
-        self.lattice = lattice
-        self.Y = get_SYT(self.alpha)
-        self.CY = get_column(self.Y)
-
-    def sun_hamiltonian(self):
-        """
-        Compute the Hamiltonian
-        """
-        
-        listtranspositions, nbtranspositions = get_transpositions(self.lattice.links)
-        
-        P = get_adjacent_transposition_matrices(self.alpha, self.Y, self.CY)
-        
-        H = scipy.sparse.csr_matrix((self.falpha, self.falpha))
-        
-        for j in range(0, self.lattice.nlinks):
-            Hj = scipy.sparse.eye(self.falpha)
-            for l in range(nbtranspositions[j]-1, -1, -1):
-                k = listtranspositions[j][l]
-                Hj = P[k] @ Hj
-            H += Hj
-        
-        #H = 0.5*(H + H.transpose())
-        
-        return H
-
-
-
-class SUNSymmetric:
-    
-    def __init__(self, Ns, N, m, alpha, lattice):
-        
-        if not np.sum(alpha)==Ns*m:
-            sys.exit('Problem: number of boxes in alpha must match Ns*m')
-        
-        if not lattice.Ns==Ns:
-            sys.exit('lattice object does not have the correct number of sites.')
-        
-        if m>3:
-            sys.exit('Code not yet implemented for m>3')
-        
-        self.N = N
-        self.Ns = Ns
-        self.m = m
-        self.alpha = np.copy(alpha)
-        self.n = np.sum(self.alpha)
-        self.lattice = lattice
-        self.Y = get_SYT_symm(self.alpha, self.m)
-        self.CY = get_column(self.Y)
-        self.NY = self.Y.shape[0]
-        
-    
-    def sun_hamiltonian(self):
-        # Compute the matrix of the SU(N) Heisenberg model
-        # 
-        
-        H = scipy.sparse.csr_matrix((self.NY, self.NY))
-        
-        nlinks = self.lattice.nlinks
-        
-        for j in range(0, nlinks):
-            
-            Hj = scipy.sparse.csr_matrix((self.NY, self.NY))
-            
-            for i in range(0, self.NY):
-                
-                y = np.copy(self.Y[i, :])
-                cy = np.copy(self.CY[i, :])
-                
-                y2, cy2, coeff2 = developp_symmetric(self.alpha, y, cy, self.m, self.lattice.links[j][0], self.lattice.links[j][1])
-                ny2 = len(coeff2)
-                
-                row = np.full(shape=(ny2,), fill_value=i, dtype=int)
-                col = np.zeros(shape=(ny2,), dtype=int)
-                
-                for t in range(0, ny2):
-                    yfriend = np.copy(y2[t, :])
-                    # search index
-                    index = np.argwhere(np.sum(abs(self.Y - yfriend), axis=1) < 1e-13).flatten()[0]
-                    
-                    col[t] = index
-                    
-                # end for t
-                
-                Hj += scipy.sparse.csr_matrix( (coeff2, (row, col)), shape=(self.NY, self.NY))
-                
-            # end for i
-            
-            H += Hj
-        
-        # end for j
-        
-        H = 0.5 * (H + H.transpose())
-        
-        return H
-
-
-
-class SUNAntiSymmetric:
-    
-    def __init__(self, Ns, N, m, alpha, lattice):
-        
-        if not np.sum(alpha)==Ns*m:
-            sys.exit('Problem: number of boxes in alpha must match Ns*m')
-        
-        if not lattice.Ns==Ns:
-            sys.exit('lattice object does not have the correct number of sites.')
-        
-        if m>2:
-            sys.exit('Code not yet implemented for m>2.')
-        
-        self.N = N
-        self.Ns = Ns
-        self.m = m
-        self.alpha = np.copy(alpha)
-        self.n = np.sum(self.alpha)
-        self.lattice = lattice
-        self.Y = get_SYT_antisymm(self.alpha, self.m)
-        self.CY = get_column(self.Y)
-        self.NY = self.Y.shape[0]
-        
-    
-    def sun_hamiltonian(self):
-        # Compute the matrix of the SU(N) Heisenberg model
-        # 
-        
-        H = scipy.sparse.csr_matrix((self.NY, self.NY))
-        
-        nlinks = self.lattice.nlinks
-        
-        for j in range(0, nlinks):
-            
-            Hj = scipy.sparse.csr_matrix((self.NY, self.NY))
-            
-            for i in range(0, self.NY):
-                
-                y = np.copy(self.Y[i, :])
-                cy = np.copy(self.CY[i, :])
-                
-                y2, cy2, coeff2 = developp_antisymmetric(self.alpha, y, cy, self.m, self.lattice.links[j][0], self.lattice.links[j][1])
-                ny2 = len(coeff2)
-                
-                row = np.full(shape=(ny2,), fill_value=i, dtype=int)
-                col = np.zeros(shape=(ny2,), dtype=int)
-                
-                for t in range(0, ny2):
-                    yfriend = np.copy(y2[t, :])
-                    # search index
-                    index = np.argwhere(np.sum(abs(self.Y - yfriend), axis=1) < 1e-13).flatten()[0]
-                    
-                    col[t] = index
-                    
-                # end for t
-                
-                Hj += scipy.sparse.csr_matrix( (coeff2, (row, col)), shape=(self.NY, self.NY))
-                
-            # end for i
-            
-            H += Hj
-        
-        # end for j
-        
-        H = 0.5 * (H + H.transpose())
-        
-        return H
