@@ -20,7 +20,7 @@ import partitions
 
 
 
-def get_column(Y):
+def get_column(Y) -> np.ndarray:
     """
     Extract column positions in SYTs
     
@@ -51,7 +51,7 @@ def get_column(Y):
 
 
 
-def transpose_shape(alpha):
+def transpose_shape(alpha) -> np.ndarray:
     """
     Transpose an irrep (map rows to columns)
     
@@ -74,7 +74,7 @@ def transpose_shape(alpha):
 
 
 
-def casimir_quadratic(alpha):
+def casimir_quadratic(alpha) -> float:
     """
     Compute the permutational quadratic Casimir of an irrep
     
@@ -114,7 +114,7 @@ def casimir_quadratic(alpha):
 
 
 
-def multiplicity(alpha):
+def multiplicity(alpha) -> int:
     """
     Compute the total number of SYTs associated to the irrep alpha
     
@@ -177,7 +177,7 @@ def multiplicity(alpha):
 
 
 
-def get_SYT(alpha, order='LLOS'):
+def get_SYT(alpha, order='LLOS') -> np.ndarray:
     """
     Get all SYTs for the irrep alpha
     
@@ -268,7 +268,7 @@ def get_SYT(alpha, order='LLOS'):
 
 
 
-def get_subSYT(alpha, alphaB, order='iLLOS'):
+def get_subSYT(alpha, alphaB, order='iLLOS') -> np.ndarray:
     """
     Build all SYTs associated to the subshape alpha-alpha0
     
@@ -359,7 +359,7 @@ def get_subSYT(alpha, alphaB, order='iLLOS'):
 
 
 
-def fill_subSYT(Y, alpha, **kwargs):
+def fill_subSYT(Y, alpha, **kwargs) -> np.ndarray:
     """
     Fill all remaining boxes of a collection of sub-SYTs in order to be a 
     collection of valid SYTs for a given irrep
@@ -440,7 +440,7 @@ def fill_subSYT(Y, alpha, **kwargs):
 
 
 
-def index_to_SYT(i, alpha, order):
+def index_to_SYT(i, alpha, order) -> np.ndarray:
     """
     Build the SYT corresponding to its index among the collection of all SYTs
     
@@ -470,7 +470,7 @@ def index_to_SYT(i, alpha, order):
 
 
 
-def index_to_SYT_LLOS(i, alpha, order='LLOS'):
+def index_to_SYT_LLOS(i, alpha, order='LLOS') -> np.ndarray:
     """
     Build the SYT corresponding to its index among the collection of all SYTs
     
@@ -532,7 +532,7 @@ def index_to_SYT_LLOS(i, alpha, order='LLOS'):
 
 
 
-def index_to_SYT_iLLOS(i, alpha, order='iLLOS'):
+def index_to_SYT_iLLOS(i, alpha, order='iLLOS') -> np.ndarray:
     """
     Build the SYT corresponding to its index among the collection of all SYTs
     
@@ -594,7 +594,7 @@ def index_to_SYT_iLLOS(i, alpha, order='iLLOS'):
 
 
 
-def index_to_SYT_symm(i, alpha, m, order='LLOS'):
+def index_to_SYT_symm(i, alpha, m, order='LLOS') -> np.ndarray:
     # Build the SYT corresponding to index <i> for the irrep alpha, in the case
     # of local symmetric irrep with <m> boxes (local constraints).
     # 
@@ -738,7 +738,7 @@ def index_to_SYT_symm(i, alpha, m, order='LLOS'):
 
 
 
-def SYT_to_index(y, alpha, order):
+def SYT_to_index(y, alpha, order) -> int:
     # Map a SYT to its index in <order> in the list of all SYTs.
     # 
     # Inputs:
@@ -758,7 +758,7 @@ def SYT_to_index(y, alpha, order):
 
 
 
-def SYT_to_index_LLOS(y, alpha, order='LLOS'):
+def SYT_to_index_LLOS(y, alpha, order='LLOS') -> int:
     # Map a SYT to its index in the list of all SYTs.
     # 
     # The default order is inceasing order of Last Letter Order Sequence, 
@@ -796,7 +796,7 @@ def SYT_to_index_LLOS(y, alpha, order='LLOS'):
 
 
 
-def SYT_to_index_iLLOS(y, alpha, order='iLLOS'):
+def SYT_to_index_iLLOS(y, alpha, order='iLLOS') -> int:
     # Map a SYT to its index in the list of all SYTs.
     # 
     # The default order is decreasing order of Last Letter Order Sequence, 
@@ -833,7 +833,7 @@ def SYT_to_index_iLLOS(y, alpha, order='iLLOS'):
 
 
 
-def SYT_to_index_symm(y, alpha, m, order='LLOS'):
+def SYT_to_index_symm(y, alpha, m, order='LLOS') -> int:
     # Map a SYT to its index in the list of all SYTs.
     # 
     # The default order is inceasing order of Last Letter Order Sequence, 
@@ -964,7 +964,7 @@ def SYT_to_index_symm(y, alpha, m, order='LLOS'):
 
 
 
-def binary_search_SYT(y, Y):
+def binary_search_SYT(y, Y) -> int:
     """
     Search the index of a SYT in a collection of SYTs using binary search
     
@@ -1008,7 +1008,7 @@ def binary_search_SYT(y, Y):
 
 
 
-def multiplicity_symm(alpha, m):
+def multiplicity_symm(alpha, m) -> int:
     """
     Compute the total number of SYTs associated to the irrep alpha for local 
     m-box symmetric constraints
@@ -1202,7 +1202,7 @@ def multiplicity_symm(alpha, m):
 
 
 
-def get_bottom_corner(alpha):
+def get_bottom_corner(alpha) -> np.ndarray:
     """
     Extract the bottom corners of an irrep
     
@@ -1280,7 +1280,7 @@ def get_transpositions(links):
     return listtranspositions, nbtranspositions
 
 
-def get_axial_distance(y, cy, i, j):
+def get_axial_distance(y, cy, i, j) -> int:
     """
     Compute axial distance from i to j in SYT y (and columns cy)
     """
@@ -1290,7 +1290,7 @@ def get_axial_distance(y, cy, i, j):
     return ad
 
 
-def get_new_shape(alpha, y):
+def get_new_shape(alpha, y) -> np.ndarray:
     """
     Extract remaining irrep from a subSYT associated to an irrep
     
@@ -1326,7 +1326,7 @@ def get_new_shape(alpha, y):
 
 
 
-def dim_irrep_sun(alpha, N):
+def dim_irrep_sun(alpha, N) -> int:
     """
     Dimension of irrep of SU(N)
     
@@ -1415,7 +1415,7 @@ def dim_irrep_sun(alpha, N):
 
 
 
-def get_SSYT(alpha, N):
+def get_SSYT(alpha, N) -> np.ndarray:
     """
     Get all semi-standard Young tableaux of an irrep
     
@@ -1487,7 +1487,7 @@ def get_SSYT(alpha, N):
 
 
 
-def tensor_product_irrep(alpha1, alpha2, N):
+def tensor_product_irrep(alpha1, alpha2, N) -> np.ndarray:
     """
     Tensor product of two irreps
     
@@ -1717,7 +1717,7 @@ def merge_shapes(alpha1, multi1, alpha2, multi2):
 
 
 
-def multiplicity_irrep_mixed(alpha, beta, N):
+def multiplicity_irrep_mixed(alpha, beta, N) -> int:
     """
     Compute the multiplicity of an irrep in the tensor product of several irreps
     
@@ -1971,7 +1971,7 @@ def get_list_irreps(N, num_irreps, n):
 
 
 
-def get_SYT_symm(alpha, m, order='LLOS'):
+def get_SYT_symm(alpha, m, order='LLOS')  -> np.ndarray:
     """
     Compute all SYTs for an irrep alpha satisfying local constraints defined by
     a symmetric irrep with m boxes
@@ -2095,7 +2095,7 @@ def get_SYT_symm(alpha, m, order='LLOS'):
 
 
 
-def get_SYT_antisymm(alpha, m, order='LLOS'):
+def get_SYT_antisymm(alpha, m, order='LLOS') -> np.ndarray:
     """
     Compute all SYTs for an irrep alpha satisfying local constraints defined by
     an anti-symmetric irrep with m boxes
@@ -2818,7 +2818,7 @@ class LocalStates:
     
     
     
-    def __get_local_states(self):
+    def __get_local_states(self) -> None:
         """
         Compute the states at a local site, obtained as the kernel of the projector
         onto the local irrep
@@ -3019,7 +3019,7 @@ class GeneralBasis:
     
     
     
-    def find_indices(self, ec, site1, site2):
+    def find_indices(self, ec, site1, site2) -> np.ndarray:
         """
         Find the indices in the global basis of states of a given equivalence class
         for a set of sites
@@ -3128,7 +3128,7 @@ class GeneralBasis:
     
     
     
-    def __check_conditions_equivalence_class(self, ec1, ec2, particles1, particles2):
+    def __check_conditions_equivalence_class(self, ec1, ec2, particles1, particles2) -> bool:
         """
         Check if 2 equivalence classes are compatible
         
@@ -3193,7 +3193,7 @@ class GeneralBasis:
     
     
     
-    def get_sister_equivalence_class(self, ec1, particles1, particles2):
+    def get_sister_equivalence_class(self, ec1, particles1, particles2) -> np.ndarray:
         """
         Determine the relevant equivalence classes coupling with an input class
         
