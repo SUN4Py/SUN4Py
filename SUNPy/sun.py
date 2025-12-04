@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 """
 Created on Thu Jun 29 16:10:43 2023
+Copyright 2023 Samuel GOZEL, GNU GPLv3
 
 @author: sgozel
 """
-# Copyright 2023 Samuel GOZEL, GNU GPLv3
 
 import sys
 import math
@@ -31,19 +31,37 @@ def get_column(Y) -> np.ndarray:
     -------
     CY : numpy array
         collection of column positions
+    
+    Remark
+    ------
+    get_column is an involution
+    
+    Example
+    -------
+    Y = get_SYT(np.array([3, 3, 3], dtype=int))
+    CY = get_column(Y)
+    Yp = get_column(CY)
+    assert(np.linalg.norm(Y-Yp))
     """
     
+    singleSYT = False
     if len(Y.shape)==1:
-        NY = 1
+        # only 1 SYT
+        NY = int(1)
         n = Y.shape[0]
         Y = np.reshape(Y, (NY, n))
-    else:    
+        singleSYT = True
+    else:
+        # 1 or several SYTs
         NY = Y.shape[0]
         n = Y.shape[1]
     
     CY = np.zeros((NY, n), dtype=int)
     for k in range(1, n):
         CY[:,k] = np.sum( ( np.ones((k+1, 1), dtype=int)*Y[:,k] == np.transpose(Y[:,0:k+1]) ), axis=0 ) - 1
+    
+    if singleSYT==True:
+        CY = CY.flatten()
     
     return CY
 
@@ -1789,6 +1807,39 @@ def multiplicity_irrep_mixed(alpha, beta, N) -> int:
 
 
 
+def find_row(A, a):
+    """
+    Search array A for rows equal to a and return indices of matching rows    
+    """
+    indices = np.argwhere(np.sum(abs(A - a), axis=1)==0).flatten()
+    return indices
+
+
+def find_col(A, a):
+    """
+    Search array A for columns equal to a and return indices of matching columns
+    """
+    indices = np.argwhere(np.sum(abs(A.transpose() - a), axis=1)==0).flatten()
+    return indices
+
+
+def intersect_row(A, B):
+    """
+    # Source - https://stackoverflow.com/a
+    # Posted by Joe Kington
+    # Retrieved 2025-11-16, License - CC BY-SA 3.0
+    """
+    nrows, ncols = A.shape
+    dtype={'names':['f{}'.format(i) for i in range(ncols)],
+           'formats':ncols * [A.dtype]}
+    
+    C, indA, indB = np.intersect1d(A.view(dtype), B.view(dtype), 
+                                   assume_unique=True, return_indices=True)
+    C = C.view(A.dtype).reshape(-1, ncols)
+    
+    return C, indA, indB
+
+
 def sortrows(A):
     # Equivalent to Matlab's sortrows.
     # 
@@ -1816,6 +1867,31 @@ def sortrows(A):
         index = np.array([0], dtype=int)
     
     return B, index
+
+
+def sort_SYT(Y, order='LLOS'):
+    """
+    Sort SYTs in the increasing order of the LLOS (or iLLOS)
+    
+    Parameters
+    ----------
+    Y : numpy array
+        collection of SYTs (stored in the rows)
+    order : str
+        (optional) [default: 'LLOS'] order in which to sort the SYTs
+    
+    Returns
+    -------
+    Y : numpy array
+        collection of sorted SYTs (stored in the rows)
+    """
+    assert(order in ['LLOS', 'iLLOS'])
+    Y, ind = sortrows(Y[:, ::-1])
+    Y = Y[:, ::-1]
+    if order=='LLOS':
+        Y = Y[::-1, :]
+        ind = ind[::-1]
+    return Y, ind
 
 
 
@@ -2841,28 +2917,95 @@ def fullsimplify_development(ydev, cydev, coeff):
     return ydev1, cydev1, coeff1
 
 
+def overlap(ydev1, coeff1, ydev2, coeff2, need_fullsimplify=True):
+    """
+    Compute the overlap of two developments:
+            out = <dev2|dev1>
+    
+    Parameters
+    ----------
+    ydev1, coeff1 : numpy arrays
+        SYTs and coefficients
+    ydev2, coeff2 : numpy arrays
+        SYTs and coefficients
+    need_fullsimplify : bool
+        [default] True if fullsimplify is required on the developments
+    
+    Returns
+    -------
+    out : float
+        overlap
+    """
+    
+    if need_fullsimplify:
+        Ny1 = len(coeff1)
+        ydev1, ia1, ic1 = np.unique(ydev1, axis=0, return_index=True, return_inverse=True)
+        M = scipy.sparse.csr_matrix( (np.full(fill_value=1, shape=(Ny1,), dtype=int), 
+                                      (ic1, np.arange(0, Ny1))), 
+                                    shape=(len(ia1), Ny1) )
+        coeff1 = M @ coeff1
+        
+        Ny2 = len(coeff2)
+        ydev2, ia2, ic2 = np.unique(ydev2, axis=0, return_index=True, return_inverse=True)
+        M = scipy.sparse.csr_matrix( (np.full(fill_value=1, shape=(Ny2,), dtype=int), 
+                                      (ic2, np.arange(0, Ny1))), 
+                                    shape=(len(ia2), Ny2) )
+        coeff2 = M @ coeff2
+    
+    _, ind1, ind2 = intersect_row(ydev1, ydev2)
+    
+    out = np.sum( np.multiply(coeff1[ind1], coeff2[ind2]) )
+    
+    return out
+
+
 
 def develop_consecutive_number(alpha, ydev, cydev, coeff, k):
-    # Apply the transposition \tau_{k,k+1} on the development.
-    # 
+    """
+    Apply a transposition (k, k+1) on a development
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    ydev : numpy array
+        SYTs of development
+    cydev : numpy array
+        associated column positions
+    coeff : numpy array
+        coefficients of development
+    k : int
+        transposition to apply (k, k+1)
+    
+    Returns
+    -------
+    ydev2, cydev2, coeff2 : updated development
+    
+    Details
+    -------
+    |input-development> = coeff[0] |ydev[0]> + ... + coeff[-1] |ydev[-1]>
+    
+    |output-development> = T_{k, k+1} |input-development>
+    
+    where T is the operator representing the transposition (k, k+1) acting on 
+    the Hilbert space of SYTs.
+    """
     
     n = np.sum(alpha)
+    assert n==ydev.shape[-1]
     
     if len(ydev.shape)==1:
         # only 1 SYT in the development
-        Ny = 1
-        n = ydev.shape[0]
+        Ny = int(1)
+        assert n==ydev.shape[0]
         ydev = np.reshape(ydev, (1, n))
         cydev = np.reshape(cydev, (1, n))
     else:
         Ny = ydev.shape[0]
-        n = ydev.shape[1]
-    
-    if not n==np.sum(alpha):
-        sys.exit('Problem')
+        assert n==ydev.shape[1]
     
     if k>=n-1:
-        sys.exit('Problem: k too large. k must be striclty less than n-1.')
+        sys.exit('Problem: [develop_consecutive_number] k too large. k must be striclty less than n-1.')
     
     ydev1 = np.full(shape=(2*Ny, n), fill_value=-1, dtype=int)
     cydev1 = np.full(shape=(2*Ny, n), fill_value=-1, dtype=int)
@@ -2880,7 +3023,6 @@ def develop_consecutive_number(alpha, ydev, cydev, coeff, k):
         cy = np.copy(cydev[i-1,:])
         
         if not y[k]==y[k+1]:
-            # not in the same row
             
             c1 = cy[k]
             c2 = cy[k+1]
@@ -2905,7 +3047,7 @@ def develop_consecutive_number(alpha, ydev, cydev, coeff, k):
                 
                 coeff1[count-1] = coeff1[i-1] * np.sqrt(1.0-rho*rho)
                 coeff1[i-1] *= rho
-    # end for i
+    
     ydev1 = ydev1[0:count,:]
     cydev1 = cydev1[0:count,:]
     coeff1 = coeff1[0:count]
@@ -2915,10 +3057,55 @@ def develop_consecutive_number(alpha, ydev, cydev, coeff, k):
     return ydev2, cydev2, coeff2
 
 
+def t_operator(ydev, cydev, coeffdev, k, rho):
+    """
+    Apply the operator T_{(k, k+1)} = (P_{(k, k+1)} + rho)/sqrt(1 - rho**2) on a development
+    """
+    
+    Nydev = ydev.shape[0]
+    
+    b_row = (ydev[:, k]==ydev[:, k+1]) # all SYTs where k and k+1 are in the same row
+    b_col = (cydev[:, k]==cydev[:, k+1]) # all SYTs where k and k+1 are in the same column
+    
+    # diagonal part
+    coeffdev[b_row] = (1.0 + rho) * coeffdev[b_row]
+    coeffdev[b_col] = (-1.0 + rho) * coeffdev[b_col]
+    
+    # indices of SYTs where k and k+1 are neither in the same row nor same column
+    ind = np.argwhere(np.multiply(1-b_row, 1-b_col)).flatten()
+    
+    if len(ind)>0:
+        # axial distance from k to k+1
+        ax_vec = cydev[ind, k] - ydev[ind, k] - cydev[ind, k+1] + ydev[ind, k+1]
+        rho_vec = 1.0/ax_vec
+    
+        # perform interchange of k and k+1
+        ydev = np.vstack((ydev, ydev[ind, :]))
+        ydev[Nydev:, k] = ydev[ind, k+1]
+        ydev[Nydev:, k+1] = ydev[ind, k]
+        
+        cydev = np.vstack((cydev, cydev[ind, :]))
+        cydev[Nydev:, k] = cydev[ind, k+1]
+        cydev[Nydev:, k+1] = cydev[ind, k]
+        
+        # add coefficients of off-diagonal terms coming from P_{(k, k+1)}
+        coeffdev = np.hstack((coeffdev, np.multiply(np.sqrt( 1.0 - rho_vec**2 ), coeffdev[ind])))
+        
+        # diagonal part of P_{(k, k+1)} and -rho*Id part on off-diagonal elements
+        coeffdev[ind] = np.multiply(-rho_vec + rho, coeffdev[ind])
+    
+    # apply denominator of T_{(k, k+1)}
+    coeffdev *= 1.0/np.sqrt(1.0 - rho**2)
+    
+    ydev, cydev, coeffdev = fullsimplify_development(ydev, cydev, coeffdev)
+    
+    return ydev, cydev, coeffdev
+
 
 def develop_transposition(alpha, ydev, cydev, coeff, i, j):
-    # Apply the permutation P_{i,j} on the development. 
-    # 
+    """
+    Apply the transposition (i,j) on a development
+    """
     
     if not i==j:
         listtranspositions, nbtranspositions = get_transpositions([np.array([min(i, j), max(i, j)], dtype=int)])
@@ -2931,8 +3118,9 @@ def develop_transposition(alpha, ydev, cydev, coeff, i, j):
 
 
 def sum_develop(ydev1, cydev1, coeff1, ydev2, cydev2, coeff2):
-    # Compute the sum of two developments.
-    # 
+    """
+    Sum two developments    
+    """
     
     ydev = np.vstack([ydev1, ydev2])
     cydev = np.vstack([cydev1, cydev2])
