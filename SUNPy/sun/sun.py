@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Thu Jun 29 16:10:43 2023
 Copyright 2023 Samuel GOZEL, GNU GPLv3
 
 @author: sgozel
@@ -11,10 +10,8 @@ import sys
 import math
 import numpy as np
 import scipy.sparse
-import scipy.linalg
-import scipy.sparse.linalg
 
-import partitions
+import sunpy.common.math
 
 
 
@@ -1023,6 +1020,358 @@ def binary_search_SYT(y, Y) -> int:
     return m
 
 
+def SYT_to_target(y, ytarget):
+    """
+    Find the sequence of operations which brings an SYT to a target SYT
+    
+    Parameters
+    ----------
+    y : numpy array
+        SYT to transfrom
+    ytarget : numpy array
+        target SYT
+    
+    Returns
+    -------
+    sigma : numpy array
+        sequence of transpositions
+    rho : numpy array
+        array of inverses of axial distances
+    
+    Remark
+    ------
+    - The sequence of operations needs to be read from first to last element:
+        y --------> y' --------> y'' ... --------> ytarget
+          sigma[0]    sigma[1]           sigma[-1]
+    - The operations necessary to obtain y from ytarget are obtained by flipping 
+      the two output arrays and changing the sign of all elements of rho:
+        sigma = np.flip(sigma)
+        rho = np.flip(-rho)
+    
+    Details
+    -------
+    In terms of SYTs, we have:
+        
+        ytarget = sigma[-1] sigma[-2] ... sigma[1] sigma[0] y
+    
+    In terms of states:
+        
+        |ytarget> = (sigma[-1]+rho[-1])/sqrt(1-rho[-1])**2  ... (sigma[0]+rho[r0])/sqrt(1-rho[0]**2) |y>
+    
+    Examples
+    --------
+    Example 1:
+              0 2       0 1                   0 2            0 1
+    ytarget = 1     y = 2       --> ytarget = 1     = (1, 2) 2    = (1, 2) y
+              3         3                     3              3
+    
+    and |ytarget> = (P_{(1,2)} + 1/2)/(sqrt(3)/2) |y>
+    
+    thus sigma = np.array([1]) and rho = np.array([1/2])
+    
+    Example 2:
+              0 1       0 3                   0 1            0 2                 0 3
+    ytarget = 2     y = 1       --> ytarget = 2     = (1, 2) 1   = (1, 2) (2, 3) 1    = (1, 2) (2, 3) y
+              3         2                     3              3                   2
+    
+    thus sigma = [2, 1] and rho = [-1/3, -1/2]
+    """
+    
+    assert len(y) == len(ytarget)
+    n = len(y)
+    cy = get_column(y)
+    cytarget = get_column(ytarget)
+    
+    yp = np.copy(y)
+    cyp = np.copy(cy)
+    
+    sigma = np.zeros(shape=(n*n,), dtype=int) # list of adjacent transpositions
+    rho = np.zeros(shape=(n*n,), dtype=float) # list of inverse of axial distances
+    
+    cpt = int(0)
+    
+    for k in range(0, n):
+        if yp[k]==ytarget[k]:
+            # k is at good location
+            pass
+        else:
+            row_target = ytarget[k] # row that k should occupy
+            col_taret = cytarget[k] # column that k should occupy
+            
+            # find index of particle that occupies the location that k SHOULD occupy
+            yx = np.stack((yp, cyp), axis=1)
+            yf = np.array([row_target, col_taret])
+            kprime = np.argwhere( np.sum( abs( yx - yf ), axis=1 )==0 ).flatten()
+            assert len(kprime)==1
+            kprime = kprime[0]
+            
+            for ll in range(kprime-1, k-1, -1):
+                sigma[cpt] = ll
+                axtemp = get_axial_distance(yp, cyp, ll, ll+1)
+                rho[cpt] = 1.0/axtemp
+                
+                y_new = np.copy(yp)
+                cy_new = np.copy(cyp)
+                
+                y_new[ll] = yp[ll+1]
+                y_new[ll+1] = yp[ll]
+                cy_new[ll] = cyp[ll+1]
+                cy_new[ll+1] = cyp[ll]
+                
+                yp = y_new
+                cyp = cy_new
+                
+                cpt += 1
+    
+    sigma = sigma[:cpt]
+    rho = rho[:cpt]
+    assert np.sum(abs(yp-ytarget))==0
+    assert np.sum(abs(cyp-cytarget))==0
+    
+    return sigma, rho
+
+
+def get_descendants(alpha, N):
+    """
+    Get all descendants shapes
+    """
+    assert len(alpha<=N)
+    
+    alpha = np.hstack((alpha, np.zeros(shape=(N-len(alpha)), dtype=int)))
+    
+    alpha_desc = np.zeros(shape=(N+1, N), dtype=int)
+    box_pos = np.zeros(shape=(N+1,), dtype=int)
+
+    # first descendant is obtained by adding a box in the first row
+    alpha_desc[0] = alpha
+    alpha_desc[0][0] += 1
+    box_pos[0] = 0
+    
+    # all others descendants are obtained by putting a box in a bottom corner
+    bc_vec = get_bottom_corner(alpha)
+    bc_vec = bc_vec[bc_vec!=N-1]
+    
+    cpt = int(1)
+    for bc in bc_vec:
+        alpha_desc[cpt] = alpha
+        alpha_desc[cpt][bc+1] += 1
+        box_pos[cpt] = bc+1
+        cpt += 1
+    
+    alpha_desc = alpha_desc[0:cpt]
+    box_pos = box_pos[0:cpt]
+    
+    return alpha_desc, box_pos
+
+
+
+def apply_transpositions(nu, sigma, rho, ydev1, cydev1, coeffdev1):
+    """
+    Apply a sequence of transposition operators defined by (sigma, rho) to a 
+    development
+    
+    Let T[i] = (P_{sigma[i], sigma[i]+1} + rho[i])/sqrt(1-rho[i]**2) for i=0, ..., len(sigma)-1
+    
+    Then we compute
+        |output development> = T[-1] ... T[1] T[0] |input development>
+    
+    where
+    
+        |input development> = coeffdev1[0] |ydev1[0]> + ... + coeffdev1[-1] |ydev1[-1]>
+    
+    Parameters
+    ----------
+    nu : numpy array
+        irrep
+    sigma : numpy array
+        sequence of adjacent transpositions
+    rho : numpy array
+        inverses of axial distances
+    ydev1 : numpy array
+        SYT development
+    cydev1 : numpy array
+        associated column positions
+    coeffdev1 : numpy array
+        associated coefficients
+    
+    Returns
+    -------
+    ydev1, cydev1, coeffdev1 : updated development
+    """
+    
+    for ll in range(0, len(sigma)):
+        
+        ydev2, cydev2, coeffdev2 = develop_consecutive_number(
+                                        nu, 
+                                        ydev1, cydev1, coeffdev1, 
+                                        k=sigma[ll])
+        
+        ydev2, cydev2, coeffdev2 = sum_develop(ydev1, cydev1, rho[ll]*coeffdev1, 
+                                               ydev2, cydev2, coeffdev2)
+        
+        ydev2, cydev2, coeffdev2 = fullsimplify_development(ydev2, cydev2, coeffdev2)
+        
+        coeffdev2 = coeffdev2/np.sqrt(1.0-rho[ll]**2)
+        
+        ydev1 = ydev2
+        cydev1 = cydev2
+        coeffdev1 = coeffdev2
+    
+    return ydev1, cydev1, coeffdev1
+
+
+
+def apply_transpositions_v2(nu, sigma, rho, ydev, cydev, coeffdev, sort=False):
+    """
+    Apply a sequence of transposition operators defined by (sigma, rho) to a 
+    development
+    
+    Let T[i] = (P_{sigma[i], sigma[i]+1} + rho[i])/sqrt(1-rho[i]**2) for i=0, ..., len(sigma)-1
+    
+    Then we compute
+        |output development> = T[-1] ... T[1] T[0] |input development>
+    
+    where
+    
+        |input development> = coeffdev1[0] |ydev1[0]> + ... + coeffdev1[-1] |ydev1[-1]>
+    
+    Parameters
+    ----------
+    nu : numpy array
+        irrep
+    sigma : numpy array
+        sequence of adjacent transpositions
+    rho : numpy array
+        inverses of axial distances
+    ydev : numpy array
+        SYT development
+    cydev : numpy array
+        associated column positions
+    coeffdev : numpy array
+        associated coefficients
+    sort : bool [optional], default: False
+        if True, sort the output SYTs in ascending order of LLOS
+    
+    Returns
+    -------
+    ydev1, cydev1, coeffdev1 : updated development
+    """
+    
+    for ll in range(0, len(sigma)):
+        ydev, cydev, coeffdev = t_operator(ydev, cydev, coeffdev, 
+                                           k=sigma[ll], 
+                                           rho=rho[ll])
+    
+    if sort==True:
+         ydev, ind = sort_SYT(ydev, order='LLOS')
+         cydev = cydev[ind, :]
+         coeffdev = coeffdev[ind]
+    
+    return ydev, cydev, coeffdev
+
+
+def apply_transpositions_v3(nu, sigma, rho, ydev, cydev, coeffdev, ifd, sort=False):
+    """
+    Apply a sequence of transposition operators defined by (sigma, rho) to a 
+    development
+    
+    Let T[i] = (P_{sigma[i], sigma[i]+1} + rho[i])/sqrt(1-rho[i]**2) for i=0, ..., len(sigma)-1
+    
+    Then we compute
+        |output development> = T[-1] ... T[1] T[0] |input development>
+    
+    where
+    
+        |input development> = coeffdev1[0] |ydev1[0]> + ... + coeffdev1[-1] |ydev1[-1]>
+    
+    Parameters
+    ----------
+    nu : numpy array
+        irrep
+    sigma : numpy array
+        sequence of adjacent transpositions
+    rho : numpy array
+        inverses of axial distances
+    ydev : numpy array
+        SYT development
+    cydev : numpy array
+        associated column positions
+    coeffdev : numpy array
+        associated coefficients
+    
+    Returns
+    -------
+    ydev1, cydev1, coeffdev1 : updated development
+    """
+    print('CAUTION: apply_transpositions_v3 is EXPERIMENTAL. Currently, it is \n' 
+          + 'most of the time better to use apply_transpositions_v2.')
+    
+    n = ydev.shape[1]
+    
+    # find the number of different patterns in the last ifd particles
+    _, ia, ic = np.unique(ydev[:, n-ifd:], 
+                          return_index=True, 
+                          return_inverse=True, 
+                          axis=0)
+    N_disjoint_groups = len(ia)
+    
+    max_N_groups = int(40)
+        
+    # define the actual number of groups to deal with
+    N_groups = min(N_disjoint_groups, max_N_groups)
+    
+    q_groups = N_disjoint_groups // N_groups # number of true groups into an effective group
+    r_groups = N_disjoint_groups % N_groups #  remaining groups
+    
+    ind_groups = []
+    for p in range(0, N_groups):
+        ind_groups.append( np.argwhere(( ic >= p*q_groups ) & ( ic < (p+1)*q_groups )).flatten() )
+    
+    # we distribute the <r_groups> remaining groups among the first
+    # <r_groups> formed above
+    for p in range(0, r_groups):
+        icp = np.argwhere(ic==(p+q_groups*N_groups)).flatten()
+        ind_groups[p] = np.hstack((ind_groups[p], icp))
+    
+    # apply transpositions on each  group
+    ydev_groups = []
+    cydev_groups = []
+    coeffdev_groups = []
+    
+    for p in range(0, N_groups):
+        ydev_p = np.copy(ydev[ind_groups[p]])
+        cydev_p = np.copy(cydev[ind_groups[p]])
+        coeffdev_p = np.copy(coeffdev[ind_groups[p]])
+        
+        ydev_p, cydev_p, coeffdev_p = apply_transpositions_v2(
+                                nu, 
+                                sigma, 
+                                rho, 
+                                ydev_p, 
+                                cydev_p, 
+                                coeffdev_p,
+                                sort=sort)
+        
+        ydev_groups.append(ydev_p)
+        cydev_groups.append(cydev_p)
+        coeffdev_groups.append(coeffdev_p)
+    
+    # merge all groups
+    ydev_out = ydev_groups[0]
+    cydev_out = cydev_groups[0]
+    coeffdev_out = coeffdev_groups[0]
+    for p in range(1, N_groups):
+        ydev_out = np.vstack((ydev_out, ydev_groups[p]))
+        cydev_out = np.vstack((cydev_out, cydev_groups[p]))
+        coeffdev_out = np.hstack((coeffdev_out, coeffdev_groups[p]))
+    
+    if sort==True:
+         ydev_out, ind = sort_SYT(ydev_out, order='LLOS')
+         cydev_out = cydev_out[ind, :]
+         coeffdev_out = coeffdev_out[ind]
+    
+    return ydev_out, cydev_out, coeffdev_out
+
 
 def multiplicity_symm(alpha, m) -> int:
     """
@@ -1807,68 +2156,6 @@ def multiplicity_irrep_mixed(alpha, beta, N) -> int:
 
 
 
-def find_row(A, a):
-    """
-    Search array A for rows equal to a and return indices of matching rows    
-    """
-    indices = np.argwhere(np.sum(abs(A - a), axis=1)==0).flatten()
-    return indices
-
-
-def find_col(A, a):
-    """
-    Search array A for columns equal to a and return indices of matching columns
-    """
-    indices = np.argwhere(np.sum(abs(A.transpose() - a), axis=1)==0).flatten()
-    return indices
-
-
-def intersect_row(A, B):
-    """
-    # Source - https://stackoverflow.com/a
-    # Posted by Joe Kington
-    # Retrieved 2025-11-16, License - CC BY-SA 3.0
-    """
-    nrows, ncols = A.shape
-    dtype={'names':['f{}'.format(i) for i in range(ncols)],
-           'formats':ncols * [A.dtype]}
-    
-    C, indA, indB = np.intersect1d(A.view(dtype), B.view(dtype), 
-                                   assume_unique=True, return_indices=True)
-    C = C.view(A.dtype).reshape(-1, ncols)
-    
-    return C, indA, indB
-
-
-def sortrows(A):
-    # Equivalent to Matlab's sortrows.
-    # 
-    # Input:
-    #   A       2d numpy array
-    # 
-    # Outputs:
-    #   B       sorted array of rows
-    #   index   numpy array of indices such that B = A[index, :] 
-    # 
-    # Remark:
-    #   See Matlab documentation: 
-    #   https://ch.mathworks.com/help/matlab/ref/double.sortrows.html
-    # 
-    
-    if A.shape[0]>1:
-        tmp = []
-        for i in range(A.shape[1]-1,-1,-1):
-            tmp.append(tuple(A[:,i]))
-        index = np.lexsort(tmp)
-        B = np.copy(A)
-        B = B[index,:]
-    else:
-        B = A
-        index = np.array([0], dtype=int)
-    
-    return B, index
-
-
 def sort_SYT(Y, order='LLOS'):
     """
     Sort SYTs in the increasing order of the LLOS (or iLLOS)
@@ -1886,7 +2173,7 @@ def sort_SYT(Y, order='LLOS'):
         collection of sorted SYTs (stored in the rows)
     """
     assert(order in ['LLOS', 'iLLOS'])
-    Y, ind = sortrows(Y[:, ::-1])
+    Y, ind = sunpy.common.math.sortrows(Y[:, ::-1])
     Y = Y[:, ::-1]
     if order=='LLOS':
         Y = Y[::-1, :]
@@ -1992,7 +2279,7 @@ def get_list_irreps(N, num_irreps, n):
             
             s += p[tt-1]
             
-            temp, _ = sortrows(Forme[s:index_sum, :])
+            temp, _ = sunpy.common.math.sortrows(Forme[s:index_sum, :])
             Forme[s:index_sum, :] = temp
             
             FormePrec = np.zeros((index_sum-s, n), dtype=int)
@@ -2917,6 +3204,39 @@ def fullsimplify_development(ydev, cydev, coeff):
     return ydev1, cydev1, coeff1
 
 
+def sort_development(Y, ydev, coeffdev):
+    """
+    Sort a development according to a collection of SYTs
+    
+    Parameters
+    ----------
+    Y : numpy array
+        collection of SYTs (stored in the rows)
+    ydev : numpy array
+        SYT development
+    coeffdev : numpy array
+        coefficients of the SYTs in the development
+    
+    Returns
+    -------
+    coeff_sorted : numpy array (of dimension (Y.shape[0], ))
+        coefficients of development, expressed in the order defined by Y
+    
+    Details
+    -------
+    
+    """
+    coeff_sorted = np.zeros(shape=(Y.shape[0],), dtype=float)
+    
+    for t in range(0, ydev.shape[0]):
+        ind = np.argwhere( np.sum(abs(Y - ydev[t]), axis=1)==0 ).flatten()
+        assert len(ind)==1
+        ind = ind[0]
+        coeff_sorted[ind] = coeffdev[t]
+    
+    return coeff_sorted
+
+
 def overlap(ydev1, coeff1, ydev2, coeff2, need_fullsimplify=True):
     """
     Compute the overlap of two developments:
@@ -2952,7 +3272,7 @@ def overlap(ydev1, coeff1, ydev2, coeff2, need_fullsimplify=True):
                                     shape=(len(ia2), Ny2) )
         coeff2 = M @ coeff2
     
-    _, ind1, ind2 = intersect_row(ydev1, ydev2)
+    _, ind1, ind2 = sunpy.common.math.intersect_row(ydev1, ydev2)
     
     out = np.sum( np.multiply(coeff1[ind1], coeff2[ind2]) )
     
@@ -3741,228 +4061,6 @@ def print_subSYT_to_latex(y, alpha, **kwargs):
     print('\\end{ytableau}}\n')
     
     return
-
-
-
-class PartialLookupTool:
-    
-    
-    def __init__(self, N, alpha, nlookupboxes):
-        
-        if nlookupboxes==0:
-            sys.exit('Problem: for nlookupboxes==0, no lookup. Use dedicated functions.')
-        elif nlookupboxes==1:
-            print('Warning: nlookupboxes=1 is equivalent to no lookup.')
-        elif nlookupboxes>=np.sum(alpha):
-            sys.exit('Problem: for partial lookup, nlookupboxes must be stricly smaller than the total number of boxes.')
-        
-        self.alpha = alpha
-        self.N = N
-        self.n = np.sum(alpha)
-        self.nlookupboxes = nlookupboxes
-        self.n0 = nlookupboxes
-        self.n1 = self.n - self.n0
-        
-        return
-    
-    
-    
-    def init_lookup(self):
-        # Generate all lookup tables
-        # 
-        
-        # generate all subshapes of alpha with <self.n0> boxes
-        pstarnm = partitions.pstarnm(self.n0, self.N) # number of partitions of <self.n0> in at most <self.N> parts
-        
-        alpha_all, _ = get_list_irreps(self.N, 2*pstarnm, self.n)
-        
-        # restrict to potential shapes
-        ind = np.argwhere( (np.sum(alpha_all, axis=1)<=self.n0) & ((np.sum(alpha_all, axis=1)%self.N)==(self.n0%self.N)) ).flatten()
-        alpha_all = alpha_all[ind]
-        
-        if not alpha_all.shape[0]==pstarnm:
-            sys.exit('Problem: the number of generated shapes does not match the number of parititions.')
-        
-        # add columns with N boxes
-        for i in range(0, alpha_all.shape[0]):
-            r = (self.n0 - np.sum(alpha_all[i]))//self.N
-            alpha_all[i] += np.full(shape=alpha_all[i].shape, fill_value=r, dtype=int)
-        
-        # remove shapes which are not subshapes
-        ind = np.zeros(shape=(0,), dtype=int)
-        for i in range(0, alpha_all.shape[0]):
-            issubshape = True
-            for l in range(0, self.N):
-                if alpha_all[i][l]>self.alpha[l]:
-                    issubshape = False
-                    break
-            if issubshape==True:
-                ind = np.hstack([ind, i])
-        
-        self.alpha0 = np.copy(alpha_all[ind])
-        
-        ###########################################################################
-        
-        # reorder alpha0 so as to correspond to the iLLOS
-        # irreps must be sorted according to the length of the rows
-        
-        self.alpha0, _ = sortrows(self.alpha0)
-        self.Na = self.alpha0.shape[0] # total number of subshapes
-        
-        ###########################################################################
-        
-        # for each subshape of alpha, generate all SYTs
-        
-        self.Y0 = [None] * self.Na
-        self.dims0 = np.zeros((self.Na,), dtype=int)
-        
-        for i in range(0, self.Na):
-            self.Y0[i] = get_SYT(self.alpha0[i], order='iLLOS')
-            self.dims0[i] = self.Y0[i].shape[0]
-        
-        ###########################################################################
-        
-        # Generate all remainder shapes
-        
-        self.alpha1 = self.alpha - self.alpha0
-        
-        ###########################################################################
-        
-        # for each remainder shape, generate all SYTs
-        
-        self.Y1 = [None] * self.Na
-        self.dims1 = np.zeros((self.Na,), dtype=int)
-        
-        for i in range(0, self.Na):
-            self.Y1[i] = get_subSYT(self.alpha, self.alpha0[i])
-            self.dims1[i] = self.Y1[i].shape[0]
-        
-        ###########################################################################
-        
-        # Verify dimension
-        
-        self.dim = int(0)
-        for i in range(0, self.Na):
-            self.dim += (self.dims0[i] * self.dims1[i])
-        
-        if not self.dim==multiplicity(self.alpha):
-            sys.exit('Problem: the sum of the product of the dimensions does not match the multiplicity.')
-        
-        ###########################################################################
-        # GENERATE THE ORDERING TO MATCH THE ILLOS
-        ###########################################################################
-        
-        # note that sorting the SYTs is not strictly necessary, as one can simply
-        # redefine the basis, as in each "block", the SYTs are ordered in the iLLOS
-        # by construction. However, the iLLOS is a convenient order.
-        
-        self.orderingIrrep = np.zeros(shape=(np.sum(self.dims1),), dtype=int)
-        self.orderingState = np.zeros(shape=(np.sum(self.dims1),), dtype=int)
-        
-        self.lookup = [None] * self.Na
-        for i in range(0, self.Na):
-            self.lookup[i] = np.zeros(shape=(self.dims1[i],), dtype=int)
-        
-        self.lookup[0][0] = int(0)
-        
-        start_index = np.zeros(shape=(self.Na,), dtype=int)
-        start_index[0] = int(1)
-        
-        cpt = int(1)
-        while cpt<np.sum(self.dims1):
-            
-            Ytmp = np.zeros(shape=(0, self.n1), dtype=int)
-            ar = []
-            for i in range(0, self.Na):
-                if start_index[i]<self.dims1[i]:
-                    ar.append(i)
-                    Ytmp = np.vstack([Ytmp, self.Y1[i][start_index[i]]])
-            ar = np.array(ar, dtype=int)
-            _, ind = sortrows(np.fliplr(Ytmp))
-            
-            k = ar[ind[0]]
-            
-            self.orderingIrrep[cpt] = k
-            self.orderingState[cpt] = start_index[k]
-            self.lookup[k][start_index[k]] = cpt
-            
-            start_index[ar[ind[0]]] += 1
-            cpt += 1
-        
-        ###########################################################################
-        # GENERATE A USEFUL LOOKUP TO GET SYT FROM INDEX
-        ###########################################################################
-        
-        self.acc_dims = np.zeros(shape=(np.sum(self.dims1)+1,), dtype=int)
-        
-        for j in range(1, np.sum(self.dims1)+1):
-            ind = self.orderingIrrep[j-1]
-            self.acc_dims[j] = self.acc_dims[j-1] + self.dims0[ind]
-        
-        return
-    
-    
-        
-    def get_SYT(self, i):
-        # Get the <i>-th SYT.
-        # 
-        # Input index <i> is in the iLLOS: i=0 ---> largest SYT.
-        # 
-        
-        ind = np.argwhere(self.acc_dims<=i).flatten()[-1]
-        
-        k = self.orderingIrrep[ind] # index of irrep
-        i0 = i - self.acc_dims[ind] # index of low part
-        i1 = self.orderingState[ind] # index of high part
-        
-        y0 = np.copy(self.Y0[k][i0])
-        y1 = np.copy(self.Y1[k][i1])
-        
-        y = np.hstack([y0, y1])
-        
-        return y
-    
-    
-    
-    def get_index(self, y):
-        # get the index corresponding to SYT <y> in the ordered (wrt iLLOS) 
-        # list of all SYTs.
-        # 
-        
-        y0 = np.copy(y[0:self.n0]) # low part
-        y1 = np.copy(y[self.n0:]) # high part
-        
-        # generate irrep for the low part
-        a0 = np.zeros(shape=(self.N,), dtype=int)
-        for i in range(0, self.n0):
-            a0[y0[i]] += 1
-        
-        # search index of a0 in self.alpha0 [here linear search]
-        k = np.argwhere( np.sum(abs(self.alpha0-a0), axis=1)==0 ).flatten()[0]
-        
-        # search index of state for low part [here linear search]
-        #i0 = np.argwhere( np.sum(abs(self.Y0[k]-y0), axis=1)==0 ).flatten()[0]
-        # [here binary search]
-        i0 = binary_search_SYT(y0, self.Y0[k])
-        
-        # search index of state for high part [here linear search]
-        # i1 = np.argwhere( np.sum(abs(self.Y1[k]-y1), axis=1)==0 ).flatten()[0]
-        # [here binary search]
-        i1 = binary_search_SYT(y1, self.Y1[k])
-        
-        # find index from high part
-        # indhigh = np.argwhere( (self.orderingIrrep==k) & (self.orderingState==i1) ).flatten()[0]
-        # use <lookup> technique: - slightly faster than argwhere, but requires self.lookup
-        indhigh = self.lookup[k][i1]
-        
-        # compute index
-        i = int(0)
-        for j in range(0, indhigh):
-            i += self.dims0[self.orderingIrrep[j]]
-        i += i0
-        
-        return i
-
 
 
 def get_adjacent_transposition_matrix(alpha, Y, CY, k):

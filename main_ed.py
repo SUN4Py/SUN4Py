@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Fri Jun 30 11:39:13 2023
+Copyright 2023 Samuel GOZEL, GNU GPLv3
 
 @author: sgozel
 """
-# Copyright 2023 Samuel GOZEL, GNU GPLv3
 
 import numpy as np
 import scipy.sparse
 import time
 
-import sun
-import edfund
-import edsymm
-import edgeneral
-import Lattice
+from sunpy.sun import sun
+from sunpy.ed import edfund
+from sunpy.ed import edsymm
+import sunpy.ed.edgeneral
+import sunpy.ed.lattice
 
 
 # Example of creation and diagonalization of Heisenberg Hamiltonian with local
@@ -38,10 +37,10 @@ beta[0] = beta_loc_edge
 beta[-1] = beta_loc_edge
 '''
 
-lattice = Lattice.Lattice(Ns=Ns, typeLattice='chain', isPBC=False)
+lattice = sunpy.ed.lattice.Lattice(Ns=Ns, typeLattice='chain', isPBC=False)
 
 start = time.perf_counter()
-engine = edgeneral.SUNGeneral(alpha, beta, N, lattice)
+engine = sunpy.ed.edgeneral.SUNGeneral(alpha, beta, N, lattice)
 end = time.perf_counter()
 print("Elapsed init general = {}s".format((end - start)))
 
@@ -63,17 +62,17 @@ else:
 print('GS Energy: ', EGS)
 print('GS Energy per site: ', EGS/Ns)
 
+toto = sun.get_SYT(alpha)
 
 
-'''
 # Example for symmetric local constraints with m particles per site
 N = int(3)
-m = int(1)
-alpha = np.array([4, 3, 2], dtype=int)
+m = int(2)
+alpha = np.array([4, 4, 2], dtype=int)
 Ns = np.sum(alpha)//m
 
 # get the lattice
-lattice = Lattice.Lattice(Ns=Ns, typeLattice='chain', isPBC=False)
+lattice = sunpy.ed.lattice.Lattice(Ns=Ns, typeLattice='chain', isPBC=False)
 
 # build SU(N) engine
 if m==1:
@@ -88,7 +87,7 @@ H = Engine.sun_hamiltonian()
 E, PSI = scipy.sparse.linalg.eigsh(H, k=1, which='SA')
 EGS = E[0]
 print('GS Energy: ', E[0])
-'''
+
 
 '''
 # This shows how to use get_subSYT, fill_subSYT and how to print SYTs to text

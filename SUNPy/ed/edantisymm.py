@@ -1,16 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-Created on Sun Nov  2 14:11:51 2025
+Copyright 2023 Samuel GOZEL, GNU GPLv3
 
 @author: sgozel
 """
-# Copyright 2023 Samuel GOZEL, GNU GPLv3
 
 import sys
 import numpy as np
 import scipy.sparse
 
-import sun
+from sunpy.sun import sun
 
 
 

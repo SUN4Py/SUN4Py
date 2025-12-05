@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Created on Sun Nov  2 14:00:55 2025
+Copyright 2023 Samuel GOZEL, GNU GPLv3
 
 @author: sgozel
 """
-# Copyright 2023 Samuel GOZEL, GNU GPLv3
 
 import pytest
 
@@ -12,12 +11,11 @@ import sys
 import numpy as np
 import scipy.sparse
 
-import Lattice
-import edfund
-import edsymm
-import edantisymm
-import edgeneral
-
+from sunpy.ed import lattice
+from sunpy.ed import edfund
+from sunpy.ed import edsymm
+from sunpy.ed import edantisymm
+from sunpy.ed import edgeneral
 
 
 prec = 1.0e-13
@@ -150,14 +148,14 @@ prec = 1.0e-13
 ])
 def test_energy(alpha, m, symmetry, N, isPBC, expected):
     Ns = np.sum(alpha)//m
-    lattice = Lattice.Lattice(Ns=Ns, typeLattice='chain', isPBC=isPBC)
+    latt = lattice.Lattice(Ns=Ns, typeLattice='chain', isPBC=isPBC)
     if m==1:
-        Engine = edfund.SUNFundamental(Ns, N, alpha, lattice)
+        Engine = edfund.SUNFundamental(Ns, N, alpha, latt)
     else:        
         if symmetry=='symmetric':
-            Engine = edsymm.SUNSymmetric(Ns, N, m, alpha, lattice)
+            Engine = edsymm.SUNSymmetric(Ns, N, m, alpha, latt)
         elif symmetry=='antisymmetric':
-            Engine = edantisymm.SUNAntiSymmetric(Ns, N, m, alpha, lattice)
+            Engine = edantisymm.SUNAntiSymmetric(Ns, N, m, alpha, latt)
         elif 'general' in symmetry:
             if 'adjoint' in symmetry:
                 beta_loc = np.zeros(shape=N, dtype=int)
@@ -170,7 +168,7 @@ def test_energy(alpha, m, symmetry, N, isPBC, expected):
                 beta_loc = np.zeros(shape=N, dtype=int)
                 beta_loc[:m] = int(1)
             beta = np.matlib.repmat(beta_loc, Ns, 1)
-            Engine = edgeneral.SUNGeneral(alpha, beta, N, lattice)
+            Engine = edgeneral.SUNGeneral(alpha, beta, N, latt)
         else:
             sys.exit('symmetry undefined.')
     

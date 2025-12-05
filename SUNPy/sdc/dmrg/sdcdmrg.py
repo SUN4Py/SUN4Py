@@ -10,12 +10,12 @@ import numpy as np
 import scipy
 import scipy.sparse
 
-import sun
-import subduction
+from sunpy.sun import sun
+from sunpy.sdc.common import sdcutils
 
 
 
-def get_SDC_dmrg(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True):
+def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True):
     """
     Compute subduction coefficients in DMRG framework using the shortcut in Chen's
     method, developing irreps as products of their columns or rows
@@ -331,7 +331,7 @@ def get_SDC_dmrg(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True
     coeffdev_ref[np.argwhere(abs(coeffdev_ref)<1.0e-12).flatten()] = 0.0
     
     # Deal with global phase
-    coeffdev_ref, ind_ref = subduction.set_overall_phase(
+    coeffdev_ref, ind_ref = sdcutils.set_overall_phase(
                                 np.reshape(coeffdev_ref, (len(coeffdev_ref), 1)))
     
     cydev_ref = sun.get_column(ydev_ref)
@@ -354,7 +354,7 @@ def get_SDC_dmrg(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True
     else:
         
         # find sequence of transpositions which brings y2_ref to y2
-        sigma, rho = subduction.SYT_to_target(y2_ref, y2)
+        sigma, rho = sun.SYT_to_target(y2_ref, y2)
         
         # go from local to global numbering
         sigma = n - sigma - 2
@@ -381,7 +381,7 @@ def get_SDC_dmrg(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True
                                         coeffdev_ref_copy)
         '''
         
-        ydev_final, cydev_final, coeffdev_final = subduction.apply_transpositions_v2(
+        ydev_final, cydev_final, coeffdev_final = sun.apply_transpositions_v2(
                                     nu, 
                                     sigma, 
                                     rho, 

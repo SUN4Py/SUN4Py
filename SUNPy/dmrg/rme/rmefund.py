@@ -13,9 +13,10 @@ import os
 import re
 import time
 
-import sun
-import subduction
-import subductionshortcut
+import sunpy.common.math
+from sunpy.sun import sun
+from sunpy.sdc.dmrg import sdcdmrgbase
+from sunpy.sdc.dmrg import sdcdmrg
 
 
 def states_rme(N, num_irreps, irreps):
@@ -90,7 +91,7 @@ class RMEEngine:
         
         self.N = N
         if self.N==3:
-            self.irreps_all = np.load('SU3_irreps_300.npy')
+            self.irreps_all = np.load('irreps/SU3_irreps_300.npy')
         else:
             sys.exit('List of irreps not yet computed for N>3.')
         
@@ -106,7 +107,13 @@ class RMEEngine:
         
         if self.restarting==True:
             if 'restarting_filename' in kwargs:
-                self.restarting_filename = kwargs['restarting_filename']
+                path_head, path_tail = os.path.split(kwargs['restarting_filename'])
+                if path_head=='':
+                    self.restarting_filename = os.path.join(os.getcwd(), 
+                                                            'rme_coefficients', 
+                                                            kwargs['restarting_filename'])
+                else:
+                    self.restarting_filename = kwargs['restarting_filename']
                 if not os.path.isfile(self.restarting_filename):
                     print('Restarting file : ', self.restarting_filename, ' was not found.')
                     sys.exit('Exit')
@@ -118,7 +125,7 @@ class RMEEngine:
                 if 'restarting_folder' in kwargs:
                     self.restarting_folder = kwargs['restarting_folder']
                 else:
-                    self.restarting_folder = os.getcwd()
+                    self.restarting_folder = os.path.join(os.getcwd(), 'rme_coefficients')
                     # self.restarting_folder = os.path.dirname(os.path.abspath(__file__))
                 # search for restart file
                 files_in_dir = [f for f in os.listdir(self.restarting_folder) if os.path.isfile(os.path.join(self.restarting_folder, f))]
@@ -150,6 +157,11 @@ class RMEEngine:
         else:
             self.checkpointing = False
         
+        if self.num_irreps<self.num_irreps_old:
+            # the list of RME for self.num_irreps will be extracted by reading
+            # in a list with more irreps ===> no need to checkpoint
+            self.checkpointing = False
+        
         if self.checkpointing==True:
             if 'chkpt_method' in kwargs:
                 self.chkpt_method = kwargs['chkpt_method']
@@ -168,7 +180,9 @@ class RMEEngine:
                 assert(self.chkpt_ni[-1]==num_irreps)
                 assert(self.chkpt_ni[0]>self.num_irreps_old)
         
-        self.filename = self.__get_filename(self.num_irreps)
+        self.filename = os.path.join(os.getcwd(), 
+                                     'rme_coefficients', 
+                                     self.__get_filename(self.num_irreps))
         
         return
     
@@ -209,7 +223,9 @@ class RMEEngine:
         """
         
         """
-        return 'pythonRME_fund_SU' + str(self.N) + '_' + self.target + '_numirreps' + str(num_irreps) + '.pickle'
+        filename = 'pythonRME_fund_SU' + str(self.N) + '_' + self.target + '_numirreps' + str(num_irreps) + '.pickle'
+        filename = os.path.join(os.getcwd(), 'rme_coefficients', filename)
+        return filename
     
     
     def __rme(self, alpha, alpha1, l1, alpha2, l2, alpha3, l3, alpha4, l4, tech='base'):
@@ -272,13 +288,13 @@ class RMEEngine:
         
         if tech=='base':
             
-            ket_y, ket_cy, ket_coeff = subduction.get_SDC_dmrg(self.N, alpha, 
+            ket_y, ket_cy, ket_coeff = sdcdmrgbase.get_SDC(self.N, alpha, 
                                                     alpha1, l1, 
                                                     alpha2, l2, 
                                                     ref2firstLLOS=False, 
                                                     ref1firstLLOS=True)
             
-            bra_y, bra_cy, bra_coeff = subduction.get_SDC_dmrg(self.N, alpha, 
+            bra_y, bra_cy, bra_coeff = sdcdmrgbase.get_SDC(self.N, alpha, 
                                                     alpha3, l3, 
                                                     alpha4, l4, 
                                                     ref2firstLLOS=False, 
@@ -292,7 +308,7 @@ class RMEEngine:
                                                     ref1firstLLOS=True)
             '''
             
-            ket_y, ket_cy, ket_coeff = subductionshortcut.get_SDC_dmrg(self.N, alpha, 
+            ket_y, ket_cy, ket_coeff = sdcdmrg.get_SDC(self.N, alpha, 
                                                     alpha1, l1, 
                                                     alpha2, l2, 
                                                     ref2firstLLOS=False, 
@@ -305,7 +321,7 @@ class RMEEngine:
                                                     ref1firstLLOS=True)
             '''
             
-            bra_y, bra_cy, bra_coeff = subductionshortcut.get_SDC_dmrg(self.N, alpha, 
+            bra_y, bra_cy, bra_coeff = sdcdmrg.get_SDC(self.N, alpha, 
                                                     alpha3, l3, 
                                                     alpha4, l4, 
                                                     ref2firstLLOS=False, 
@@ -320,7 +336,7 @@ class RMEEngine:
                                                     ref1firstLLOS=True)
             '''
             
-            ket_y, ket_cy, ket_coeff = subductionshortcut.get_SDC_dmrg(self.N, alpha, 
+            ket_y, ket_cy, ket_coeff = sdcdmrg.get_SDC(self.N, alpha, 
                                                     alpha1, l1, 
                                                     alpha2, l2, 
                                                     ref2firstLLOS=True, 
@@ -334,7 +350,7 @@ class RMEEngine:
                                                     ref1firstLLOS=True)
             '''
             
-            bra_y, bra_cy, bra_coeff = subductionshortcut.get_SDC_dmrg(self.N, alpha, 
+            bra_y, bra_cy, bra_coeff = sdcdmrg.get_SDC(self.N, alpha, 
                                                     alpha3, l3, 
                                                     alpha4, l4, 
                                                     ref2firstLLOS=True, 
@@ -441,8 +457,8 @@ class RMEEngine:
                 alpha2_asc[l2] -= 1
                 
                 # get all descendants of the ascendants shapes
-                alpha1_desc, pos1_desc = subduction.get_descendants(alpha1_asc, self.N)
-                alpha2_desc, pos2_desc = subduction.get_descendants(alpha2_asc, self.N)
+                alpha1_desc, pos1_desc = sun.get_descendants(alpha1_asc, self.N)
+                alpha2_desc, pos2_desc = sun.get_descendants(alpha2_asc, self.N)
                 
                 nbf_1 = len(pos1_desc)
                 nbf_2 = len(pos2_desc)
@@ -470,21 +486,21 @@ class RMEEngine:
                             
                             if self.restarting:
                                 # search for indices in old list
-                                ind1_old = sun.find_row(self.irreps_old, alpha1)
-                                ind2_old = sun.find_row(self.irreps_old, alpha2)
-                                ind3_old = sun.find_row(self.irreps_old, alpha3p)
-                                ind4_old = sun.find_row(self.irreps_old, alpha4p)
+                                ind1_old = sunpy.common.math.find_row(self.irreps_old, alpha1)
+                                ind2_old = sunpy.common.math.find_row(self.irreps_old, alpha2)
+                                ind3_old = sunpy.common.math.find_row(self.irreps_old, alpha3p)
+                                ind4_old = sunpy.common.math.find_row(self.irreps_old, alpha4p)
                                 
                                 if len(ind1_old)*len(ind2_old)*len(ind3_old)*len(ind4_old)==1:
                                     doCalc = False
                             
-                            ind3 = sun.find_row(self.irreps, alpha3p)
-                            ind4 = sun.find_row(self.irreps, alpha4p)
+                            ind3 = sunpy.common.math.find_row(self.irreps, alpha3p)
+                            ind4 = sunpy.common.math.find_row(self.irreps, alpha4p)
                             
                             if ((len(ind3)>0) & (len(ind4)>0)):
                                 
                                 bra = np.array([ind3[0], l3, ind4[0], l4], dtype=int)
-                                index_bra = sun.find_row(states, bra)[0]
+                                index_bra = sunpy.common.math.find_row(states, bra)[0]
                                 
                                 if doCalc==True:
                                     coeff = self.__rme(alphaGS, 
@@ -553,7 +569,7 @@ class RMEReader:
         self.filename = filename
         
         if N==3:
-            self.irreps = np.load('SU3_irreps_300.npy')
+            self.irreps = np.load('irreps/SU3_irreps_300.npy')
         else:
             sys.exit('List of irreps not yet computed for N>3.')
         self.irreps = self.irreps[:num_irreps] + np.full(shape=(num_irreps, N), fill_value=1, dtype=int)
@@ -569,13 +585,13 @@ class RMEReader:
     
     
     def __get_index_irrep(self, nu) -> int:
-        index = sun.find_row(self.irreps, nu)
+        index = sunpy.common.math.find_row(self.irreps, nu)
         assert(len(index)==1)
         return index[0]
     
     
     def __get_index_state(self, state) -> int:
-        index = sun.find_row(self.states, state)
+        index = sunpy.common.math.find_row(self.states, state)
         assert(len(index)==1)
         return index[0]
     
