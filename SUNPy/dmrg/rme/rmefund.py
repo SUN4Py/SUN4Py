@@ -8,7 +8,6 @@ Copyright 2023 Samuel GOZEL, GNU GPLv3
 import numpy as np
 import sys
 import pickle
-import math
 import os
 import re
 import time
@@ -87,11 +86,33 @@ class RMEEngine:
             directory to search for restarting file
         restarting_filename : str
             path to filename from which to restart
+        
+        Examples
+        --------
+        Example 1:
+        rme_engine1 = rmefund.RMEEngine(int(3), int(12), 
+                               restarting=False, 
+                               checkpointing=True, 
+                               chkpt_method='custom', 
+                               chkpt_ni=np.array([4, 6, 8]), dtype=int)
+        
+        --> will checkpoint at num_irreps = 4, 6, 8, and finally compute 
+            num_irreps=12
+        
+        Example 2: 
+        rme_engine2 = rmefund.RMEEngine(int(3), int(24), 
+                               restarting=True, 
+                               checkpointing=True, 
+                               chkpt_method='log2')
+        --> will search for an already computed list of RMEs. If the list is 
+            insufficient (namely, <24 irreps), it will proceed to the calculation
+            for num_irreps=24, checkpointing on a log2 scale between the found 
+            list and 24
         """
         
         self.N = N
         if self.N==3:
-            self.irreps_all = np.load('irreps/SU3_irreps_300.npy')
+            self.irreps_all = np.load('sunpy/irreps/SU3_irreps_300.npy')
         else:
             sys.exit('List of irreps not yet computed for N>3.')
         
@@ -110,6 +131,7 @@ class RMEEngine:
                 path_head, path_tail = os.path.split(kwargs['restarting_filename'])
                 if path_head=='':
                     self.restarting_filename = os.path.join(os.getcwd(), 
+                                                            'sunpy', 
                                                             'rme_coefficients', 
                                                             kwargs['restarting_filename'])
                 else:
@@ -125,7 +147,7 @@ class RMEEngine:
                 if 'restarting_folder' in kwargs:
                     self.restarting_folder = kwargs['restarting_folder']
                 else:
-                    self.restarting_folder = os.path.join(os.getcwd(), 'rme_coefficients')
+                    self.restarting_folder = os.path.join(os.getcwd(), 'sunpy', 'rme_coefficients')
                     # self.restarting_folder = os.path.dirname(os.path.abspath(__file__))
                 # search for restart file
                 files_in_dir = [f for f in os.listdir(self.restarting_folder) if os.path.isfile(os.path.join(self.restarting_folder, f))]
@@ -170,17 +192,21 @@ class RMEEngine:
             
             if self.chkpt_method=='custom':
                 if 'chkpt_ni' in kwargs:
+                    assert(isinstance(kwargs['chkpt_ni'], np.ndarray))
                     self.chkpt_ni = kwargs['chkpt_ni']
+                    if not self.chkpt_ni[-1]==num_irreps:
+                        self.chkpt_ni = np.hstack((self.chkpt_ni, self.num_irreps))
                 else:
                     sys.exit('Missing input argument chkpt_ni for custom checkpointing.')
             else:
-                t = math.floor(np.log2(num_irreps-self.num_irreps_old)) + 1
+                t = np.floor(np.log2(self.num_irreps-self.num_irreps_old)) + 1
                 xx = np.arange(1, t+1, 1)
-                self.chkpt_ni = self.num_irreps_old + np.ceil( (num_irreps-self.num_irreps_old) * (1 - 1/2**xx ) ).astype(int)
-                assert(self.chkpt_ni[-1]==num_irreps)
+                self.chkpt_ni = self.num_irreps_old + np.ceil( (self.num_irreps-self.num_irreps_old) * (1 - 1/2**xx ) ).astype(int)
+                assert(self.chkpt_ni[-1]==self.num_irreps)
                 assert(self.chkpt_ni[0]>self.num_irreps_old)
         
         self.filename = os.path.join(os.getcwd(), 
+                                     'sunpy', 
                                      'rme_coefficients', 
                                      self.__get_filename(self.num_irreps))
         
@@ -191,6 +217,8 @@ class RMEEngine:
         """
         Compute the reduced matrix elements
         """
+        if self.num_irreps==self.num_irreps_old:
+            return
         if self.checkpointing==False:
             self.__atomic_run(tech)
         else:
@@ -224,7 +252,7 @@ class RMEEngine:
         
         """
         filename = 'pythonRME_fund_SU' + str(self.N) + '_' + self.target + '_numirreps' + str(num_irreps) + '.pickle'
-        filename = os.path.join(os.getcwd(), 'rme_coefficients', filename)
+        filename = os.path.join(os.getcwd(), 'sunpy', 'rme_coefficients', filename)
         return filename
     
     
@@ -362,7 +390,7 @@ class RMEEngine:
         n1 = np.sum(alpha1)
         ket_y, ket_cy, ket_coeff = sun.develop_consecutive_number(alpha, ket_y, ket_cy, ket_coeff, n1-1)
         
-        _, bra_ind, ket_ind = sun.intersect_row(bra_cy, ket_cy)
+        _, bra_ind, ket_ind = sunpy.common.math.intersect_row(bra_cy, ket_cy)
         
         out = np.sum( np.multiply(bra_coeff[bra_ind], ket_coeff[ket_ind]) )
         
@@ -569,7 +597,7 @@ class RMEReader:
         self.filename = filename
         
         if N==3:
-            self.irreps = np.load('irreps/SU3_irreps_300.npy')
+            self.irreps = np.load('sunpy/irreps/SU3_irreps_300.npy')
         else:
             sys.exit('List of irreps not yet computed for N>3.')
         self.irreps = self.irreps[:num_irreps] + np.full(shape=(num_irreps, N), fill_value=1, dtype=int)

@@ -10,6 +10,9 @@ from sunpy.dmrg.rme import rmefund
 N = int(3)
 num_irreps = int(12)
 
-rme_engine = rmefund.RMEEngine(N, num_irreps, restarting=True, checkpointing=True)
+rme_engine = rmefund.RMEEngine(N, num_irreps, 
+                               restarting=False, 
+                               checkpointing=True, 
+                               chkpt_method='log2')
 
 rme_engine.run(tech='shortcut_cols')
