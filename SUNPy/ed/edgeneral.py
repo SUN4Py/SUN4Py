@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Created on Sun Nov  2 13:48:59 2025
+Copyright 2023 Samuel GOZEL, GNU GPLv3
 
 @author: sgozel
 """
-# Copyright 2023 Samuel GOZEL, GNU GPLv3
 
 import sys
 import numpy as np
@@ -13,7 +12,7 @@ import itertools
 import math
 import copy
 
-import sun
+from sunpy.sun import sun
 
 
 

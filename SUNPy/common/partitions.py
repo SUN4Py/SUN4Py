@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+Copyright 2023 Samuel GOZEL, GNU GPLv3
+
 Reference:
 https://www.ams.org/journals/mcom/1982-39-159/S0025-5718-1982-0658226-5/S0025-5718-1982-0658226-5.pdf
 
-Created on Sun Jul 16 17:34:48 2023
-
 @author: sgozel
 """
-# Copyright 2023 Samuel GOZEL, GNU GPLv3
 
 import math
 

@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Tue Jun  6 18:42:11 2023
+Copyright 2023 Samuel GOZEL, GNU GPLv3
 
 @author: sgozel
 """
-# Copyright 2023 Samuel GOZEL, GNU GPLv3
 
 import sys
 import numpy as np

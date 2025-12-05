@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Mon Jul 17 21:31:51 2023
+Copyright 2023 Samuel GOZEL, GNU GPLv3
 
 @author: sgozel
 """
-# Copyright 2023 Samuel GOZEL, GNU GPLv3
 
 import pytest
 import numpy as np
 
-import sun
+from sunpy.sun import sun
 
 
 
@@ -201,113 +200,31 @@ def test_map_index_to_syt(alpha, m, order, expected):
 
 
 
-@pytest.mark.parametrize("N, alpha, nlookupboxes", [
-    #:::::::::::::::::::::::::::::::::::::::::::
-    # SU(3)
-    #:::::::::::::::::::::::::::::::::::::::::::
-    (int(3), np.array([3,2,2], dtype=int), int(2)),
-    (int(3), np.array([3,2,2], dtype=int), int(3)),
-    (int(3), np.array([3,2,2], dtype=int), int(4)),
-    (int(3), np.array([3,2,2], dtype=int), int(5)),
-    (int(3), np.array([3,2,2], dtype=int), int(6)),
-    #------------------------
-    # (int(3), np.array([3,3,3], dtype=int), int(2)),
-    # (int(3), np.array([3,3,3], dtype=int), int(3)),
-    (int(3), np.array([3,3,3], dtype=int), int(4)),
-    (int(3), np.array([3,3,3], dtype=int), int(5)),
-    (int(3), np.array([3,3,3], dtype=int), int(6)),
-    # (int(3), np.array([3,3,3], dtype=int), int(7)),
-    # (int(3), np.array([3,3,3], dtype=int), int(8)),
-    #:::::::::::::::::::::::::::::::::::::::::::
-    # SU(4)
-    #:::::::::::::::::::::::::::::::::::::::::::
-    # (int(4), np.array([4,4,4,4], dtype=int), int(2)),
-    # (int(4), np.array([4,4,4,4], dtype=int), int(3)),
-    # (int(4), np.array([4,4,4,4], dtype=int), int(4)),
-    (int(4), np.array([4,4,4,4], dtype=int), int(5)),
-    (int(4), np.array([4,4,4,4], dtype=int), int(6)),
-    (int(4), np.array([4,4,4,4], dtype=int), int(7)),
-    (int(4), np.array([4,4,4,4], dtype=int), int(8)),
-    (int(4), np.array([4,4,4,4], dtype=int), int(9)),
-    (int(4), np.array([4,4,4,4], dtype=int), int(10)),
-    (int(4), np.array([4,4,4,4], dtype=int), int(11)),
-    (int(4), np.array([4,4,4,4], dtype=int), int(12)),
-    # (int(4), np.array([4,4,4,4], dtype=int), int(13)),
-    # (int(4), np.array([4,4,4,4], dtype=int), int(14)),
-    # (int(4), np.array([4,4,4,4], dtype=int), int(15)),
+@pytest.mark.parametrize("y, ytarget, expected", [
+    (np.array([0, 0, 1, 2], dtype=int), np.array([0, 1, 0, 2], dtype=int), (np.array([1], dtype=int), np.array([1./2.]))),
+    (np.array([0, 1, 2, 0], dtype=int), np.array([0, 0, 1, 2], dtype=int), (np.array([2, 1], dtype=int), np.array([-1./3., -1./2.])))
 ])
-def test_partial_lookup_get_SYT(N, alpha, nlookupboxes):
-    expected = True
-    
-    # Generate lookup tool and initialize it
-    lkptool = sun.PartialLookupTool(N, alpha, nlookupboxes)
-    lkptool.init_lookup()
-    
-    # Generate all SYTs in iLLOS
-    Y = sun.get_SYT(alpha, order='iLLOS')
-    
-    # Test
-    actual = True
-    for i in range(0, Y.shape[0]):
-        yi = Y[i]
-        y = lkptool.get_SYT(i)
-        if not np.sum(abs(y-yi))==0:
-            actual = False
-            break
-    
-    assert actual==expected
+def test_SYT_to_target_1(y, ytarget, expected):
+    # arange
+    # ...
+    # act
+    sigma, rho = sun.SYT_to_target(y, ytarget)
+    # assert
+    assert(np.linalg.norm( sigma - expected[0] )==0)
+    assert(np.linalg.norm( rho - expected[1] )<prec)
 
 
 
-@pytest.mark.parametrize("N, alpha, nlookupboxes", [
-    #:::::::::::::::::::::::::::::::::::::::::::
-    # SU(3)
-    #:::::::::::::::::::::::::::::::::::::::::::
-    (int(3), np.array([3,2,2], dtype=int), int(2)),
-    (int(3), np.array([3,2,2], dtype=int), int(3)),
-    (int(3), np.array([3,2,2], dtype=int), int(4)),
-    (int(3), np.array([3,2,2], dtype=int), int(5)),
-    (int(3), np.array([3,2,2], dtype=int), int(6)),
-    #------------------------
-    # (int(3), np.array([3,3,3], dtype=int), int(2)),
-    # (int(3), np.array([3,3,3], dtype=int), int(3)),
-    (int(3), np.array([3,3,3], dtype=int), int(4)),
-    (int(3), np.array([3,3,3], dtype=int), int(5)),
-    (int(3), np.array([3,3,3], dtype=int), int(6)),
-    (int(3), np.array([3,3,3], dtype=int), int(7)),
-    (int(3), np.array([3,3,3], dtype=int), int(8)),
-    #:::::::::::::::::::::::::::::::::::::::::::
-    # SU(4)
-    #:::::::::::::::::::::::::::::::::::::::::::
-    # (int(4), np.array([4,4,4,4], dtype=int), int(6)),
-    # (int(4), np.array([4,4,4,4], dtype=int), int(7)),
-    # (int(4), np.array([4,4,4,4], dtype=int), int(8)),
-    # (int(4), np.array([4,4,4,4], dtype=int), int(9)),
-    (int(4), np.array([4,4,4,4], dtype=int), int(10)),
-    (int(4), np.array([4,4,4,4], dtype=int), int(11)),
-    (int(4), np.array([4,4,4,4], dtype=int), int(12)),
-    (int(4), np.array([4,4,4,4], dtype=int), int(13)),
-    # (int(4), np.array([4,4,4,4], dtype=int), int(14)),
-    # (int(4), np.array([4,4,4,4], dtype=int), int(15)),
+@pytest.mark.parametrize("y, ytarget", [
+    (np.array([0, 1, 0, 2], dtype=int), np.array([0, 0, 1, 2], dtype=int)), 
+    (np.array([0, 0, 1, 2], dtype=int), np.array([0, 1, 2, 0], dtype=int))
 ])
-def test_partial_lookup_get_index(N, alpha, nlookupboxes):
-    expected = True
-    
-    # Generate lookup tool and initialize it
-    lkptool = sun.PartialLookupTool(N, alpha, nlookupboxes)
-    lkptool.init_lookup()
-    
-    # Generate all SYTs in iLLOS
-    Y = sun.get_SYT(alpha, order='iLLOS')
-    
-    # Test
-    actual = True
-    for i in range(0, Y.shape[0]):
-        ii = lkptool.get_index(Y[i])
-        if not ii==i:
-            actual = False
-            break
-    
-    assert actual==expected
-
-
+def test_SYT_to_target_2(y, ytarget):
+    # arange
+    # ...
+    # act
+    sigma, rho = sun.SYT_to_target(y, ytarget)
+    sigmap, rhop = sun.SYT_to_target(ytarget, y)
+    # assert
+    assert(np.linalg.norm(sigma - np.flip(sigmap))==0)
+    assert(np.linalg.norm(rho - np.flip(-rhop))<prec)

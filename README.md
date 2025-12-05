@@ -1,13 +1,15 @@
 # SUNPy
-A Python3 library for solving SU(N) Heisenberg models
 
-SUNPy (for SU(_N_)Py) is a Python library for solving the SU(_N_) Heisenberg model (or any other SU(_N_)-symmetric model) on a lattice making full use of the SU(_N_) symmetry through standard Young tableaux.
+SUNPy (for SU(_N_)Py) is a Python library implementing the SU(_N_) symmetry, exploiting the Schur-Weyl duality between the SU(_N_) group and the symmetric group $S_N$. The library implements the symmetry through Standard Young Tableaux.
+
+It allows solving the SU(_N_) Heisenberg model (or any other SU(_N_)-symmetric model) on a lattice making full use of the SU(_N_) symmetry.
 
 ## Features
 
 - Compute basic quantities related to irreducible representations of SU(_N_) (dimension, number of standard Young tableaux, quadratic Casimir, etc ...).
-- Generate standard Young tableaux for any irreducible representation of SU(_N_).
+- Generate standard Young tableaux for any irreducible representation of SU(_N_), with or without internal constraints.
 - Solve Heisenberg-like models on any lattice, for any target irreducible representation, and any local constraints.
+- Compute subduction coefficients.
 
 By local constraints, we understand different SU(_N_) "spins", which are nothing but irreducible representations of the Lie algebra su(_N_).
 
@@ -34,12 +36,14 @@ pytest
 An example main file is provided. Simply execute as
 
 ```
-python3.10 main.py
+python3 main_ed.py
 ```
 
 ## Significant others
 
-The big sister project of SUNPy is SUNHB, a performant C++ library for solving the SU(_N_) Heisenberg model.
+The big sister project of SUNPy is SUNHB, a performant C++ library for solving the SU(_N_) Heisenberg model (closed source).
+
+For Clebsch-Gordan coefficients of SU(_N_), refer to Alex et al., https://arxiv.org/pdf/1009.0437
 
 ## License
 
@@ -50,6 +54,10 @@ The code is licensed under GNU GPL-v3.0 as given in the file LICENSE.
 Samuel Gozel
 
 ## References
+
+Group Representation Theory for Physicists, Jin-Quan Chen, Jialung Ping & Fan Wang, World Scientific (2002)
+
+Group Theory in Physics, Volume II, J. F. Cornwell, Academic Press (1984)
 
 [Phys. Rev. Lett. 113, 127204 (2014)](https://doi.org/10.1103/PhysRevLett.113.127204)
 

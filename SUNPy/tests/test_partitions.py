@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Mon Jul 17 21:19:41 2023
+Copyright 2023 Samuel GOZEL, GNU GPLv3
 
 @author: sgozel
 """
-# Copyright 2023 Samuel GOZEL, GNU GPLv3
 
 import pytest
-import partitions as partitions
+from sunpy.common import partitions
 
 
 
