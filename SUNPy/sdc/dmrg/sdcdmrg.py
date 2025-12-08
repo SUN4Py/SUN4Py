@@ -64,16 +64,16 @@ def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True):
         nu1 = np.hstack((nu1, np.zeros(N-len(nu1), dtype=int)))
     if len(nu2)<N:
         nu2 = np.hstack((nu2, np.zeros(N-len(nu2), dtype=int)))
+
+    n = np.sum(nu)
+    n1 = np.sum(nu1)
+    n2 = np.sum(nu2)
+    assert n==n1+n2
     
     nu1nu2nu = sun.multiplicity_irrep_mixed(nu, np.array([nu1, nu2], dtype=int), N)
     assert(nu1nu2nu==1)
     # currently, we have not dealt with the case of multiplicities in this 
     # advanced method
-    
-    n = np.sum(nu)
-    n1 = np.sum(nu1)
-    n2 = np.sum(nu2)
-    assert n==n1+n2
     
     # construct SYT for nu1
     nu1p = np.copy(nu1)

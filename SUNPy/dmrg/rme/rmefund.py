@@ -18,6 +18,38 @@ from sunpy.sdc.dmrg import sdcdmrgbase
 from sunpy.sdc.dmrg import sdcdmrg
 
 
+
+def get_states(N, num_irreps, irreps):
+    """
+    Create the ensemble of all states (irrep, bottom corner) for a given ensemble
+    of input irreps
+    
+    Parameters
+    ----------
+    N : int
+        SU(N)
+    num_irreps : int
+        number of irreps
+    irreps : numpy array
+        array of num_irreps first irreps of SU(N)
+    """
+    assert(irreps.shape[0]==num_irreps)
+    
+    states = np.zeros(shape=(N*num_irreps, 2), dtype=int)
+    cpt = int(0)
+    for p in range(0, num_irreps):
+        bc_vec = sun.get_bottom_corner(irreps[p])
+        for q in range(0, len(bc_vec)):
+            states[cpt+q, 0] = p
+            states[cpt+q, 1] = bc_vec[q]
+        cpt += len(bc_vec)
+    
+    num_states = cpt
+    states = states[0:num_states]
+    
+    return states
+
+
 def states_rme(N, num_irreps, irreps):
     """
     Create the ensemble of all states (irrep, bottom corner) for a given ensemble
@@ -34,24 +66,14 @@ def states_rme(N, num_irreps, irreps):
     """
     assert(irreps.shape[0]==num_irreps)
     
-    list_irrep_bc = np.zeros(shape=(N*num_irreps, 2), dtype=int)
-    cpt = int(0)
-    for p in range(0, num_irreps):
-        bc_vec = sun.get_bottom_corner(irreps[p])
-        for q in range(0, len(bc_vec)):
-            list_irrep_bc[cpt+q, 0] = p
-            list_irrep_bc[cpt+q, 1] = bc_vec[q]
-        cpt += len(bc_vec)
-    
-    num_states = cpt
-    list_irrep_bc = list_irrep_bc[0:num_states]
-    
+    states1 = get_states(N, num_irreps, irreps)
+    num_states = states1.shape[0]
     num_states2 = num_states * num_states
     
     states = np.zeros(shape=(num_states2, 4), dtype=int)
     
-    states[:, 0:2] = np.repeat(list_irrep_bc, repeats=num_states, axis=0)
-    states[:, 2:] = np.matlib.repmat(list_irrep_bc, num_states, 1)
+    states[:, 0:2] = np.repeat(states1, repeats=num_states, axis=0)
+    states[:, 2:] = np.matlib.repmat(states1, num_states, 1)
     
     return states
     
@@ -328,26 +350,12 @@ class RMEEngine:
                                                     ref2firstLLOS=False, 
                                                     ref1firstLLOS=True)
         elif tech=='shortcut_cols':
-            '''
-            ket_y, ket_cy, ket_coeff = sdc_shortcut_cols_deprecated.get_SDC_dmrg_develop_cols(self.N, alpha, 
-                                                    alpha1, l1, 
-                                                    alpha2, l2, 
-                                                    ref2firstLLOS=False, 
-                                                    ref1firstLLOS=True)
-            '''
             
             ket_y, ket_cy, ket_coeff = sdcdmrg.get_SDC(self.N, alpha, 
                                                     alpha1, l1, 
                                                     alpha2, l2, 
                                                     ref2firstLLOS=False, 
                                                     ref1firstLLOS=True)
-            '''
-            bra_y, bra_cy, bra_coeff = sdc_shortcut_cols_deprecated.get_SDC_dmrg_develop_cols(self.N, alpha, 
-                                                    alpha3, l3, 
-                                                    alpha4, l4, 
-                                                    ref2firstLLOS=False, 
-                                                    ref1firstLLOS=True)
-            '''
             
             bra_y, bra_cy, bra_coeff = sdcdmrg.get_SDC(self.N, alpha, 
                                                     alpha3, l3, 
@@ -356,27 +364,12 @@ class RMEEngine:
                                                     ref1firstLLOS=True)
             
         elif tech=='shortcut_rows':
-            '''
-            ket_y, ket_cy, ket_coeff = sdc_shortcut_rows_deprecated.get_SDC_dmrg_develop_rows(self.N, alpha, 
-                                                    alpha1, l1, 
-                                                    alpha2, l2, 
-                                                    ref2firstLLOS=True, 
-                                                    ref1firstLLOS=True)
-            '''
             
             ket_y, ket_cy, ket_coeff = sdcdmrg.get_SDC(self.N, alpha, 
                                                     alpha1, l1, 
                                                     alpha2, l2, 
                                                     ref2firstLLOS=True, 
                                                     ref1firstLLOS=True)
-            
-            '''
-            bra_y, bra_cy, bra_coeff = sdc_shortcut_rows_deprecated.get_SDC_dmrg_develop_rows(self.N, alpha, 
-                                                    alpha3, l3, 
-                                                    alpha4, l4, 
-                                                    ref2firstLLOS=True, 
-                                                    ref1firstLLOS=True)
-            '''
             
             bra_y, bra_cy, bra_coeff = sdcdmrg.get_SDC(self.N, alpha, 
                                                     alpha3, l3, 
@@ -396,6 +389,36 @@ class RMEEngine:
         
         return out
     
+    
+    def __get_sdc(self, alpha, alpha1, l1, alpha2, l2, tech):
+        """
+        Compute SDCs for |alpha; alpha1, l1; alpha2, l2>
+        """
+        
+        if not tech in ['base', 'shortcut_cols', 'shortcut_rows']:
+            sys.exit('tech undefined.')
+        
+        if tech=='base':
+            ydev, cydev, coeff = sdcdmrgbase.get_SDC(self.N, alpha, 
+                                                     alpha1, l1, 
+                                                     alpha2, l2, 
+                                                     ref2firstLLOS=False, 
+                                                     ref1firstLLOS=True)
+        elif tech=='shortcut_cols':            
+            ydev, cydev, coeff = sdcdmrg.get_SDC(self.N, alpha, 
+                                                 alpha1, l1, 
+                                                 alpha2, l2, 
+                                                 ref2firstLLOS=False, 
+                                                 ref1firstLLOS=True)            
+        elif tech=='shortcut_rows':            
+            ydev, cydev, coeff = sdcdmrg.get_SDC(self.N, alpha, 
+                                                 alpha1, l1, 
+                                                 alpha2, l2, 
+                                                 ref2firstLLOS=True, 
+                                                 ref1firstLLOS=True)
+        coeff = coeff.flatten()
+        return ydev, cydev, coeff
+        
     
     def __target_irrep(self, n):
         """
@@ -437,10 +460,219 @@ class RMEEngine:
         return    
     
     
+    def __get_index_irrep(self, nu) -> int:
+        index = sunpy.common.math.find_row(self.irreps, nu)
+        assert(len(index)==1)
+        return index[0]
+    
+    
+    def __get_index_state(self, state) -> int:
+        index = sunpy.common.math.find_row(self.states, state)
+        assert(len(index)==1)
+        return index[0]
+    
+    
     def __atomic_run(self, tech='base'):
         """
         Compute the reduced matrix elements
         """
+        
+        print('Start computing RME num_irreps = ', self.num_irreps)
+        ts = time.time()
+        
+        if self.restarting==True:
+            rme_reader_old = RMEReader(self.N, self.num_irreps_old, self.restarting_filename)
+        
+        states = states_rme(self.N, self.num_irreps, self.irreps) # all ket states |alpha1, l1; alpha2, l2>
+        num_states = states.shape[0]
+    
+        self.liste_rme = []
+        self.indices_liste_rme = {}
+        index_liste_rme = int(0)
+        bool_indliste = np.full(shape=(num_states,), fill_value=False, dtype=bool)
+        
+        for p in range(0, num_states):
+            
+            doCalcs = []
+            index_bra_smaller_than_p = []
+            rme_to_compute = []
+            
+            alpha1 = self.irreps[states[p, 0]]
+            l1 = states[p, 1]
+            alpha2 = self.irreps[states[p, 2]]
+            l2 = states[p, 3]
+            # |p> = |alpha1, l1; alpha2, l2>
+            
+            # build target irrep
+            alphaGS = self.__target_irrep(np.sum(alpha1)+np.sum(alpha2))
+            
+            mult_1 = sun.multiplicity_irrep_mixed(alphaGS, np.array([alpha1, alpha2]), self.N)
+            
+            condition_1 = ( ((np.sum(alpha1)-np.sum(alpha2))%self.N==0) | ((np.sum(alpha1) + np.sum(alpha2))%self.N==0) )
+            
+            if (mult_1>1):
+                sys.exit('Problem: mult_1>1')
+            elif ((mult_1==1) & condition_1):
+                
+                # construct ascendant shapes
+                alpha1_asc = np.copy(alpha1)
+                alpha1_asc[l1] -= 1
+                alpha2_asc = np.copy(alpha2)
+                alpha2_asc[l2] -= 1
+                
+                # get all descendants of the ascendants shapes
+                alpha1_desc, pos1_desc = sun.get_descendants(alpha1_asc, self.N)
+                alpha2_desc, pos2_desc = sun.get_descendants(alpha2_asc, self.N)
+                
+                nbd_1 = len(pos1_desc) # number of descendants of alpha1_asc
+                nbd_2 = len(pos2_desc) # number of descendants of alpha2_asc
+                
+                # search for <bra| states leading to RMEs to compute/extract
+                
+                for d1 in range(0, nbd_1):
+                    for d2 in range(0, nbd_2):
+                        
+                        alpha3 = alpha1_desc[d1]
+                        l3 = pos1_desc[d1]
+                        
+                        alpha4 = alpha2_desc[d2]
+                        l4 = pos2_desc[d2]
+                        
+                        mult_2 = sun.multiplicity_irrep_mixed(alphaGS, 
+                                                              np.array([alpha3, alpha4]), 
+                                                              self.N)
+                        
+                        condition_2 = ( ((np.sum(alpha3)-np.sum(alpha4))%self.N==0) | ((np.sum(alpha3) + np.sum(alpha4))%self.N==0) )
+                        
+                        if (mult_2>1):
+                            sys.exit('Problem: mult_2>1')
+                        elif ((mult_2==1) & condition_2):
+                            
+                            doCalc = True
+                            
+                            # ensure there is a single column with N boxes
+                            alpha3p = alpha3 + (1-alpha3[-1])*np.full(shape=(self.N,), fill_value=1, dtype=int)
+                            alpha4p = alpha4 + (1-alpha4[-1])*np.full(shape=(self.N,), fill_value=1, dtype=int)
+                            
+                            if self.restarting:
+                                # search for indices in old list
+                                ind1_old = sunpy.common.math.find_row(self.irreps_old, alpha1)
+                                ind2_old = sunpy.common.math.find_row(self.irreps_old, alpha2)
+                                ind3_old = sunpy.common.math.find_row(self.irreps_old, alpha3p)
+                                ind4_old = sunpy.common.math.find_row(self.irreps_old, alpha4p)
+                                
+                                if len(ind1_old)*len(ind2_old)*len(ind3_old)*len(ind4_old)==1:
+                                    doCalc = False
+                            
+                            ind3 = sunpy.common.math.find_row(self.irreps, alpha3p)
+                            ind4 = sunpy.common.math.find_row(self.irreps, alpha4p)
+                            
+                            if ((len(ind3)>0) & (len(ind4)>0)):
+                                
+                                doCalcs.append(doCalc)
+                                
+                                bra = np.array([ind3[0], l3, ind4[0], l4], dtype=int)
+                                index_bra = sunpy.common.math.find_row(states, bra)[0]
+                                # <index_bra| = <alpha3, l3; alpha4, l4|
+                                index_bra_smaller_than_p.append(index_bra<p)
+                                
+                                # register a new element to compute/extract
+                                td = {}
+                                if doCalc==True:
+                                    td['alpha3'] = alpha3
+                                    td['alpha4'] = alpha4
+                                else:
+                                    td['alpha3'] = alpha3p
+                                    td['alpha4'] = alpha4p
+                                td['index_bra'] = index_bra
+                                td['l3'] = l3
+                                td['l4'] = l4
+                                td['doCalc'] = doCalc
+                                rme_to_compute.append(td)
+                
+                # perform calculation of RMEs associated with |p> = |alpha1, l1; alpha2, l2>
+                # for all identified <bra| states
+                
+                if len(rme_to_compute)>0:
+                
+                    Matp_ind = np.zeros(shape=(len(rme_to_compute),), dtype=int)
+                    Matp_coeff = np.zeros(shape=(len(rme_to_compute),), dtype=float)
+                    
+                    bool_compute = [a and (not b) for a, b in zip(doCalcs, index_bra_smaller_than_p)]
+                    
+                    if any(bool_compute):
+                        ket_y, ket_cy, ket_coeff = self.__get_sdc(alphaGS, 
+                                                                  alpha1, 
+                                                                  l1, 
+                                                                  alpha2, 
+                                                                  l2, 
+                                                                  tech)
+                        Pket_y, Pket_cy, Pket_coeff = sun.develop_consecutive_number(alphaGS, 
+                                                                                     np.copy(ket_y), 
+                                                                                     np.copy(ket_cy), 
+                                                                                     np.copy(ket_coeff), 
+                                                                                     np.sum(alpha1)-1)
+                    else:
+                        # we entirely read from memory, either from an old list, or 
+                        #  from already computed elements of the current list
+                        pass
+                    
+                    for i in range(0, len(rme_to_compute)):
+                        td = rme_to_compute[i]
+                        if td['doCalc']==True:
+                            if (td['index_bra']<p):                                
+                                # we use the fact that <index_bra|P|p>==<p|P|index_bra>
+                                # to read from the current list
+                                ics = self.liste_rme[self.indices_liste_rme[index_bra]]
+                                indp = np.argwhere(ics[0]==p).flatten()
+                                assert(len(indp)==1)
+                                coeff = ics[1][indp[0]]
+                            else:
+                                # we really need to perform the calculation
+                                if (td['index_bra']==p):
+                                    # the <bra| state is identical to the |ket> state
+                                    # avoid re-computing the SDCs for the <bra|
+                                    bra_y, bra_cy, bra_coeff = ket_y, ket_cy, ket_coeff
+                                else:
+                                    # td['index_bra']>p --> need to compute SDCs for the <bra|
+                                    bra_y, bra_cy, bra_coeff = self.__get_sdc(alphaGS, 
+                                                                              td['alpha3'], 
+                                                                              td['l3'], 
+                                                                              td['alpha4'], 
+                                                                              td['l4'], 
+                                                                              tech)
+                                # compute overlap <bra|Pket>
+                                _, bra_ind, Pket_ind = sunpy.common.math.intersect_row(bra_cy, Pket_cy)
+                                coeff = np.sum( np.multiply(bra_coeff[bra_ind], Pket_coeff[Pket_ind]) )
+                        else:
+                            # read coefficient from old list
+                            coeff = rme_reader_old.read(alpha1, l1, 
+                                                        alpha2, l2, 
+                                                        td['alpha3'], td['l3'], 
+                                                        td['alpha4'], td['l4'], )
+                        Matp_ind[i] = td['index_bra']
+                        Matp_coeff[i] = coeff
+                    
+                    self.liste_rme.append([Matp_ind, Matp_coeff])
+                    bool_indliste[p] = True
+                    self.indices_liste_rme[p] = index_liste_rme
+                    index_liste_rme += 1
+        
+        self.indliste = np.argwhere(bool_indliste==True).flatten()
+        
+        te = time.time()
+        print('Done. Time = ', (te-ts)/60, 'min')
+        
+        self.__save(self.filename)
+        
+        return
+    
+    
+    def __atomic_run_old(self, tech='base'):
+        """
+        Compute the reduced matrix elements
+        """
+        print('DEPRECATED __atomic_run_old This is an old, less efficient, method.')
         
         print('Start computing RME num_irreps = ', self.num_irreps)
         ts = time.time()
