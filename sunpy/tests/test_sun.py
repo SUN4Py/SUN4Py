@@ -24,7 +24,23 @@ prec = 1.0e-13
     (np.array([2,1], dtype=int), np.array([[0, 0, 1], [0, 1, 0]], dtype=int))
 ])
 def test_get_SYT(alpha, expected):
-    assert np.linalg.norm( sun.get_SYT(alpha) - expected )==0
+    assert(np.linalg.norm( sun.get_SYT(alpha) - expected )==0)
+
+
+
+@pytest.mark.parametrize("alpha, expected", [
+    (np.array([1], dtype=int), int(1)),
+    (np.array([2], dtype=int), int(1)),
+    (np.array([1, 1], dtype=int), int(1)),
+    (np.array([2, 1], dtype=int), int(2)),
+    # See Nataf & Mila, PRL 113, 127204 (2014) for the 4 following dimensions
+    (np.array([2, 2, 2, 2, 2, 2, 2, 2], dtype=int), int(1430)),
+    (np.array([2, 2, 2, 2, 2, 2, 2, 2, 2, 2], dtype=int), int(16796)),
+    (np.array([4, 4, 4, 4, 4], dtype=int), int(1662804)),
+    (np.array([5, 5, 5, 5, 5], dtype=int), int(701149020))
+])
+def test_multiplicity(alpha, expected):
+    assert(sun.multiplicity(alpha)==expected)
 
 
 

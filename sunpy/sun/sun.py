@@ -190,7 +190,8 @@ def multiplicity(alpha) -> int:
     
     arnum = np.arange(1, n+1) # sequence for n!
     
-    denom = int(1)
+    denom = np.full(shape=(n,), fill_value=1, dtype=int)
+    cpt = int(0)
     for i in range(0, nl):
         for j in range(0, alpha[i]):
             sumi = np.sum(alphafull[i:nl,j]) + np.sum(alphafull[i,j+1:m])
@@ -199,30 +200,42 @@ def multiplicity(alpha) -> int:
                 if len(ind)==1:
                     arnum[ind[0]] = 1
                 else:
-                    denom *= sumi
+                    denom[cpt] = sumi
+                    cpt += 1
     
-    # we further reduce the numerator and the denominator by finding common divisors
+    ind_arnum = np.argwhere(arnum>1).flatten()
+    arnum = arnum[ind_arnum]
+    arnum = np.sort(arnum)
+    ind_denom = np.argwhere(denom>1).flatten()
+    denom = denom[ind_denom]
+    denom = np.sort(denom)
+    
+    divisors = np.array([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37], dtype=int)
     for i in range(0, len(arnum)):
-        k = arnum[i]
-        if denom%k==0:
-            denom = denom//k
-            arnum[i] = 1
+        for d in divisors:
+            if arnum[i]==1:
+                break
+            for t in range(0, 5):
+                if (arnum[i]%d==0):
+                    for j in range(0, len(denom)):
+                        if (denom[j]%d==0):
+                            arnum[i] = arnum[i]//d
+                            denom[j] = denom[j]//d
+                            break
+                else:
+                    break
     
-    # we further reduce by finding common divisors among prime numbers
-    divisors = np.array([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31], dtype=int)
-    for i in range(0, len(arnum)):
-        for t in range(0, 4): # 4 repetitions of the loop below
-            for d in divisors:
-                if ((denom%d==0) and (arnum[i]%d==0)):
-                    denom = denom//d
-                    arnum[i] = arnum[i]//d
+    ind_arnum = np.argwhere(arnum>1).flatten()
+    arnum = arnum[ind_arnum]
+    arnum = np.sort(arnum)
     
-    num = np.prod(arnum)
+    ind_denom = np.argwhere(denom>1).flatten()
+    denom = denom[ind_denom]
+    denom = np.sort(denom)
     
-    falpha = num//denom
+    assert(len(denom)==0)
     
-    if (num/denom-falpha)>1.0e-14:
-        sys.exit('Problem when computing falpha. Probable overflow.')
+    falpha = np.prod(arnum)
     
     return falpha
 
