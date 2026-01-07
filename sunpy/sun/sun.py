@@ -12,6 +12,7 @@ import numpy as np
 import scipy.sparse
 
 import sunpy.common.math
+import sunpy.common.partitions
 
 
 
@@ -79,6 +80,10 @@ def transpose_shape(alpha) -> np.ndarray:
         transposed shape
     """
     
+    if np.sum(alpha)==0:
+        # singlet irrep
+        return np.array([0], dtype=int)
+    
     alphaT = np.zeros(alpha[0], dtype=int)
     for i in range(0, len(alpha)):
         for j in range(0, alpha[i]):
@@ -124,6 +129,39 @@ def casimir_quadratic(alpha) -> float:
     assert cprime==c
     
     return c
+
+
+
+def casimir_quadratic_TT(alpha, N) -> float:
+    """
+    Compute the quadratic Casimir operator in the usual T*T convention of SU(N)
+    
+    C = ( n (N - n/N) + \sum_i \alpha_i^2 - \sum_j (alpha^T_j)^2 ) / 2
+    
+    where n=\sum_i \alpha_i is the total number of boxes in \alpha
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep of SU(N)
+    N : int
+        SU(N)
+    
+    Returns
+    -------
+    casimir : float
+        quadratic Casimir
+    
+    Remark
+    ------
+    As expected, the result is invariant under adding columns of N boxes to alpha
+    """
+    assert(len(alpha)<=N)
+    n = np.sum(alpha)
+    alphaT = transpose_shape(alpha)
+    casimir = 0.5 * ( n * (N - n/N) + np.sum(alpha**2) - np.sum(alphaT**2) )
+    
+    return casimir
 
 
 
@@ -1131,12 +1169,12 @@ def SYT_to_target(y, ytarget):
     return sigma, rho
 
 
-def get_descendants(alpha, N):
+def get_direct_descendants(alpha, N):
     """
-    Get all descendants shapes
+    Get all descendant shapes
     """
-    assert len(alpha<=N)
-    
+    assert(len(alpha)<=N)
+    # make sure alpha is an array of length N
     alpha = np.hstack((alpha, np.zeros(shape=(N-len(alpha)), dtype=int)))
     
     alpha_desc = np.zeros(shape=(N+1, N), dtype=int)
@@ -1163,6 +1201,211 @@ def get_descendants(alpha, N):
     
     return alpha_desc, box_pos
 
+
+def get_descendants(alpha, N, m=1, **kwargs):
+    """
+    Get all descendant shapes wrt m-box symmetric/antisymmetric irrep
+    """
+    assert(len(alpha)<=N)
+    
+    if m==1:
+        alpha_desc, box_pos = get_direct_descendants(alpha, N)
+        return alpha_desc, box_pos
+    
+    if not 'symmetry' in kwargs:
+        sys.exit('For finding ascendants with m>1, need to specify symmetry.')
+    else:
+        if kwargs['symmetry'] in ['symm', 'symmetric', 'row', 'rows']:
+            symmetric = True
+        elif kwargs['symmetry'] in ['antisymm', 'antisymmetric', 'col', 'cols', 'column', 'columns']:
+            symmetric = False
+    
+    # make sure alpha is an array of length N
+    alpha = np.hstack((alpha, np.zeros(shape=(N-len(alpha)), dtype=int)))
+    
+    alpha_desc = np.zeros(shape=(1, N), dtype=int)
+    alpha_desc[0] = np.copy(alpha)
+    row_pos = np.full(shape=(1, m), fill_value=-1, dtype=int)
+    col_pos = np.full(shape=(1, m), fill_value=-1, dtype=int)
+    num_desc = int(1)
+    
+    for q in range(0, m):
+        
+        alpha_desc_temp = np.zeros(shape=((N+1)*num_desc, N), dtype=int)
+        row_pos_temp = np.zeros(shape=((N+1)*num_desc, m), dtype=int)
+        col_pos_temp = np.zeros(shape=((N+1)*num_desc, m), dtype=int)
+        cpt = int(0)
+        
+        for i in range(0, num_desc):
+            
+            alpha_i = np.copy(alpha_desc[i])
+            alpha_desc_i, bcs_i = get_descendants(alpha_i, N, m=1)
+            
+            for j, bc in enumerate(bcs_i):
+                col_j = alpha_i[bc] # col position of the newly added box
+                ind = np.array([])
+                if not q==0:
+                    if symmetric==True:
+                        # make sure we did not place a particle at that column
+                        ind = np.argwhere(col_pos[i]==col_j).flatten()
+                    else:
+                        # make sure we did not place a particle at that row
+                        ind = np.argwhere(row_pos[i]==bc).flatten()
+                if len(ind)==0:
+                    alpha_desc_temp[cpt] = np.copy(alpha_desc_i[j])
+                    if not q==0:
+                        row_pos_temp[cpt, :q] = row_pos[i, :q]
+                        col_pos_temp[cpt, :q] = col_pos[i, :q]
+                    row_pos_temp[cpt, q] = bc
+                    col_pos_temp[cpt, q] = col_j
+                    cpt += 1
+        
+        alpha_desc = np.copy(alpha_desc_temp[:cpt])
+        row_pos = np.copy(row_pos_temp[:cpt])
+        col_pos = np.copy(col_pos_temp[:cpt])
+        num_desc = cpt
+    
+    # remove duplicates
+    alpha_desc_u, ia = np.unique(alpha_desc, axis=0, return_index=True, return_inverse=False)
+    assert(np.sum(abs(alpha_desc_u - alpha_desc[ia]))==0)
+    row_pos_u = np.copy(row_pos[ia])
+    row_pos_u = np.sort(row_pos_u, axis=1)
+    row_pos_u, ind = sunpy.common.math.sortrows(row_pos_u)
+    alpha_desc_u = alpha_desc_u[ind]
+    
+    return alpha_desc_u, row_pos_u
+
+
+def get_direct_ascendants(alpha, N):
+    """
+    Get all direct ascendant shapes, namely all shapes with 1 box removed at a
+    bottom corner
+    """
+    assert(len(alpha)<=N)
+    # make sure alpha is an array of length N
+    alpha = np.hstack((alpha, np.zeros(shape=(N-len(alpha)), dtype=int)))
+    
+    bcs = get_bottom_corner(alpha)
+    nbcs = len(bcs)
+    alpha_asc = np.zeros(shape=(nbcs, N), dtype=int)
+    for i, bc in enumerate(bcs):
+        alpha_asc[i] = np.copy(alpha)
+        alpha_asc[i][bc] -= 1
+    return alpha_asc, bcs
+
+
+def get_ascendants(alpha, N, m=1, **kwargs):
+    """
+    Get all ascendant shapes wrt m-box symmetric/antisymmetric irrep
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    N : int
+        SU(N)
+    m : int
+        number of boxes to remove in alpha
+    symmetry : str [required when m>1]
+        'symmetric' or 'antisymmetric'
+    
+    Returns
+    -------
+    alpha_asc_u : numpy array
+        ascendants of alpha (stored in the rows of alpha_asc_u)
+    row_pos_u : numpy array
+        positions of removed boxes from alpha to alpha_asc_u[i]
+    
+    Examples
+    --------
+    Example 1:
+    alpha_asc_u, row_pos_u = sun.get_ascendants(np.array([4, 2, 0], dtype=int), int(3), m=int(1))
+    alpha_asc_u --> [3, 2, 0], [4, 1, 0], row_pos_u --> [0], [1]
+    because [4, 2, 0] can be obtained : 
+        - from [3, 2, 0] by adding a box in row 0 (tensor product [3, 2, 0] x [1, 0, 0])
+        - from [4, 1, 0] by adding a box in row 1 (tensor product [4, 1, 0] x [1, 0, 0])
+    
+    Example 2:
+    alpha_asc_u, row_pos_u = sun.get_ascendants(np.array([4, 2, 0], dtype=int), int(3), m=int(3), symmetry='symmetric')
+    alpha_asc_u --> [2, 1, 0], [3, 0, 0], row_pos_u --> [0, 0, 1], [0, 1, 1]
+    because [4, 2, 0] can be obtained : 
+        - from [2, 1, 0] by adding 3 boxes in row 0, 0, 1 (tensor product [2, 1, 0] x [3, 0, 0])
+        - from [3, 0, 0] by adding 3 boxes in row 0, 1, 1 (tensor product [3, 0, 0] x [3, 0, 0])
+    
+    """
+    assert(len(alpha)<=N)
+    
+    if m==1:
+        alpha_asc, bcs = get_direct_ascendants(alpha, N)
+        return alpha_asc, bcs
+    
+    if not 'symmetry' in kwargs:
+        sys.exit('For finding ascendants with m>1, need to specify symmetry.')
+    else:
+        if kwargs['symmetry'] in ['symm', 'symmetric', 'row', 'rows']:
+            symmetric = True
+        elif kwargs['symmetry'] in ['antisymm', 'antisymmetric', 'col', 'cols', 'column', 'columns']:
+            symmetric = False
+    
+    # make sure alpha is an array of length N
+    alpha = np.hstack((alpha, np.zeros(shape=(N-len(alpha)), dtype=int)))
+    
+    alpha_asc = np.zeros(shape=(1, N), dtype=int)
+    alpha_asc[0] = np.copy(alpha)
+    row_pos = np.full(shape=(1, m), fill_value=-1, dtype=int)
+    col_pos = np.full(shape=(1, m), fill_value=-1, dtype=int)
+    num_asc = int(1)
+    
+    for q in range(m-1, -1, -1):
+        
+        alpha_asc_temp = np.zeros(shape=(N*num_asc, N), dtype=int)
+        row_pos_temp = np.zeros(shape=(N*num_asc, m), dtype=int)
+        col_pos_temp = np.zeros(shape=(N*num_asc, m), dtype=int)
+        cpt = int(0)
+        
+        for i in range(0, num_asc):
+            
+            alpha_i = np.copy(alpha_asc[i])
+            alpha_asc_i, bcs_i = get_ascendants(alpha_i, N, m=1)
+            
+            for j, bc in enumerate(bcs_i):
+                col_j = alpha_i[bc]
+                ind = np.array([])
+                if not q==m:
+                    if symmetric==True:
+                        # make sure we did not place a particle at that column
+                        ind = np.argwhere(col_pos[i]==col_j).flatten()
+                    else:
+                        # make sure we did not place a particle at that row
+                        ind = np.argwhere(row_pos[i]==bc).flatten()
+                if len(ind)==0:
+                    alpha_asc_temp[cpt] = np.copy(alpha_asc_i[j])
+                    if not q==m:
+                        row_pos_temp[cpt, q+1:] = row_pos[i, q+1:]
+                        col_pos_temp[cpt, q+1:] = col_pos[i, q+1:]
+                    row_pos_temp[cpt, q] = bc
+                    col_pos_temp[cpt, q] = col_j
+                    cpt += 1
+        
+        alpha_asc = np.copy(alpha_asc_temp[:cpt])
+        row_pos = np.copy(row_pos_temp[:cpt])
+        col_pos = np.copy(col_pos_temp[:cpt])
+        num_asc = cpt
+    
+    if num_asc==0:
+        return np.zeros(shape=(0, N), dtype=int), np.zeros(shape=(0, m), dtype=int)
+    
+    # remove duplicates
+    alpha_asc_u, ia = np.unique(alpha_asc, axis=0, return_index=True, return_inverse=False)
+    assert(np.sum(abs(alpha_asc_u - alpha_asc[ia]))==0)
+    
+    row_pos_u = np.copy(row_pos[ia])
+    row_pos_u = np.flip(row_pos_u, axis=1)
+    
+    row_pos_u, ind = sunpy.common.math.sortrows(row_pos_u)
+    alpha_asc_u = alpha_asc_u[ind]
+    
+    return alpha_asc_u, row_pos_u
 
 
 def apply_transpositions(nu, sigma, rho, ydev1, cydev1, coeffdev1):
@@ -1972,6 +2215,234 @@ def tensor_product_irrep(alpha1, alpha2, N) -> np.ndarray:
     
     return alpha
 
+
+def tensor_product_all(beta, N):
+    """
+    Tensor product of all irreps in beta
+    
+    Parameters
+    ----------
+    beta : numpy array
+        irrep (stored in rows)
+    N : int
+        SU(N)
+    
+    Returns
+    -------
+    alpha : numpy array
+        collection of irreps
+    mult : numpy array
+        multiplicities
+    
+    Remarks
+    -------
+    - Number of boxes is preserved (columns with N boxes are not removed)
+    """
+    
+    assert(beta.shape[1]>1)
+    
+    alpha = tensor_product_irrep(beta[0], beta[1], N)
+    alpha, mult = np.unique(alpha, axis=0, return_index=False, 
+                            return_inverse=False, return_counts=True)
+    
+    for k in range(2, beta.shape[0]):
+        gamma = np.copy(beta[k])
+        alpha_temp = np.zeros(shape=(0, N), dtype=int)
+        mult_temp = np.array([], dtype=int)
+        for i, alpha_i in enumerate(alpha):
+            alpha_prod = tensor_product_irrep(alpha_i, gamma, N)
+            alpha_prod_u, counts = np.unique(alpha_prod, axis=0, 
+                                             return_index=False, 
+                                             return_inverse=False, 
+                                             return_counts=True)
+            counts *= mult[i]
+            alpha_temp = np.vstack((alpha_temp, alpha_prod_u))
+            mult_temp = np.hstack((mult_temp, counts))
+        
+        alpha, ia, ic, counts = np.unique(alpha_temp, axis=0, 
+                                          return_index=True, 
+                                          return_inverse=True, 
+                                          return_counts=True)
+        # assert(np.sum(abs(alpha - alpha_temp[ia]))==0)
+        # assert(np.sum(abs(alpha_temp - alpha[ic]))==0)
+        mult = np.zeros(shape=(len(ia),), dtype=int)
+        for i in range(0, len(ia)):
+            mult[i] = np.sum(mult_temp[ic==i])
+    
+    alpha, ind = sunpy.common.math.sortrows(alpha)
+    mult = mult[ind]
+    
+    return alpha, mult
+
+
+def get_all_irreps(N, n):
+    """
+    Get all irreps of SU(N) having at most n boxes
+    
+    Parameters
+    ----------
+    N : int
+        SU(N)
+    n : int
+        max number of boxes in irrep
+    
+    Returns
+    -------
+    irreps : numpy array
+        collection of irreps (stored in the rows)
+    
+    Remark
+    ------
+    Columns with N boxes are not counted, namely an irrep of SU(N) should be 
+    here understood as an array with N-1 non-negative row counts
+    """
+    
+    assert(n>0)
+    
+    num_irreps = int(1) # count for the fundamental irrep
+    for p in range(1, n+1):
+        for q in range(1, N):
+            num_irreps += sunpy.common.partitions.pnm(p, q)
+    
+    if N==2:
+        assert(num_irreps==n+1)
+        irreps = np.zeros(shape=(n+1, N), dtype=int)
+        irreps[:, 0] = np.arange(0, n+1)
+    elif N==3:
+        irreps = np.zeros(shape=(num_irreps, N), dtype=int)
+        cpt = int(1)
+        for p in range(1, n+1):
+            # write p as p = k + (p-k)
+            # where k = number of boxes in the second row
+            for k in range(p, p//2-1, -1):
+                r = p - k
+                if ((r>=0) & (r<=k)):
+                    irreps[cpt, 0] = k
+                    irreps[cpt, 1] = r
+                    cpt += 1
+        assert(cpt==num_irreps)
+    else:
+        sys.exit('Generic method for get_all_irreps not yet implemented.')
+        # in fact, this is done below in get_irreps(N, num_irreps), where I have
+        # used n=40 to generate all irreps with (at most) n boxes
+    
+    irreps, _ = sunpy.common.math.sortrows(irreps)
+    
+    return irreps
+
+
+def get_irreps(N, num_irreps):
+    """
+    Get the first num_irreps irreps of SU(N) sorted in ascending order of quadratic
+    Casimir
+    
+    Parameters
+    ----------
+    N : int
+        SU(N)
+    num_irreps : int
+        number of irreps to find
+    
+    Returns
+    -------
+    irreps : numpy array
+        collection of irreps (stored in the rows), sorted in ascending order of
+        their quadratic Casimir
+    """
+    
+    if N==2:
+        irreps = get_all_irreps(N, num_irreps-1)
+    else:
+        n = int(40) # something much bigger than N
+        irreps = np.zeros(shape=(n+1, n), dtype=int)
+        
+        # in this function, for convenience, we adopt a different convention 
+        # for labelling irreps:
+        # irreps[p] is the p-th irrep (as usual)
+        # BUT: 
+        #   irreps[p][k] is NOT the number of boxes in the k-th row of irreps[p]
+        # instead, here, 
+        #   irreps[p][k] is the number of columns with k+1 boxes in irreps[p]
+        # Going from this new description to the usual convention is simple
+        
+        irreps[0][0] = 1 # 1 column with 1 box
+        ntemp_prev = int(1)
+        
+        for p in range(2, n):
+            
+            # we will generate irreps with p boxes
+            cpt = int(0)
+            
+            for pp in range(0, ntemp_prev):
+                
+                irr = irreps[pp]
+                # first, we add the irrep where we add a box in the 1st row
+                # Recall the 1st row is labelled 0 (pythonic)
+                irreps[ntemp_prev+cpt] = np.copy(irr)
+                irreps[ntemp_prev+cpt][0] += 1
+                cpt += 1
+                
+                # now search for all possible other locations where we can add 
+                # a box
+                ind = np.argwhere(irr>0).flatten() + 1
+                # recall irr[k] = number of columns with k+1 boxes in irr
+                # ind tells us which irr[k] are >0
+                # example: if ind = [1, 2, 3, 5] -->
+                # irr has at least 1 column with 1 box 
+                #                  1 column with 2 boxes
+                #                  1 column with 3 boxes
+                #                  1 column with 5 boxes
+                # thus:
+                # we can add a box: 
+                # in row 1, 2, 3, 5 (== [ind])
+                # since we have already dealt with adding at row=0 above
+                for w in range(0, len(ind)):
+                    irreps[ntemp_prev+cpt] = np.copy(irr)
+                    irreps[ntemp_prev+cpt][ind[w]] += 1
+                    irreps[ntemp_prev+cpt][ind[w]-1] -= 1
+                    cpt += 1
+            
+            ntemp = ntemp_prev + cpt
+            
+            # remove duplicates            
+            irreps_u = np.unique(irreps[:ntemp], axis=0)
+            ntemp_new = irreps_u.shape[0]
+            irreps = np.zeros(shape=(ntemp_new*(n+1), n), dtype=int)
+            irreps[:ntemp_new] = np.copy(irreps_u)
+            ntemp_prev = ntemp_new
+            
+        # transform the collections of irreps to the usual convention where
+        # irreps[p][k] = number of boxes in the k-th row of irreps[p]
+        A = np.triu(np.full(shape=(n, n), fill_value=1, dtype=int))
+        irreps = A @ irreps.transpose()
+        
+        # irreps are now stored in the columns ...
+        
+        # keep only N rows
+        irreps = irreps[:N, :]
+        # remove all columns with N boxes
+        irreps = irreps - irreps[N-1, :]
+        
+        # keep irreps in the rows rather than columns
+        irreps = irreps.transpose()
+        
+        # remove duplicates
+        irreps = np.unique(irreps, axis=0)
+        
+        # just a useful reorganisation of irreps which will have the same Casimir ...
+        irreps, _ = sunpy.common.math.sortrows(irreps)
+        
+        # sort in ascending order of Casimir
+        casimir = np.zeros(shape=(irreps.shape[0],))
+        for i in range(1, irreps.shape[0]):
+            casimir[i] = casimir_quadratic_TT(irreps[i], N)
+        ind = np.argsort(casimir, kind='mergesort').flatten()
+        # we use mergesort, because the default 'quicksort' is not stable
+        irreps = irreps[ind]
+        # keep the num_irreps first irreps
+        irreps = irreps[:num_irreps]
+    
+    return irreps
 
 
 def reduce_shape(alpha):
@@ -3268,7 +3739,7 @@ def overlap(ydev1, coeff1, ydev2, coeff2, need_fullsimplify=True):
         Ny2 = len(coeff2)
         ydev2, ia2, ic2 = np.unique(ydev2, axis=0, return_index=True, return_inverse=True)
         M = scipy.sparse.csr_matrix( (np.full(fill_value=1, shape=(Ny2,), dtype=int), 
-                                      (ic2, np.arange(0, Ny1))), 
+                                      (ic2, np.arange(0, Ny2))), 
                                     shape=(len(ia2), Ny2) )
         coeff2 = M @ coeff2
     
@@ -3337,10 +3808,10 @@ def develop_consecutive_number(alpha, ydev, cydev, coeff, k):
     
     count = Ny
 
-    for i in range(1, Ny+1):
+    for i in range(0, Ny):
         
-        y = np.copy(ydev[i-1,:])
-        cy = np.copy(cydev[i-1,:])
+        y = np.copy(ydev[i,:])
+        cy = np.copy(cydev[i,:])
         
         if not y[k]==y[k+1]:
             
@@ -3348,11 +3819,8 @@ def develop_consecutive_number(alpha, ydev, cydev, coeff, k):
             c2 = cy[k+1]
             
             if c1==c2:
-                coeff1[i-1] *= (-1)
-            else:
-                
-                count += 1
-                
+                coeff1[i] *= (-1)
+            else:                
                 ax = get_axial_distance(y, cy, k+1, k) # axial distance from k+1 to k
                 rho = 1.0/ax
                 yfriend = np.copy(y)
@@ -3362,11 +3830,12 @@ def develop_consecutive_number(alpha, ydev, cydev, coeff, k):
                 cyfriend[k] = cy[k+1]
                 cyfriend[k+1] = cy[k]
                 
-                ydev1[count-1,:] = np.copy(yfriend)
-                cydev1[count-1,:] = np.copy(cyfriend)
+                ydev1[count,:] = np.copy(yfriend)
+                cydev1[count,:] = np.copy(cyfriend)
                 
-                coeff1[count-1] = coeff1[i-1] * np.sqrt(1.0-rho*rho)
-                coeff1[i-1] *= rho
+                coeff1[count] = coeff1[i] * np.sqrt(1.0-rho*rho)
+                coeff1[i] *= rho
+                count += 1
     
     ydev1 = ydev1[0:count,:]
     cydev1 = cydev1[0:count,:]
@@ -3379,8 +3848,45 @@ def develop_consecutive_number(alpha, ydev, cydev, coeff, k):
 
 def t_operator(ydev, cydev, coeffdev, k, rho):
     """
-    Apply the operator T_{(k, k+1)} = (P_{(k, k+1)} + rho)/sqrt(1 - rho**2) on a development
+    Apply operator T_{(k, k+1)} := (P_{(k, k+1)} + rho)/sqrt(1 - rho**2) on a development
+    
+    Parameters
+    ----------
+    ydev : numpy array
+        SYTs
+    cydev : numpy array
+        associated column positions
+    coeffdev : numpy array
+        coefficients
+    k : int
+        transposition P_{(k, k+1)} to apply
+    rho : float
+        coefficient (inverse of an axial distance)
+    
+    Returns
+    -------
+   ydev : numpy array
+        SYTs
+    cydev : numpy array
+        associated column positions
+    coeffdev : numpy array
+        coefficients
+    
+    Example
+    -------
+    in_y = np.array([[0, 0, 1]], dtype=int)
+    in_cy = sun.get_column(in_y)
+    in_coeff = np.array([1.0])
+    k = int(1)
+    rho = sun.get_axial_distance(in_y, in_cy, k, k+1)
+    out_y, out_cy, out_coeff = sun.t_operator(in_y, in_cy, in_coeff, k, rho)
+    ---> 
+    output development = 0 2
+                         1
     """
+    
+    if abs(abs(rho)-1)<1.0e-12:
+        raise Exception('t_operator: cannot apply t_operator on development because |rho|=1.')
     
     Nydev = ydev.shape[0]
     
@@ -3411,7 +3917,7 @@ def t_operator(ydev, cydev, coeffdev, k, rho):
         # add coefficients of off-diagonal terms coming from P_{(k, k+1)}
         coeffdev = np.hstack((coeffdev, np.multiply(np.sqrt( 1.0 - rho_vec**2 ), coeffdev[ind])))
         
-        # diagonal part of P_{(k, k+1)} and -rho*Id part on off-diagonal elements
+        # diagonal part of P_{(k, k+1)} and +rho*Id part on off-diagonal elements
         coeffdev[ind] = np.multiply(-rho_vec + rho, coeffdev[ind])
     
     # apply denominator of T_{(k, k+1)}

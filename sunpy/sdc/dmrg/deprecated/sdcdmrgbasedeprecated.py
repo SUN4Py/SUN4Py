@@ -5,17 +5,15 @@ Copyright 2023 Samuel GOZEL, GNU GPLv3
 @author: sgozel
 """
 
-import sys
 import numpy as np
 import scipy.sparse
 
 from sunpy.sun import sun
 from sunpy.sdc.common import sdcutils
-from sunpy.sdc.dmrg import utils
 
 
 
-def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True, **kwargs):
+def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True):
     """
     Compute the permutational Subduction Coefficients (SDCs) in the convention 
     useful for DMRG.
@@ -78,6 +76,8 @@ def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True, **k
     n2 = np.sum(nu2)
     assert n==n1+n2
     
+    nu1nu2nu = sun.multiplicity_irrep_mixed(nu, np.array([nu1, nu2], dtype=int), N)
+    
     if not isinstance(l1, np.ndarray):
         l1 = np.array([l1])
     if not isinstance(l2, np.ndarray):
@@ -86,32 +86,17 @@ def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True, **k
     l1 = np.sort(l1)
     l2 = np.sort(l2)
     assert(len(l1)==len(l2))
-    m = len(l1)
     
-    if m>1:
-        if not 'symmetry' in kwargs:
-            sys.exit('get_SDC: Problem: symmetry undefined for m>1.')
-        else:
-            if kwargs['symmetry'] in ['symm', 'symmetric']:
-                symmetry = 'symmetric'
-            elif kwargs['symmetry'] in ['antisymm', 'antisymmetric']:
-                symmetry = 'antisymmetric'
-            else:
-                sys.exit('sdcdmrgbase.get_SDC: Problem: unrecognized symmetry for m>1.')
-    
-    nu1nu2nu = sun.multiplicity_irrep_mixed(nu, np.array([nu1, nu2], dtype=int), N)
-    assert(nu1nu2nu>0)
-    
-    # Construct tableau S1 for nu1 with the last number(s) situated at bottom 
-    # corner(s) l1
+    # Construct tableau S1 with the last number situated at bottom corner l1
     # Remark: the exact form of S1 is not important. The two only important
     # things are:
     # (1) it is a valid SYT
-    # (2) the last number(s) is/are situated in the bottom corner(s) at row l1
+    # (2) the last number is situated in the bottom corner at row l1
     # 
     # In particular, that means that all other particles can be placed
     # arbitrarily, as long as they satisfy (1) above.
     
+    # One possible choice: First SYT in LLOS for particles 0 -> n1-2
     nu1p = np.copy(nu1)
     for bc in l1:
         nu1p[bc] -= 1
@@ -134,10 +119,11 @@ def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True, **k
     sY = sun.get_subSYT(nu, nu1, order='LLOS')
     NY = sY.shape[0]
 
-    # Fill all obtained SYTs with numbers from 0 to n1-1
+    # Fill all obtained SYTs with numbers from 1 to n1
     Y = np.zeros(shape=(NY, n), dtype=int)
     Y[:, :n1] = np.matlib.repmat(y1, NY, 1)
     Y[:, n1:] = sY
+    #Y = np.hstack((np.matlib.repmat(y1, NY, 1), Y))
     CY = sun.get_column(Y)
     
     # Compute the matrices of the adjacent transpositions for S_{n_2}
@@ -158,7 +144,7 @@ def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True, **k
         assert abs(M[0,0])<1.0e-12
         COEFF_REF = np.array([[1.0]], dtype=float)
         DD = np.array([0.0], dtype=float)
-    elif M.shape[0]<2000:
+    elif M.shape[0]<100:
         DD, COEFF_REF = np.linalg.eigh(M.todense())
         COEFF_REF = np.asarray(COEFF_REF)
     else:
@@ -172,58 +158,79 @@ def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True, **k
     # Fix the overall phase
     COEFF_REF, IND_REF = sdcutils.set_overall_phase(COEFF_REF)
     
-    # get the target SYT for nu2, and the sequence of transpositions from y2_ref
-    sigma, rho, y2_final = utils.get_transpositions(nu2, l2, y2_ref, ref2firstLLOS)
+    deal_with_phase = False
+    for i in range(len(l2)-1, -1, -1):
+        l2el = l2[i]
+        if (abs(l2el - y2_ref[n2+i-len(l2)])>0):
+            deal_with_phase = True
+            break
     
-    # go from local to global numbering
-    sigma = n - sigma - 2
-    
+    # Compute SDCs
     out = []
     
-    if len(sigma)==0:
+    if deal_with_phase==0:
+        # the last particle in y2_ref is situated at bottom corner l2 in nu2, 
+        # thus no need to do any more phase fixing
+        #COEFF_FINAL = COEFF_REF
         
         for tau in range(0, nu1nu2nu):
-            out.append([Y[IND_REF[:, tau]], CY[IND_REF[:, tau]], COEFF_REF[IND_REF[:, tau], tau]])        
+            out.append([Y[IND_REF[:, tau]], CY[IND_REF[:, tau]], COEFF_REF[IND_REF[:, tau], tau]])
         
     else:
+        # one needs to find the sequence of transpositions which brings 
+        # local particle n2-1 (namely n-1 in global numbering) at row l2 in nu2
+        
+        # construct SYT y2 with bottom corner at l2
+        nu2p = np.copy(nu2)
+        for bc in l2:
+            nu2p[bc] -= 1
+        
+        if ref2firstLLOS==True:
+            y2 = sun.index_to_SYT(0, alpha=nu2p, order='LLOS')
+        else:
+            y2 = sun.index_to_SYT(0, alpha=nu2p, order='iLLOS')
+        y2 = np.hstack((y2, l2))
+        
+        # find sequence of transpositions which brings y2_ref to y2
+        sigma, rho = sun.SYT_to_target(y2_ref, y2)
         
         # y2 = sigma[-1] sigma[-2] ... sigma[1] sigma[0] y2_ref
+        
         # IMPORTANT CORRESPONDANCE
         # y2_ref[i] == row of number i, 0<=i<n2
         # <==>
         # y2_ref[i] == row of number n-i-1, 0<=i<n2 in the global SYT
         # same for y2
         
-        # apply the sequence of transpositions which bring y2_ref onto y2
+        # go from local to global numbering
+        sigma = n - sigma - 2
+        
+        #COEFF_FINAL = np.zeros(shape=COEFF_REF.shape, dtype=float)
+        
+        # apply the sequence of transpositions
+        
         for tau in range(0, nu1nu2nu):
-            ydev1, cydev1, coeff1 = sun.apply_transpositions_v2(
+            ydev1, cydev1, coeff1 = sun.apply_transpositions(
                                             nu, 
                                             sigma, 
                                             rho, 
                                             np.copy(Y[IND_REF[:, tau]]), 
                                             np.copy(CY[IND_REF[:, tau]]), 
-                                            np.copy(COEFF_REF[IND_REF[:, tau], tau].flatten()),
-                                            sort=False)
+                                            np.copy(COEFF_REF[IND_REF[:, tau], tau].flatten()))
+            
             out.append([ydev1, cydev1, coeff1])
-        
-    if m>1:
-        # need to ensure that the symmetry is respected for the last particles
-        # of alpha1 and alpha2
-        for tau in range(0, nu1nu2nu):
-            out[tau][0], out[tau][1], out[tau][2] = utils.project_symmetry(
-                                                        y1, y2_final, 
-                                                        out[tau][0], out[tau][1], out[tau][2], 
-                                                        m, symmetry,
-                                                        sort=False)
+            out[tau][0], ind = sun.sort_SYT(out[tau][0], order='LLOS')
+            out[tau][1] = out[tau][1][ind]
+            out[tau][2] = out[tau][2][ind]
+            
+            # now the SYTs in ydev1 are not necessarily stored in ascending 
+            # order of LLOS
+            # sort SYTs according to Y (--> LLOS)
+            #COEFF_FINAL[:, tau] = sun.sort_development(Y, ydev1, coeff1)
     
-    # sort SYTs in ascending order of LLOS
-    for tau in range(0, nu1nu2nu):
-        out[tau][0], ind = sun.sort_SYT(out[tau][0], order='LLOS')
-        out[tau][1] = out[tau][1][ind]
-        out[tau][2] = out[tau][2][ind]
-    
+    #return Y, CY, COEFF_FINAL
     if nu1nu2nu==1:
         return out[0]
     
     return out
-    
+

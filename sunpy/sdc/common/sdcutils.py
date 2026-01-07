@@ -40,6 +40,9 @@ def set_overall_phase(COEFF_REF):
             COEFF_REF *= -1.0
     else:
         # find if some coefficients==0
+        print('sdcutils.set_overall_phase(): multiplicity>1: abort. Code needs a review.')
+        sys.exit() # likely, the code below needs to be double-checked.
+        # in particular: does ind_c1 have the same length as ind_c2 ?
         ind_a = np.argwhere( abs(COEFF_REF[:,0])<1.0e-12 ).flatten()
         ind_b = np.argwhere( abs(COEFF_REF[:,1])<1.0e-12 ).flatten()
         
