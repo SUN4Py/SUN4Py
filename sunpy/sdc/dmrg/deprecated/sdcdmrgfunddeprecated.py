@@ -14,7 +14,7 @@ from sunpy.sdc.dmrg import utils
 
 
 
-def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True, **kwargs):
+def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True):
     """
     Compute subduction coefficients in DMRG framework using the shortcut in Chen's
     method, developing irreps as products of their columns or rows
@@ -27,12 +27,12 @@ def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True, **k
         global irrep with n particles
     nu1 : numpy array
         irrep with n1 particles
-    l1 : int or numpy array
-        position(s) of bottom corner(s) of last particle(s) in nu1
+    l1 : int
+        bottom corner position of last particle in nu1
     nu2 : numpy array
         irrep with n2 particles, n=n1+n2
-    l2 : int or numpy array
-        position(s) of bottom corner(s) of last particle(s) in nu2
+    l2 : int
+        bottom corner position of last particle in nu2
     ref2firstLLOS : bool [OPTIONAL][DEFAULT: True]
         if True, the first SYT in the ascending order of the LLOS is used as 
         reference for fixing the overall phase convention. This corresponds to
@@ -41,8 +41,6 @@ def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True, **k
         order of LLOS). This corresponds to a development accross columns
     ref1firstLLOS : bool [OPTIONAL][DEFAULT: True]
         reference SYT used for y1
-    symmetry : str
-        symmetry of local constraint ('symmetric', 'antisymmetric') for m>1
     
     Returns
     -------
@@ -71,27 +69,6 @@ def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True, **k
     n2 = np.sum(nu2)
     assert n==n1+n2
     
-    if not isinstance(l1, np.ndarray):
-        l1 = np.array([l1])
-    if not isinstance(l2, np.ndarray):
-        l2 = np.array([l2])
-    
-    l1 = np.sort(l1)
-    l2 = np.sort(l2)
-    assert(len(l1)==len(l2))
-    m = len(l1)
-    
-    if m>1:
-        if not 'symmetry' in kwargs:
-            sys.exit('get_SDC: Problem: symmetry undefined for m>1.')
-        else:
-            if kwargs['symmetry'] in ['symm', 'symmetric']:
-                symmetry = 'symmetric'
-            elif kwargs['symmetry'] in ['antisymm', 'antisymmetric']:
-                symmetry = 'antisymmetric'
-            else:
-                sys.exit('sdcdmrg.get_SDC: Problem: unrecognized symmetry for m>1.')
-    
     nu1nu2nu = sun.multiplicity_irrep_mixed(nu, np.array([nu1, nu2], dtype=int), N)
     assert(nu1nu2nu==1)
     # currently, we have not dealt with the case of multiplicities in this 
@@ -99,9 +76,7 @@ def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True, **k
     
     # construct SYT for nu1
     nu1p = np.copy(nu1)
-    for bc in l1:
-        nu1p[bc] -= 1
-    
+    nu1p[l1] -= 1
     if ref1firstLLOS==True:
         y1 = sun.index_to_SYT(0, alpha=nu1p, order='LLOS')
     else:
@@ -109,6 +84,7 @@ def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True, **k
     y1 = np.hstack((y1, l1))
     
     # construct reference SYT for nu2
+    
     if ref2firstLLOS==True:
         # we will develop wrt rows
         constraint = 'symm'
@@ -134,8 +110,9 @@ def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True, **k
         sys.exit('Problem: undefined ref2firstLLOS')
     
     # Construct all SYTs associated to the shape nu-nu1, in increasing order of LLOS
-    Y = utils.get_sSYT_constraint(nu, nu1, nu2, constraint=constraint,
-                                  fill_nu1=True, fill_y1=y1)
+    Y = utils.get_sSYT_constraint(nu, nu1, nu2, constraint=constraint, 
+                                  fill_nu1=True, 
+                                  fill_y1=y1)
     NY = Y.shape[0]
     assert(NY>0)
     
@@ -143,7 +120,6 @@ def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True, **k
         # need to compute the column positions
         CY = sun.get_column(Y)
     else:
-        # this is a trick for the rest of the calculation
         CY = Y
     
     if NY==1:
@@ -299,11 +275,9 @@ def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True, **k
             
         # Compute kernel of operator
         D, V = np.linalg.eigh(Proj)
-        ind = np.argwhere(abs(D)<1e-12).flatten()
+        ind = np.argwhere(abs(D)<1e-10).flatten()
         if len(ind)==0:
             sys.exit('Problem: the kernel is empty.')
-        elif len(ind)>1:
-            sys.exit('Problem: the kernel is multi-dimensional.')
         V = V[:, ind]
         coeffdev_r = V.flatten()
     
@@ -351,41 +325,65 @@ def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True, **k
     # Deal with global phase
     coeffdev_ref, ind_ref = sdcutils.set_overall_phase(
                                 np.reshape(coeffdev_ref, (len(coeffdev_ref), 1)))
+    
     cydev_ref = sun.get_column(ydev_ref)
     
-    # get the target SYT for nu2, and the sequence of transpositions from y2_ref
-    sigma, rho, y2_final = utils.get_transpositions(nu2, l2, y2_ref, ref2firstLLOS)
+    # generate y2
+    nu2p = np.copy(nu2)
+    nu2p[l2] -= 1
+    if ref2firstLLOS==True:
+        y2 = sun.index_to_SYT(0, alpha=nu2p, order='LLOS')
+    else:
+        y2 = sun.index_to_SYT(0, alpha=nu2p, order='iLLOS')
+    y2 = np.hstack((y2, l2))
     
-    # go from local to global numbering
-    sigma = n - sigma - 2
+    ifd = np.argwhere(abs(y2_ref-y2)>0).flatten()
     
-    ydev_final = np.copy(ydev_ref[ind_ref[:, 0]])
-    cydev_final = np.copy(cydev_ref[ind_ref[:, 0]])
-    coeffdev_final = np.copy(coeffdev_ref[ind_ref[:, 0]]).flatten()
-    
-    if len(sigma)>0:
-        # apply all transpositions
+    if (len(ifd)==0):
+        ydev_final = ydev_ref
+        cydev_final = cydev_ref
+        coeffdev_final = coeffdev_ref.flatten()
+    else:
+        
+        # find sequence of transpositions which brings y2_ref to y2
+        sigma, rho = sun.SYT_to_target(y2_ref, y2)
+        
+        # go from local to global numbering
+        sigma = n - sigma - 2
+        
+        # double-check sequence of transpositions
+        ifd = ifd[0]
+        Nop = n2 - ifd - 1
+        assert(Nop==len(sigma))
+        sigmap = n - np.arange(ifd, n2-1) - 2
+        assert(np.linalg.norm(sigmap==sigma))
+        
+        ydev_ref_copy = np.copy(ydev_ref[ind_ref[:, 0]])
+        cydev_ref_copy = np.copy(cydev_ref[ind_ref[:, 0]])
+        coeffdev_ref_copy = np.copy(coeffdev_ref[ind_ref[:, 0]]).flatten()
+        
+        '''
+        # base code - slow
+        ydev_final, cydev_final, coeffdev_final = subduction.apply_transpositions(
+                                        nu, 
+                                        sigma, 
+                                        rho, 
+                                        ydev_ref_copy, 
+                                        cydev_ref_copy, 
+                                        coeffdev_ref_copy)
+        '''
+        
         ydev_final, cydev_final, coeffdev_final = sun.apply_transpositions_v2(
                                     nu, 
                                     sigma, 
                                     rho, 
-                                    ydev_final, 
-                                    cydev_final, 
-                                    coeffdev_final,
-                                    sort=False)        
-    
-    if m>1:
-        # need to ensure that the symmetry is respected for the last particles
-        # of alpha1 and alpha2
-        ydev_final, cydev_final, coeffdev_final = utils.project_symmetry(
-                                                    y1, y2_final, 
-                                                    ydev_final, cydev_final, coeffdev_final, 
-                                                    m, symmetry, 
-                                                    sort=False)
-    
+                                    ydev_ref_copy, 
+                                    cydev_ref_copy, 
+                                    coeffdev_ref_copy)
+        
     # sort SYTs in ascending order of LLOS
     ydev_final, ind = sun.sort_SYT(ydev_final, order='LLOS')
     cydev_final = cydev_final[ind, :]
     coeffdev_final = coeffdev_final[ind]
-    
+        
     return ydev_final, cydev_final, coeffdev_final
