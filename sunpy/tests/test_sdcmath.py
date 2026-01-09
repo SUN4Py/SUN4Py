@@ -14,7 +14,199 @@ prec = 1.0e-13
 
 
 
-def test_SDC():
+def test_SDC_1_418_2a_1():
+    """
+    1st line of Table 4.18 2a page 187 of
+        Group Representation Theory for Physicists
+        Jin-Quan Chen, Hialun Ping and Fan Wang
+        World Scientific, 2nd edition, (2002)
+    """
+    
+    # arange
+    N = int(3)
+    nu = np.array([4, 1, 0], dtype=int)
+    nu1 = np.array([1, 0, 0], dtype=int)
+    nu2 = np.array([4, 0, 0], dtype=int)
+    
+    expected_coeff0 = np.sqrt(np.array([3, 5, 10, 30])/48.0) # line 1 of Table 4.18 2a
+    
+    # act
+    Y, CY, sdcs = sdcmath.get_SDC(N, nu, nu1, nu2)
+    
+    # assert
+    assert(np.sum(abs(sdcs[0, :, 0] - expected_coeff0))<prec)
+    
+
+def test_SDC_2_418_2a_234():
+    """
+    2nd, 3rd and 4th lines of Table 4.18 2a page 187 of
+        Group Representation Theory for Physicists
+        Jin-Quan Chen, Hialun Ping and Fan Wang
+        World Scientific, 2nd edition, (2002)
+    """
+    
+    # arange
+    N = int(3)
+    nu = np.array([4, 1, 0], dtype=int)
+    nu1 = np.array([1, 0, 0], dtype=int)
+    nu2 = np.array([3, 1, 0], dtype=int)
+    
+    expected_coeff0 = np.sqrt(np.array([135, 1, 2, 6])/144.0) # line 2 of Table 4.18 2a
+    expected_coeff0[[1, 2, 3]] *= -1
+    expected_coeff1 = np.sqrt(np.array([0, 32, 1, 3])/36.0) # line 3 of Table 4.18 2a
+    expected_coeff1[[2, 3]] *= -1
+    expected_coeff2 = np.sqrt(np.array([0, 0, 3, 1])/4.0) # line 4 of Table 4.18 2a
+    expected_coeff2[3] *= -1
+    
+    # act
+    Y, CY, sdcs = sdcmath.get_SDC(N, nu, nu1, nu2)
+    
+    # assert
+    assert(np.sum(abs(sdcs[0, :, 0] - expected_coeff0))<prec)
+    assert(np.sum(abs(sdcs[1, :, 0] - expected_coeff1))<prec)
+    assert(np.sum(abs(sdcs[2, :, 0] - expected_coeff2))<prec)
+
+
+def test_SDC_3_418_2a_5():
+    """
+    5th line of Table 4.18 2a page 187 of
+        Group Representation Theory for Physicists
+        Jin-Quan Chen, Hialun Ping and Fan Wang
+        World Scientific, 2nd edition, (2002)
+    """
+    
+    # arange
+    N = int(3)
+    nu = np.array([4, 1, 0], dtype=int)
+    nu1 = np.array([2, 0, 0], dtype=int)
+    nu2 = np.array([3, 0, 0], dtype=int)
+    
+    expected_coeff0 = np.sqrt(np.array([3, 5, 10])/18.0)
+    
+    # act
+    Y, CY, sdcs = sdcmath.get_SDC(N, nu, nu1, nu2)
+    
+    # assert
+    assert(np.sum(abs(sdcs[0, :, 0] - expected_coeff0))<prec)
+
+
+def test_SDC_4_418_2a_67():
+    """
+    6th and 7th lines of Table 4.18 2a page 187 of
+        Group Representation Theory for Physicists
+        Jin-Quan Chen, Hialun Ping and Fan Wang
+        World Scientific, 2nd edition, (2002)
+    """
+    
+    # arange
+    N = int(3)
+    nu = np.array([4, 1, 0], dtype=int)
+    nu1 = np.array([2, 0, 0], dtype=int)
+    nu2 = np.array([2, 1, 0], dtype=int)
+    
+    expected_coeff0 = np.sqrt(np.array([15, 1, 2])/18.0)
+    expected_coeff0[[1, 2]] *= -1
+    expected_coeff1 = np.sqrt(np.array([0, 2, 1])/3.0)
+    expected_coeff1[2] *= -1
+    
+    # act
+    Y, CY, sdcs = sdcmath.get_SDC(N, nu, nu1, nu2)
+    
+    # assert
+    assert(np.sum(abs(sdcs[0, :, 0] - expected_coeff0))<prec)
+    assert(np.sum(abs(sdcs[1, :, 0] - expected_coeff1))<prec)
+
+
+def test_SDC_5_418_2a_67_prime():
+    """
+    6th and 7th lines of Table 4.18 2a page 187 of
+        Group Representation Theory for Physicists
+        Jin-Quan Chen, Hialun Ping and Fan Wang
+        World Scientific, 2nd edition, (2002)
+    """
+    
+    # arange
+    N = int(3)
+    nu = np.array([4, 1, 0], dtype=int)
+    nu1 = np.array([2, 0, 0], dtype=int)
+    nu2 = np.array([2, 1, 0], dtype=int)
+    y2_0 = np.array([0, 0, 1], dtype=int)
+    y2_1 = np.array([0, 1, 0], dtype=int)
+    
+    expected_coeff0 = np.sqrt(np.array([15, 1, 2])/18.0)
+    expected_coeff0[[1, 2]] *= -1
+    expected_coeff1 = np.sqrt(np.array([0, 2, 1])/3.0)
+    expected_coeff1[2] *= -1
+    
+    # act
+    Y0, CY0, sdcs0 = sdcmath.get_SDC(N, nu, nu1, nu2, Y2=y2_0)
+    Y1, CY1, sdcs1 = sdcmath.get_SDC(N, nu, nu1, nu2, Y2=y2_1)
+    
+    # assert
+    assert(np.sum(abs(sdcs0[0, :, 0] - expected_coeff0))<prec)
+    assert(np.sum(abs(sdcs1[0, :, 0] - expected_coeff1))<prec)
+
+
+def test_SDC_6_418_2c_123():
+    """
+    1st, 2nd and 3rd lines of Table 4.18 2c page 187 of
+        Group Representation Theory for Physicists
+        Jin-Quan Chen, Hialun Ping and Fan Wang
+        World Scientific, 2nd edition, (2002)
+    """
+    
+    # arange
+    N = int(3)
+    nu = np.array([3, 1, 1], dtype=int)
+    nu1 = np.array([1, 0, 0], dtype=int)
+    nu2 = np.array([3, 1, 0], dtype=int)
+    
+    expected_coeff0 = np.sqrt(np.array([1, 2, 6, 0, 0, 0])/9.0)
+    expected_coeff1 = np.sqrt(np.array([32, 1, 3, 135, 405, 0])/576.0)
+    expected_coeff1[0] *= -1
+    expected_coeff2 = np.sqrt(np.array([0, 9, 3, 15, 5, 160])/192.0)
+    expected_coeff2[[1, 3]] *= -1
+    
+    # act
+    Y, CY, sdcs = sdcmath.get_SDC(N, nu, nu1, nu2)
+    
+    # assert
+    assert(np.sum(abs(sdcs[0, :, 0] - expected_coeff0))<prec)
+    assert(np.sum(abs(sdcs[1, :, 0] - expected_coeff1))<prec)
+    assert(np.sum(abs(sdcs[2, :, 0] - expected_coeff2))<prec)
+
+
+def test_SDC_7_418_2c_456():
+    """
+    4th, 5th and 6th lines of Table 4.18 2c page 187 of
+        Group Representation Theory for Physicists
+        Jin-Quan Chen, Hialun Ping and Fan Wang
+        World Scientific, 2nd edition, (2002)
+    """
+    
+    # arange
+    N = int(3)
+    nu = np.array([3, 1, 1], dtype=int)
+    nu1 = np.array([1, 0, 0], dtype=int)
+    nu2 = np.array([2, 1, 1], dtype=int)
+    
+    expected_coeff0 = np.sqrt(np.array([160, 5, 15, 3, 9, 0])/192.0)
+    expected_coeff0[[1, 2]] *= -1
+    expected_coeff1 = np.sqrt(np.array([0, 405, 135, 3, 1, 32])/576.0)
+    expected_coeff1[[2, 3]] *= -1 # likely a typo in Chen's book: no minus sign on sqrt(405/576)
+    expected_coeff2 = np.sqrt(np.array([0, 0, 0, 6, 2, 1])/9.0)
+    expected_coeff2[4] *= -1
+    
+    # act
+    Y, CY, sdcs = sdcmath.get_SDC(N, nu, nu1, nu2)
+    
+    # assert
+    assert(np.sum(abs(sdcs[0, :, 0] - expected_coeff0))<prec)
+    assert(np.sum(abs(sdcs[1, :, 0] - expected_coeff1))<prec)
+    assert(np.sum(abs(sdcs[2, :, 0] - expected_coeff2))<prec)
+
+
+def test_SDC_8():
     """
     See Eq. (G.8), (G.14), (G.19) of:
         Asymptotic freedom, Haldane gap and edge states of SU(N) spin chains

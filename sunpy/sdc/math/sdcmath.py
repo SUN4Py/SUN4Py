@@ -49,12 +49,12 @@ def get_SDC(N, nu, nu1, nu2, Y2=None, ref2firstLLOS=True, ref1firstLLOS=True):
     CY : numpy array
         associated column positions
     COEFF_FINAL : numpy array
-        SDCs. COEFF_FINAL is of dimension (NY, NY2, Ntau) where
-            NY   : is the number of SYTs for irrep nu with n1 first particles fixed for nu1
-            NY2  : is the number of SYTs in Y2 if Y2 is provided. Otherwise, it is the number
+        SDCs. COEFF_FINAL is of dimension (NY2, NY, Ntau) where
+            NY2  : number of SYTs in Y2 if Y2 is provided. Otherwise, total number
                    of SYTs for nu2
-            Ntau : is the multiplicity of nu in the tensor product of nu1 with nu2,
-                   defining two sequences of SDCs
+            NY   : number of SYTs for irrep nu with n1 first particles fixed 
+                   according to nu1
+            Ntau : multiplicity of nu in the tensor product of nu1 with nu2
     
     Remarks
     -------
@@ -119,6 +119,7 @@ def get_SDC(N, nu, nu1, nu2, Y2=None, ref2firstLLOS=True, ref1firstLLOS=True):
         nu2 = np.hstack((nu2, np.zeros(N-len(nu2), dtype=int)))
     
     nu1nu2nu = sun.multiplicity_irrep_mixed(nu, np.array([nu1, nu2], dtype=int), N)
+    assert(nu1nu2nu>0)
     
     n = np.sum(nu)
     n1 = np.sum(nu1)
@@ -140,11 +141,13 @@ def get_SDC(N, nu, nu1, nu2, Y2=None, ref2firstLLOS=True, ref1firstLLOS=True):
         y2_ref = sun.index_to_SYT(0, alpha=nu2, order='iLLOS')        
     
     # Construct all SYTs associated to the shape nu-nu1, in increasing order of LLOS
-    Y = sun.get_subSYT(nu, nu1, order='LLOS')
-    NY = Y.shape[0]
+    Ys = sun.get_subSYT(nu, nu1, order='LLOS')
+    NY = Ys.shape[0]
     
     # Fill all obtained SYTs with numbers from 0 to n1-1
-    Y = np.hstack((np.matlib.repmat(y1, NY, 1), Y))
+    Y = np.zeros(shape=(NY, n), dtype=int)
+    Y[:, :n1] = np.matlib.repmat(y1, NY, 1)
+    Y[:, n1:] = Ys
     CY = sun.get_column(Y)
     
     # Compute the matrices of the adjacent transpositions for S_{n_2}
@@ -212,7 +215,7 @@ def get_SDC(N, nu, nu1, nu2, Y2=None, ref2firstLLOS=True, ref1firstLLOS=True):
             # apply the sequence of transpositions
             
             for tau in range(0, nu1nu2nu):
-                ydev1, cydev1, coeff1 = sun.apply_transpositions(
+                ydev1, cydev1, coeff1 = sun.apply_transpositions_v2(
                                                 nu, 
                                                 sigma, 
                                                 rho, 
