@@ -5,6 +5,7 @@ Copyright 2023 Samuel GOZEL, GNU GPLv3
 @author: sgozel
 """
 
+import sys
 import numpy as np
 import scipy
 import scipy.sparse
@@ -163,7 +164,17 @@ def get_SDC(N, nu, nu1, nu2, Y2=None, ref2firstLLOS=True, ref1firstLLOS=True):
     M = sdcutils.build_canonical_chain_projector(NY, n, n1, MatAdjaTranspo, casimir, ordering='math')
     
     # compute kernel of projection operator
-    DD, COEFF_REF = scipy.sparse.linalg.eigsh(M, k=min(4, NY-1), which='SA')
+    if NY==1:
+        if (abs(M[0, 0])>1.0e-13):
+            sys.exit('Problem: M is 1x1 matrix, but kernel is empty.')
+        DD = np.array([0.0])
+        COEFF_REF = np.array([[1.0]])
+    elif NY<200:
+        DD, COEFF_REF = np.linalg.eigh(M.todense())
+        COEFF_REF = np.asarray(COEFF_REF)
+    else:
+        DD, COEFF_REF = scipy.sparse.linalg.eigsh(M, k=min(4, NY-1), which='SA')
+    
     # keep only eigenvectors with eigenvalue==0
     ind = np.argwhere(abs(DD)<1.0e-12).flatten()
     assert len(ind)==nu1nu2nu
