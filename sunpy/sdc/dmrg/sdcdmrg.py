@@ -359,9 +359,10 @@ def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True, **k
     # go from local to global numbering
     sigma = n - sigma - 2
     
-    ydev_final = np.copy(ydev_ref[ind_ref[:, 0]])
-    cydev_final = np.copy(cydev_ref[ind_ref[:, 0]])
-    coeffdev_final = np.copy(coeffdev_ref[ind_ref[:, 0]]).flatten()
+    tau = int(0)
+    ydev_final = np.copy(ydev_ref[ind_ref[tau]])
+    cydev_final = np.copy(cydev_ref[ind_ref[tau]])
+    coeffdev_final = np.copy(coeffdev_ref[ind_ref[tau], tau]).flatten()
     
     if len(sigma)>0:
         # apply all transpositions

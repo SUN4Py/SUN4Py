@@ -49,8 +49,8 @@ def get_SDC(N, nu, nu1, nu2, Y2=None, ref2firstLLOS=True, ref1firstLLOS=True):
         SYTs for the irrep nu, with n1 first particles according to input ref1firstLLOS
     CY : numpy array
         associated column positions
-    COEFF_FINAL : numpy array
-        SDCs. COEFF_FINAL is of dimension (NY2, NY, Ntau) where
+    SDCs : numpy array
+        SDCs is of dimension (NY2, NY, Ntau) where
             NY2  : number of SYTs in Y2 if Y2 is provided. Otherwise, total number
                    of SYTs for nu2
             NY   : number of SYTs for irrep nu with n1 first particles fixed 
@@ -80,7 +80,7 @@ def get_SDC(N, nu, nu1, nu2, Y2=None, ref2firstLLOS=True, ref1firstLLOS=True):
     nu = np.array([4, 1, 0], dtype=int)
     nu1 = np.array([1, 0, 0], dtype=int)
     nu2 = np.array([3, 1, 0], dtype=int)
-    Y, CY, sdcs = get_SDC(N, nu, nu1, nu2)
+    Y, CY, SDCs = get_SDC(N, nu, nu1, nu2)
     
     This reproduces the 2nd, 3rd and 4th lines of Table 4.18 2a page 187 of
     Ref. [1].
@@ -90,7 +90,7 @@ def get_SDC(N, nu, nu1, nu2, Y2=None, ref2firstLLOS=True, ref1firstLLOS=True):
     nu = np.array([4, 4, 3], dtype=int)
     nu1 = np.array([3, 3, 1], dtype=int)
     nu2 = np.array([2, 1, 1], dtype=int)
-    Y, CY, sdcs = get_SDC(N, nu, nu1, nu2)
+    Y, CY, SDCs = get_SDC(N, nu, nu1, nu2)
     
     This reproduces equations (G.8), (G.14) and (G.19) pages 163-164 of Ref. [3].
     
@@ -196,8 +196,8 @@ def get_SDC(N, nu, nu1, nu2, Y2=None, ref2firstLLOS=True, ref1firstLLOS=True):
 
     NY2 = Y2.shape[0]
 
-    COEFF_FINAL = np.zeros(shape=(NY2, NY, nu1nu2nu), dtype=float)
-    # indices for COEFF_FINAL are (m2, m, tau)
+    SDCs = np.zeros(shape=(NY2, NY, nu1nu2nu), dtype=float)
+    # indices for SDCs are (m2, m, tau)
 
     # Compute SDCs
     
@@ -212,7 +212,7 @@ def get_SDC(N, nu, nu1, nu2, Y2=None, ref2firstLLOS=True, ref1firstLLOS=True):
         
         if deal_with_phase==False:
             
-            COEFF_FINAL[i2, :, :] = COEFF_REF
+            SDCs[i2, :, :] = COEFF_REF
             
         else:
             
@@ -230,14 +230,14 @@ def get_SDC(N, nu, nu1, nu2, Y2=None, ref2firstLLOS=True, ref1firstLLOS=True):
                                                 nu, 
                                                 sigma, 
                                                 rho, 
-                                                np.copy(Y[IND_REF[:, tau]]), 
-                                                np.copy(CY[IND_REF[:, tau]]), 
-                                                np.copy(COEFF_REF[IND_REF[:, tau]].flatten()))
+                                                np.copy(Y[IND_REF[tau]]), 
+                                                np.copy(CY[IND_REF[tau]]), 
+                                                np.copy(COEFF_REF[IND_REF[tau], tau].flatten()))
                 
                 # now the SYTs in ydev1 are not necessarily stored in ascending 
                 # order of LLOS
                 # sort SYTs according to Y (--> LLOS)
-                COEFF_FINAL[i2, :, tau] = sun.sort_development(Y, ydev1, coeff1)
+                SDCs[i2, :, tau] = sun.sort_development(Y, ydev1, coeff1)
     
-    return Y, CY, COEFF_FINAL
+    return Y, CY, SDCs
 
