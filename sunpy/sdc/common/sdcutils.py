@@ -26,8 +26,11 @@ def set_overall_phase(COEFF_REF):
     -------
     COEFF_REF : numpy array
         rotated SDCs with correct phase convention
-    IND_REF : numpy array
-        positions of non-zero elements in COEFF_REF
+    IND_REF : list
+        positions of non-zero elements for each sequence of SDCs in COEFF_REF
+        IND_REF is a list of length COEFF_REF.shape[1]
+        each element in IND_REF is a numpy array of indices for non-zero elements
+        in output COEFF_REF
     """
     
     nu1nu2nu = COEFF_REF.shape[1]
@@ -35,52 +38,53 @@ def set_overall_phase(COEFF_REF):
     if (nu1nu2nu==1):
         # The coefficient of the first (in increasing order of the LLOS) non-zero
         # term must be positive
-        IND_REF = np.argwhere(abs(COEFF_REF[:, 0])>1.0e-12)
-        if (COEFF_REF[IND_REF[0, 0], 0]<0):
+        ind_sdc = np.argwhere(abs(COEFF_REF[:, 0])>1.0e-12).flatten()
+        if (COEFF_REF[ind_sdc[0], 0]<0):
             COEFF_REF *= -1.0
+        IND_REF = [ind_sdc]
     else:
-        # find if some coefficients==0
-        print('sdcutils.set_overall_phase(): multiplicity>1: abort. Code needs a review.')
-        sys.exit() # likely, the code below needs to be double-checked.
-        # in particular: does ind_c1 have the same length as ind_c2 ?
-        ind_a = np.argwhere( abs(COEFF_REF[:,0])<1.0e-12 ).flatten()
-        ind_b = np.argwhere( abs(COEFF_REF[:,1])<1.0e-12 ).flatten()
+        if (nu1nu2nu>2):
+            print('sdcutils.set_overall_phase(): multiplicity>2: abort. Code needs to perform the same operations recursively')
+            sys.exit()
+        
+        ind_a = np.argwhere( abs(COEFF_REF[:, 0])<1.0e-12 ).flatten()
+        ind_b = np.argwhere( abs(COEFF_REF[:, 1])<1.0e-12 ).flatten()
         
         if (len(ind_a)>0) | (len(ind_b)>0):
-            sys.exit('Might cause a problem here. Need to treat this case.')
+            sys.exit('This is very unlikely, but could cause a problem further down. If it occurs, that case needs to be treated.')
         
         # We apply a rotation in order to set to 0 the last component of one of
         # the vectors
         a = COEFF_REF[-1, 0]
         b = COEFF_REF[-1, 1]
-        ii = COEFF_REF.shape[0] # size(COEFF_REF,1);
+        ii = COEFF_REF.shape[0] - 1
         
-        while ( (abs(a**2+b**2)<1.0e-12) & (ii>0) ): # necessary to avoid possible division by 0 in eta
-            ii -= 1
+        while ( (abs(a**2+b**2)<1.0e-12) & (ii>=0) ): # necessary to avoid possible division by 0 in eta
             a = COEFF_REF[ii, 0]
             b = COEFF_REF[ii, 1]
+            ii -= 1
         
         eta = np.sqrt( b**2/(a**2+b**2) )
         
-        c1 = eta*COEFF_REF[:,0] + np.sqrt(1.0-eta**2)*COEFF_REF[:,1]
-        c2 = np.sqrt(1.0-eta**2)*COEFF_REF[:,0] - eta*COEFF_REF[:,1]
+        c1 = eta*COEFF_REF[:, 0] + np.sqrt(1.0-eta**2)*COEFF_REF[:, 1]
+        c2 = np.sqrt(1.0-eta**2)*COEFF_REF[:, 0] - eta*COEFF_REF[:, 1]
         
         if abs(c1[-1])>1.0e-12:
             # we made the wrong choice of phase in lambdaa ==> need to correct
-            c1 = eta*COEFF_REF[:,0] - np.sqrt(1.0-eta**2)*COEFF_REF[:,1]
-            c2 = np.sqrt(1.0-eta**2)*COEFF_REF[:,0] + eta*COEFF_REF[:,1]
+            c1 = eta*COEFF_REF[:, 0] - np.sqrt(1.0-eta**2)*COEFF_REF[:, 1]
+            c2 = np.sqrt(1.0-eta**2)*COEFF_REF[:, 0] + eta*COEFF_REF[:, 1]
         
-        ind_c1 = np.argwhere(abs(c1)>1.0e-12)
+        ind_c1 = np.argwhere(abs(c1)>1.0e-12).flatten()
         if (c1[ind_c1[0]]<0):
             c1 *= -1
-        ind_c2 = np.argwhere(abs(c2)>1.0e-12)
+        ind_c2 = np.argwhere(abs(c2)>1.0e-12).flatten()
         if (c2[ind_c2[0]]<0):
             c2 *= -1
         
         COEFF_REF[:, 0] = c1
         COEFF_REF[:, 1] = c2
         
-        IND_REF = np.stack((ind_c1, ind_c2))
+        IND_REF = [ind_c1, ind_c2]
     
     return COEFF_REF, IND_REF
 

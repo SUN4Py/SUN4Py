@@ -183,7 +183,7 @@ def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True, **k
     if len(sigma)==0:
         
         for tau in range(0, nu1nu2nu):
-            out.append([Y[IND_REF[:, tau]], CY[IND_REF[:, tau]], COEFF_REF[IND_REF[:, tau], tau]])        
+            out.append([Y[IND_REF[tau]], CY[IND_REF[tau]], COEFF_REF[IND_REF[tau], tau].flatten()])        
         
     else:
         
@@ -200,9 +200,9 @@ def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True, **k
                                             nu, 
                                             sigma, 
                                             rho, 
-                                            np.copy(Y[IND_REF[:, tau]]), 
-                                            np.copy(CY[IND_REF[:, tau]]), 
-                                            np.copy(COEFF_REF[IND_REF[:, tau], tau].flatten()),
+                                            np.copy(Y[IND_REF[tau]]), 
+                                            np.copy(CY[IND_REF[tau]]), 
+                                            np.copy(COEFF_REF[IND_REF[tau], tau].flatten()),
                                             sort=False)
             out.append([ydev1, cydev1, coeff1])
         
