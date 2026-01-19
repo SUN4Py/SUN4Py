@@ -40,19 +40,18 @@ class RMEReader:
         self._num_irreps = num_irreps
         self._filename = filename
         
-        if N==3:
-            self._irreps = np.load('sunpy/irreps/SU3_irreps_300.npy')
-            self._irreps = self._irreps.astype(int)
-        else:
-            sys.exit('List of irreps not yet computed for N>3.')
-        self._irreps = self._irreps[:self._num_irreps] + np.full(shape=(self._num_irreps, self._N), fill_value=self._m, dtype=int)
-        
         with open(self._filename, 'rb') as file:
             print('Reading RME from: ', self._filename)
             data = pickle.load(file)
+        
         self._rme = data['liste_rme']
         self._indliste = data['indliste']
         self._indices_liste_rme = data['indices_liste_rme']
+        self._irreps = data['irreps']
+
+        assert(self._irreps.shape[0]==self._num_irreps)
+        assert(self._irreps[0][-1]==self._m) # singlet irrep must be represented with self._m columns
+        
         if self._m==1:
             self._states = states_rme(self._N, self._num_irreps, self._irreps)
         else:

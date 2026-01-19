@@ -29,7 +29,7 @@ class RMEEngineFund(RMEEngine):
     RME Engine for fundamental irrep at each site
     """
     
-    def __init__(self, N, num_irreps, target='GS', **kwargs):
+    def __init__(self, N, num_irreps, target, tech, **kwargs):
         """
         Constructor of RMEEngineFund
         
@@ -41,6 +41,8 @@ class RMEEngineFund(RMEEngine):
             number of irreps
         target : str
             string describing the target irrep
+        tech : str
+            string describing the technique to use to compute RMEs ('base', 'shortcut_cols', 'shortcut_rows')
         
         [optional]
         checkpointing : bool  [default]False
@@ -87,11 +89,11 @@ class RMEEngineFund(RMEEngine):
         else:
             self._filename_prefix = 'pythonRME_fund'
         
-        super().__init__(N, num_irreps, filename_prefix=self._filename_prefix, target=target, **kwargs)
+        super().__init__(N, num_irreps, filename_prefix=self._filename_prefix, target=target, tech=tech, **kwargs)
     
     
     def __str__(self):
-        return f"RMEEngineFund, N={self._N}, num_irreps={self._num_irreps}, target={self._target}"
+        return f"RMEEngineFund, N={self._N}, num_irreps={self._num_irreps}, target={self._target}, tech={self._tech}"
     
     
     def _init_irreps(self, num_irreps):
@@ -147,20 +149,20 @@ class RMEEngineFund(RMEEngine):
         """
         
         """
-        filename = self._filename_prefix + '_SU' + str(self._N) + '_' + self._target + '_numirreps' + str(num_irreps) + '.pickle'
+        filename = self._filename_prefix + '_SU' + str(self._N) + '_' + self._target + '_numirreps' + str(num_irreps) +  '_' + self._tech + '.pickle'
         filename = os.path.join(os.getcwd(), 'sunpy', 'rme_coefficients', filename)
         return filename
     
     
-    def _get_sdc(self, alpha, alpha1, l1, alpha2, l2, tech):
+    def _get_sdc(self, alpha, alpha1, l1, alpha2, l2):
         """
         Compute SDCs for |alpha; alpha1, l1; alpha2, l2>
         """
         
-        if not tech in ['base', 'shortcut_cols', 'shortcut_rows']:
+        if not self._tech in ['base', 'shortcut_cols', 'shortcut_rows']:
             sys.exit('tech undefined.')
         
-        if tech=='base':
+        if self._tech=='base':
             
             ydev, cydev, coeff = sdcdmrgbase.get_SDC(self._N, alpha, 
                                                      alpha1, l1, 
@@ -179,7 +181,7 @@ class RMEEngineFund(RMEEngine):
             assert(np.linalg.norm(cydev-cydev0)==0)
             assert(np.linalg.norm(coeff-coeff0)<1.0e-12)
             '''
-        elif tech=='shortcut_cols':
+        elif self._tech=='shortcut_cols':
             
             ydev, cydev, coeff = sdcdmrg.get_SDC(self._N, alpha, 
                                                  alpha1, l1, 
@@ -197,7 +199,7 @@ class RMEEngineFund(RMEEngine):
             assert(np.linalg.norm(cydev-cydev0)==0)
             assert(np.linalg.norm(coeff-coeff0)<1.0e-12)
             '''
-        elif tech=='shortcut_rows':
+        elif self._tech=='shortcut_rows':
             
             ydev, cydev, coeff = sdcdmrg.get_SDC(self._N, alpha, 
                                                  alpha1, l1, 
@@ -221,7 +223,7 @@ class RMEEngineFund(RMEEngine):
         return ydev, cydev, coeff
     
     
-    def _atomic_run(self, tech='base'):
+    def _atomic_run(self):
         """
         Compute the reduced matrix elements
         """
@@ -357,8 +359,7 @@ class RMEEngineFund(RMEEngine):
                     if any(bool_compute):
                         ket_y, ket_cy, ket_coeff = self._get_sdc(alphaGS, 
                                                                  alpha1, l1, 
-                                                                 alpha2, l2, 
-                                                                 tech)
+                                                                 alpha2, l2)
                         Pket_y, Pket_cy, Pket_coeff = sun.develop_consecutive_number(alphaGS, 
                                                                                      np.copy(ket_y), 
                                                                                      np.copy(ket_cy), 
@@ -389,8 +390,7 @@ class RMEEngineFund(RMEEngine):
                                     # td['index_bra']>p --> need to compute SDCs for the <bra|
                                     bra_y, bra_cy, bra_coeff = self._get_sdc(alphaGS, 
                                                                              td['alpha3'], td['l3'], 
-                                                                             td['alpha4'], td['l4'], 
-                                                                             tech)
+                                                                             td['alpha4'], td['l4'])
                                 # compute overlap <bra|Pket>
                                 _, bra_ind, Pket_ind = sunpy.common.math.intersect_row(bra_cy, Pket_cy)
                                 coeff = np.sum( np.multiply(bra_coeff[bra_ind], Pket_coeff[Pket_ind]) )
@@ -556,7 +556,7 @@ class RMEEngineFund(RMEEngine):
         return
     
     
-    def __rme(self, alpha, alpha1, l1, alpha2, l2, alpha3, l3, alpha4, l4, tech='base'):
+    def __rme(self, alpha, alpha1, l1, alpha2, l2, alpha3, l3, alpha4, l4):
         """
         Reduced matrix element
             <alpha3, l3; alpha4, l4 | P_{alpha} | alpha1, l1; alpha2, l2>
@@ -611,10 +611,10 @@ class RMEEngineFund(RMEEngine):
                     Phys. Rev. B 97, 134420 (2018)
         """
         
-        if not tech in ['base', 'shortcut_cols', 'shortcut_rows']:
+        if not self._tech in ['base', 'shortcut_cols', 'shortcut_rows']:
             sys.exit('tech undefined.')
         
-        if tech=='base':
+        if self._tech=='base':
             
             ket_y, ket_cy, ket_coeff = sdcdmrgbase.get_SDC(self._N, alpha, 
                                                     alpha1, l1, 
@@ -627,7 +627,7 @@ class RMEEngineFund(RMEEngine):
                                                     alpha4, l4, 
                                                     ref2firstLLOS=False, 
                                                     ref1firstLLOS=True)
-        elif tech=='shortcut_cols':
+        elif self._tech=='shortcut_cols':
             
             ket_y, ket_cy, ket_coeff = sdcdmrg.get_SDC(self._N, alpha, 
                                                     alpha1, l1, 
@@ -641,7 +641,7 @@ class RMEEngineFund(RMEEngine):
                                                     ref2firstLLOS=False, 
                                                     ref1firstLLOS=True)
             
-        elif tech=='shortcut_rows':
+        elif self._tech=='shortcut_rows':
             
             ket_y, ket_cy, ket_coeff = sdcdmrg.get_SDC(self._N, alpha, 
                                                     alpha1, l1, 

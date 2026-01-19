@@ -19,7 +19,7 @@ class RMEEngine(ABC):
     Class to deal with the computation of reduced matrix elements in DMRG
     """
     
-    def __init__(self, N, num_irreps, filename_prefix, target, **kwargs):
+    def __init__(self, N, num_irreps, filename_prefix, target, tech, **kwargs):
         """
         Constructor of RMEEngine
         
@@ -31,6 +31,8 @@ class RMEEngine(ABC):
             number of irreps
         target : str
             string describing the target irrep
+        tech : str
+            string describing the technique to use to compute RMEs ('base', 'shortcut_cols', 'shortcut_rows')
         
         [optional]
         checkpointing : bool  [default]False
@@ -48,16 +50,33 @@ class RMEEngine(ABC):
         """
         
         self._N = N
-        if self._N==3:
-            self._irreps_all = np.load('sunpy/irreps/SU3_irreps_300.npy')
-            self._irreps_all = self._irreps_all.astype(int)
+        
+        if (num_irreps<=int(300)):
+            irreps_filename = 'SU' + str(self._N) + '_irreps_300.npy'
         else:
-            sys.exit('List of irreps not yet computed for N>3.')
+            irreps_filename = 'SU' + str(self._N) + '_irreps_' + str(num_irreps) + '.npy'
+        
+        irreps_filename = os.path.join('sunpy', 'irreps', irreps_filename)
+        
+        if not os.path.exists(irreps_filename):
+            # generate list of 300 (or num_irreps if 300<num_irreps) first irreps of SU(N)
+            from sunpy.sun import sun
+            print('Generating list of ', max(int(300), num_irreps), 'first irreps of SU(', N ,')')
+            self._irreps_all = sun.get_irreps(N, max(int(300), num_irreps))
+            print('Dibe. Dumping to:', irreps_filename)
+            np.save(irreps_filename, self._irreps_all)
+        else:
+            print('Loading list of ', max(int(300), num_irreps), 'first irreps of SU(', N ,')')
+            self._irreps_all = np.load(irreps_filename).astype(int)
         
         self._num_irreps = num_irreps
         self._irreps = self._init_irreps(self._num_irreps)
         
         self._target = target
+        
+        if not tech in ['base', 'shortcut_cols', 'shortcut_rows']:
+            sys.exit('ERROR : RMEEngine.__init__ : Tech undefined')
+        self._tech = tech
         
         if 'restarting' in kwargs:
             self._restarting = kwargs['restarting']
@@ -77,7 +96,7 @@ class RMEEngine(ABC):
                 if not os.path.isfile(self._restarting_filename):
                     print('Restarting file : ', self._restarting_filename, ' was not found.')
                     sys.exit('Exit')
-                pattern = re.compile(r'^' + filename_prefix + '_SU(\d+)_' + self._target + '_numirreps(\d+)\.pickle$')
+                pattern = re.compile(r'^' + filename_prefix + '_SU(\d+)_' + self._target + '_numirreps(\d+)_' + self._tech + '.pickle$')
                 m = pattern.match(os.path.basename(self._restarting_filename))
                 assert( int(m.group(1)) == self._N )
                 self._num_irreps_old = int(m.group(2))
@@ -90,7 +109,7 @@ class RMEEngine(ABC):
                 # search for restart file
                 files_in_dir = [f for f in os.listdir(self._restarting_folder) if os.path.isfile(os.path.join(self._restarting_folder, f))]
                 # search for pattern
-                pattern = re.compile(r'^' + filename_prefix + '_SU(\d+)_' + self._target + '_numirreps(\d+)\.pickle$')
+                pattern = re.compile(r'^' + filename_prefix + '_SU(\d+)_' + self._target + '_numirreps(\d+)_' + self._tech + '.pickle$')
                 self._num_irreps_old = int(0)
                 for file in files_in_dir:
                     m = pattern.match(file)
@@ -151,14 +170,15 @@ class RMEEngine(ABC):
         return
     
     
-    def run(self, tech='base'):
+    def run(self):
         """
         Compute the reduced matrix elements
         """
+        
         if self._num_irreps==self._num_irreps_old:
             return
         if self._checkpointing==False:
-            self._atomic_run(tech)
+            self._atomic_run()
         else:
             self._ultimate_num_irreps = self._num_irreps # not really necessary
             for i, ni in enumerate(self._chkpt_ni):
@@ -168,7 +188,7 @@ class RMEEngine(ABC):
                 self._filename = self._get_filename(ni)
                 self._irreps = self._init_irreps(ni)
                 # peform calculation
-                self._atomic_run(tech)
+                self._atomic_run()
                 # use current checkpoint as restarting in next iteration
                 self._restarting = True
                 self._restarting_filename = self._filename
@@ -187,7 +207,7 @@ class RMEEngine(ABC):
     
     
     @abstractmethod
-    def _atomic_run(self, tech='base'):
+    def _atomic_run(self):
         """
         Compute the reduced matrix elements
         """
@@ -203,7 +223,7 @@ class RMEEngine(ABC):
     
     
     @abstractmethod
-    def _get_sdc(self, alpha, alpha1, l1, alpha2, l2, tech):
+    def _get_sdc(self, alpha, alpha1, l1, alpha2, l2):
         """
         Compute SDCs for |alpha; alpha1, l1; alpha2, l2>
         """
@@ -244,6 +264,8 @@ class RMEEngine(ABC):
         data['indliste'] = self._indliste
         data['indices_liste_rme'] = self._indices_liste_rme
         data['liste_rme'] = self._liste_rme
+        data['tech'] = self._tech
+        data['irreps'] = self._irreps
         with open(filename, 'wb') as file:
             print('Saving RME to file: ', filename)
             pickle.dump(data, file)
