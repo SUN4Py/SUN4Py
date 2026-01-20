@@ -53,7 +53,7 @@ The code is licensed under GNU GPL-v3.0 as given in the file LICENSE.
 
 If you use SUNPy in your work, you are welcome to cite it as explained in the `CITATION.cff` file.
 
-If you feel generous, you are also welcome to cite any of the below references.
+Depending on your application, you are also invited to cite one/several of the references below.
 
 ## Author
 
@@ -61,10 +61,13 @@ Samuel Gozel
 
 ## References
 
-Two major references for the group theory aspects of SUNPy are (with an emphasis on the first one):
+The major references for the group theory aspects of SUNPy are (here in chronological order):
 
-- Group Representation Theory for Physicists, Jin-Quan Chen, Jialung Ping & Fan Wang, World Scientific (2002)
-- Group Theory in Physics, Volume II, J. F. Cornwell, Academic Press (1984)
+- *On Quantitative Substitutional Analysis*, Alfred Young, Proc. London Math. Soc. s2-34, 196 (1932)
+- *Substitutional Analysis*, D. E. Rutherford, Edinburgh University Press (1948)
+- *Combinatorial Algorithms*, A. Nijenhuis & H. S. Wilf, Academic Press (1978)
+- *Group Theory in Physics, Volume II*, J. F. Cornwell, Academic Press (1984)
+- *Group Representation Theory for Physicists*, Jin-Quan Chen, Jialung Ping & Fan Wang, World Scientific (2002)
 
 The algorithms provided in SUNPy have been described in the following articles, some of which the author of SUNPy is one of the main authors:
 

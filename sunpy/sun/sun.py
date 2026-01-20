@@ -237,6 +237,13 @@ def get_SYT(alpha, order='LLOS') -> np.ndarray:
         1st  SYT: numbers filled row-wise
         last SYT: numbers filled column-wise
         (the opposite for 'iLLOS')
+    
+    References
+    ----------
+    See algorithm NEXYTB in Chapter 14 of:
+        Combinatorial Algorithms
+        A. Nijenhuis and H. S. Wilf 
+        Academic Press, New York (1978)
     """
     
     n = np.sum(alpha)
