@@ -22,8 +22,8 @@ import sunpy.ed.lattice
 
 
 
-N = int(3)
-Ns = int(5)
+N = int(3) # SU(N)
+Ns = int(5) # number of sites
 alpha = np.array([6, 5, 4], dtype=int) # global target sector
 beta_loc = np.array([2, 1, 0], dtype=int) # local irrep
 beta = np.matlib.repmat(beta_loc, Ns, 1) # same local irrep on each site
@@ -37,7 +37,7 @@ beta[0] = beta_loc_edge
 beta[-1] = beta_loc_edge
 '''
 
-lattice = sunpy.ed.lattice.Lattice(Ns=Ns, typeLattice='chain', isPBC=False)
+lattice = sunpy.ed.lattice.chainLattice(Ns=Ns, isPBC=False)
 
 start = time.perf_counter()
 engine = sunpy.ed.edgeneral.SUNGeneral(alpha, beta, N, lattice)
@@ -62,17 +62,16 @@ else:
 print('GS Energy: ', EGS)
 print('GS Energy per site: ', EGS/Ns)
 
-toto = sun.get_SYT(alpha)
 
-
+'''
 # Example for symmetric local constraints with m particles per site
-N = int(3)
-m = int(2)
-alpha = np.array([4, 4, 2], dtype=int)
-Ns = np.sum(alpha)//m
+N = int(3) # SU(N)
+m = int(2) # m=2 particles per site
+alpha = np.array([4, 4, 2], dtype=int) # global target irrep
+Ns = np.sum(alpha)//m # number of sites
 
 # get the lattice
-lattice = sunpy.ed.lattice.Lattice(Ns=Ns, typeLattice='chain', isPBC=False)
+lattice = sunpy.ed.lattice.chainLattice(Ns=Ns, isPBC=False)
 
 # build SU(N) engine
 if m==1:
@@ -87,7 +86,7 @@ H = Engine.sun_hamiltonian()
 E, PSI = scipy.sparse.linalg.eigsh(H, k=1, which='SA')
 EGS = E[0]
 print('GS Energy: ', E[0])
-
+'''
 
 '''
 # This shows how to use get_subSYT, fill_subSYT and how to print SYTs to text
@@ -116,10 +115,10 @@ for i in range(0, Y2.shape[0]):
 # This shows that for symmetric local irreps on each site, the general code 
 # for computing the SYTs is much slower than the dedicated symmetric routine
 
-N = int(3)
-Ns = int(8)
-alpha = np.array([Ns, Ns, Ns], dtype=int)
-beta_loc = np.array([3, 0, 0], dtype=int)
+N = int(3) # SU(N)
+Ns = int(8) # numbr of sites
+alpha = np.array([Ns, Ns, Ns], dtype=int) # global target sector
+beta_loc = np.array([3, 0, 0], dtype=int) # local irrep ---> symmetric irrep
 beta = np.matlib.repmat(beta_loc, Ns, 1)
 
 start = time.perf_counter()

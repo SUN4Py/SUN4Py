@@ -3221,7 +3221,7 @@ def permutation_to_cycles(sigma):
 
 def cycle_to_transpositions(cycle):
     """
-    Transform a cycle nto a product of 2-cycles (transpositions)
+    Transform a cycle into a product of 2-cycles (transpositions)
     
     Parameters
     ----------
@@ -3263,7 +3263,7 @@ def transposition_to_adjacent_transpositions(t):
     Example
     -------
     t = (2, 5)
-    z = (2, 3)(3, 4)(4, 5)(3, 4)(2, 3) --> z=np.array([2, 3, 4, 3, 2])
+    z = (2, 3)(3, 4)(4, 5)(3, 4)(2, 3) --> z=np.array([2, 3, 4, 3, 2], dtype=int)
     """
     
     a = np.min(t)
@@ -3272,8 +3272,8 @@ def transposition_to_adjacent_transpositions(t):
     n = 2*abs(b - a) - 1
     
     z = np.zeros(shape=(n, ), dtype=int)
-    z[0:((n-1)/2+1).astype(int)] = np.arange(a, b)
-    z[((n-1)/2+1).astype(int):] = np.arange(b-2, a-1, -1)
+    z[0:((n-1)//2+1)] = np.arange(a, b)
+    z[((n-1)//2+1):] = np.arange(b-2, a-1, -1)
     
     return z
 

@@ -84,7 +84,7 @@ ed_lengths = np.array([4, 6, 8, 10, 12], dtype=int)
 ed_energies = np.zeros(shape=ed_lengths.shape, dtype=float)
 
 for k, edNs in enumerate(ed_lengths):
-    latticeedNs = lattice.Lattice(edNs, 'chain', isPBC=False)
+    latticeedNs = lattice.chainLattice(Ns=edNs, isPBC=False)
     nc = edNs//N
     r = edNs % N
     alphaGS = np.full(shape=(N,), fill_value=nc, dtype=int)
