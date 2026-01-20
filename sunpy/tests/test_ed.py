@@ -148,7 +148,7 @@ prec = 1.0e-13
 ])
 def test_energy(alpha, m, symmetry, N, isPBC, expected):
     Ns = np.sum(alpha)//m
-    latt = lattice.Lattice(Ns=Ns, typeLattice='chain', isPBC=isPBC)
+    latt = lattice.chainLattice(Ns=Ns, isPBC=isPBC)
     if m==1:
         Engine = edfund.SUNFundamental(Ns, N, alpha, latt)
     else:        

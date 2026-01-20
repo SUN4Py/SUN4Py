@@ -249,7 +249,7 @@ class DMRG:
         
         num_states_init = np.zeros(shape=(i_TAB1,), dtype=int)
         
-        lattice = sunpy.ed.lattice.Lattice(Ns=self._Ns_min, typeLattice='chain', isPBC=False)
+        lattice = sunpy.ed.lattice.chainLattice(Ns=self._Ns_min, isPBC=False)
         
         for q in range(0, i_TAB1):
             alpha = np.copy(TAB1[q])
@@ -657,7 +657,7 @@ class DMRG:
                 print('Perform check of Hamiltonian of left block in irrep: ', TAB2[p])
                 test_dmrg_energy, _ = np.linalg.eigh(self._H[n][p].todense())
                 #----------------------------
-                test_lattice = sunpy.ed.lattice.Lattice(np.sum(TAB2[p]), 'chain', isPBC=False)
+                test_lattice = sunpy.ed.lattice.chainLattice(Ns=np.sum(TAB2[p]), isPBC=False)
                 test_edengine = sunpy.ed.edfund.SUNFundamental(np.sum(TAB2[p]), self._N, TAB2[p], test_lattice)
                 test_H = test_edengine.sun_hamiltonian()
                 test_H = test_H.todense()
