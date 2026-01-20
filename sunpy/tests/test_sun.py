@@ -62,10 +62,29 @@ def test_multiplicity(alpha, expected):
     (np.array([3,1,1], dtype=int), 0),
     (np.array([2,2,1], dtype=int), -2),
     (np.array([2,1,1,1], dtype=int), -5),
-    (np.array([1,1,1,1,1], dtype=int), -10),
+    (np.array([1,1,1,1,1], dtype=int), -10)
 ])
 def test_casimir(alpha, expected):
-    assert abs( sun.casimir_quadratic(alpha) - expected )<prec
+    assert(abs( sun.casimir_quadratic(alpha) - expected )<prec)
+
+
+
+@pytest.mark.parametrize("alpha, N, expected", [
+    (np.array([1, 0, 0]), int(3), int(3)), 
+    (np.array([1, 1, 0]), int(3), int(3)), 
+    (np.array([1, 1, 1]), int(3), int(1)), 
+    (np.array([2, 1, 0]), int(3), int(8)), 
+    (np.array([2, 2, 0]), int(3), int(6)), 
+    (np.array([3, 0, 0]), int(3), int(10)), 
+    (np.array([3, 3, 0]), int(3), int(10)), 
+    (np.array([4, 2, 0]), int(3), int(27)), 
+    (np.array([2, 1, 1, 0]), int(4), int(15)), 
+    (np.array([2, 1, 1, 1, 0]), int(5), int(24)), 
+    (np.array([4, 3, 2, 1, 0]), int(5), int(1024))
+])
+def test_dim_irrep_sun(alpha, N, expected):
+    dimension = sun.dim_irrep_sun(alpha, N)
+    assert(dimension==expected)
 
 
 
@@ -88,7 +107,7 @@ def test_binary_search_SYT(alpha, expected):
         if not ii==i:
             actual = False
             break
-    assert actual==expected
+    assert(actual==expected)
 
 
 
@@ -149,7 +168,7 @@ def test_map_syt_to_index(alpha, m, order, expected):
         if not ii==i:
             actual = False
             break
-    assert actual==expected
+    assert(actual==expected)
 
 
 
@@ -212,7 +231,7 @@ def test_map_index_to_syt(alpha, m, order, expected):
             actual = False
             break
     
-    assert actual==expected
+    assert(actual==expected)
 
 
 
