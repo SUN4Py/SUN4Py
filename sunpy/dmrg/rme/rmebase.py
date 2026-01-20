@@ -52,9 +52,9 @@ class RMEEngine(ABC):
         self._N = N
         
         if (num_irreps<=int(300)):
-            irreps_filename = 'SU' + str(self._N) + '_irreps_300.npy'
+            irreps_filename = f'SU{self._N}_irreps_300.npy'
         else:
-            irreps_filename = 'SU' + str(self._N) + '_irreps_' + str(num_irreps) + '.npy'
+            irreps_filename = f'SU{self._N}_irreps_{num_irreps}.npy'
         
         irreps_filename = os.path.join('sunpy', 'irreps', irreps_filename)
         
@@ -63,7 +63,7 @@ class RMEEngine(ABC):
             from sunpy.sun import sun
             print('Generating list of ', max(int(300), num_irreps), 'first irreps of SU(', N ,')')
             self._irreps_all = sun.get_irreps(N, max(int(300), num_irreps))
-            print('Dibe. Dumping to:', irreps_filename)
+            print('Done. Dumping to:', irreps_filename)
             np.save(irreps_filename, self._irreps_all)
         else:
             print('Loading list of ', max(int(300), num_irreps), 'first irreps of SU(', N ,')')

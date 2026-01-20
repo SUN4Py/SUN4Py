@@ -15,7 +15,7 @@ from sunpy.sun import sun
 
 class SUNFundamental:
     
-    def __init__(self, Ns, N, alpha, lattice):
+    def __init__(self, Ns, N, alpha, lattice, basisOrder='iLLOS'):
         
         if not np.sum(alpha)==Ns:
             sys.exit('Problem: number of boxes in alpha must match Ns')
@@ -29,7 +29,7 @@ class SUNFundamental:
         self.n = np.sum(self.alpha)
         self.falpha = sun.multiplicity(self.alpha)
         self.lattice = lattice
-        self.Y = sun.get_SYT(self.alpha)
+        self.Y = sun.get_SYT(self.alpha, order=basisOrder)
         self.CY = sun.get_column(self.Y)
     
     

@@ -6,6 +6,7 @@ Copyright 2023 Samuel GOZEL, GNU GPLv3
 """
 
 import numpy as np
+import os
 import sys
 import pickle
 
@@ -32,7 +33,8 @@ class RMEReader:
             path to filename
         m : int
             number of particles
-        
+        symmetry : str [optional]['symmetric' or 'antisymmetric']
+            symmetry type, when m>1
         
         """
         self._N = N
@@ -78,13 +80,27 @@ class RMEReader:
         return index[0]
     
     
+    def __adapt_columns(self, nu):
+        """
+        Return an irrep equivalent to nu, but with exactly self._m column(s) with self._N boxes
+        """
+        # nu[-1] is the number of columns with N boxes in nu
+        nup = np.copy(nu)
+        nup += (1-nu[-1]) * np.full(shape=(self._N,), fill_value=self._m, dtype=int)
+        return nup
+    
     def read(self, nu1, l1, nu2, l2, nu3, l3, nu4, l4):
         """
         Read reduced matrix element
         """
         
-        indnu1 = self.__get_index_irrep(nu1)
-        indnu2 = self.__get_index_irrep(nu2)
+        nu1p = self.__adapt_columns(nu1)
+        nu2p = self.__adapt_columns(nu2)
+        nu3p = self.__adapt_columns(nu3)
+        nu4p = self.__adapt_columns(nu4)
+        
+        indnu1 = self.__get_index_irrep(nu1p)
+        indnu2 = self.__get_index_irrep(nu2p)
         ket_state = np.hstack((indnu1, l1, indnu2, l2))
         ket_state_ind = self.__get_index_state(ket_state)
         
@@ -96,8 +112,8 @@ class RMEReader:
         else:
             return None
         
-        indnu3 = self.__get_index_irrep(nu3)
-        indnu4 = self.__get_index_irrep(nu4)
+        indnu3 = self.__get_index_irrep(nu3p)
+        indnu4 = self.__get_index_irrep(nu4p)
         bra_state = np.hstack((indnu3, l3, indnu4, l4))
         bra_state_ind = self.__get_index_state(bra_state)
         
