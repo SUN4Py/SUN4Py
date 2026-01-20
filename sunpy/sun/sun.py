@@ -188,9 +188,9 @@ def multiplicity(alpha) -> int:
         for j in range(0, alpha[i]):
             alphafull[i,j] = 1
     
-    arnum = np.arange(1, n+1) # sequence for n!
+    arnum = np.arange(1, n+1) # sequence for n! (numerator)
     
-    denom = np.full(shape=(n,), fill_value=1, dtype=int)
+    denom = np.full(shape=(n,), fill_value=1, dtype=int) # --> denominator
     cpt = int(0)
     for i in range(0, nl):
         for j in range(0, alpha[i]):
@@ -203,38 +203,8 @@ def multiplicity(alpha) -> int:
                     denom[cpt] = sumi
                     cpt += 1
     
-    ind_arnum = np.argwhere(arnum>1).flatten()
-    arnum = arnum[ind_arnum]
-    arnum = np.sort(arnum)
-    ind_denom = np.argwhere(denom>1).flatten()
-    denom = denom[ind_denom]
-    denom = np.sort(denom)
-    
-    divisors = np.array([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37], dtype=int)
-    for i in range(0, len(arnum)):
-        for d in divisors:
-            if arnum[i]==1:
-                break
-            for t in range(0, 5):
-                if (arnum[i]%d==0):
-                    for j in range(0, len(denom)):
-                        if (denom[j]%d==0):
-                            arnum[i] = arnum[i]//d
-                            denom[j] = denom[j]//d
-                            break
-                else:
-                    break
-    
-    ind_arnum = np.argwhere(arnum>1).flatten()
-    arnum = arnum[ind_arnum]
-    arnum = np.sort(arnum)
-    
-    ind_denom = np.argwhere(denom>1).flatten()
-    denom = denom[ind_denom]
-    denom = np.sort(denom)
-    
-    assert(len(denom)==0)
-    
+    arnum, denom = sunpy.common.math.reduce_by_divide(arnum, denom)
+    assert(np.prod(denom)==1)
     falpha = np.prod(arnum)
     
     return falpha
@@ -1984,7 +1954,6 @@ def dim_irrep_sun(alpha, N) -> int:
         for j in range(0, alpha[i]):
             numvec[cpt] = N-i+j
             cpt += 1
-    numvec = np.sort(numvec)
     
     # Denominator: product of Hook lengths
     m = alpha[0]
@@ -2000,37 +1969,13 @@ def dim_irrep_sun(alpha, N) -> int:
             sumi = np.sum(alphafull[i:nl,j]) + np.sum(alphafull[i,j+1:m])
             denomvec[cpt] = sumi
             cpt += 1
-    denomvec = np.sort(denomvec)
     
-    # check for equality between factors in numerator and denominator
-    for i in range(n):
-        di = denomvec[i]
-        ind = np.argwhere(numvec==di).flatten()
-        if len(ind)>0:
-            numvec[ind[0]] = 1
-            denomvec[i] = 1
-    
-    # keep only non-1's
-    numvec = numvec[np.argwhere(numvec!=1)].flatten()
-    denomvec = denomvec[np.argwhere(denomvec!=1)].flatten()
-    
-    if len(denomvec)==0:
-        denomvec = np.array([1], dtype=int)
-    else:
-        # we further reduce by finding common divisors among prime numbers
-        divisors = np.array([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31], dtype=int)
-        for d in divisors:
-            for t in range(0, 4): # 4 repetitions of the loops below
-                for i in range(0, len(numvec)):
-                    if (numvec[i]%d==0):
-                        for j in range(0, len(denomvec)):
-                            if (denomvec[j]%d==0):
-                                numvec[i] = numvec[i]//d
-                                denomvec[j] = denomvec[j]//d
+    numvec, denomvec = sunpy.common.math.reduce_by_divide(numvec, denomvec)
     
     num = np.prod(numvec)
     denom = np.prod(denomvec)
-    dimension = num//denom
+    assert(denom==1)
+    dimension = num
     
     return dimension
 
