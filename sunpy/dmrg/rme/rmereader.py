@@ -6,7 +6,6 @@ Copyright 2023 Samuel GOZEL, GNU GPLv3
 """
 
 import numpy as np
-import os
 import sys
 import pickle
 
@@ -86,7 +85,7 @@ class RMEReader:
         """
         # nu[-1] is the number of columns with N boxes in nu
         nup = np.copy(nu)
-        nup += (1-nu[-1]) * np.full(shape=(self._N,), fill_value=self._m, dtype=int)
+        nup += np.full(shape=(self._N,), fill_value=(self._m-nu[-1]), dtype=int)
         return nup
     
     def read(self, nu1, l1, nu2, l2, nu3, l3, nu4, l4):
