@@ -15,7 +15,7 @@ from sunpy.sun import sun
 import sunpy.common.math
 import sunpy.dmrg.rme.rmefund
 import sunpy.dmrg.rme.rmereader
-import sunpy.dmrg.lanczos
+import sunpy.lanczos
 import sunpy.ed.edfund
 import sunpy.ed.lattice
 
@@ -725,11 +725,11 @@ class DMRG:
             
             lanczos_multiply = lambda v : self.__multiply(HLR, Ai, bool_tensor_vec, v)
             
-            energy, GS = sunpy.dmrg.lanczos.lanczos(lanczos_multiply, 
-                                                    v_init, 
-                                                    max_iter=max_iter, 
-                                                    tol_residual=self._lanczos_tol_residual, 
-                                                    tol_ritz=self._lanczos_tol_ritz)
+            energy, GS = sunpy.lanczos.lanczos(lanczos_multiply, 
+                                               v_init, 
+                                               max_iter=max_iter, 
+                                               tol_residual=self._lanczos_tol_residual, 
+                                               tol_ritz=self._lanczos_tol_ritz)
         
         return energy, GS
     
