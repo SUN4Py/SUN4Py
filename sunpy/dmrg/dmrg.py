@@ -15,7 +15,7 @@ from sunpy.sun import sun
 import sunpy.common.math
 import sunpy.dmrg.rme.rmefund
 import sunpy.dmrg.rme.rmereader
-import sunpy.lanczos
+from sunpy.lanczos import lanczos
 import sunpy.ed.edfund
 import sunpy.ed.lattice
 
@@ -104,7 +104,7 @@ class DMRG:
         else:
             # search for an appropriate filename
             self._rme_filename = ''
-            temp_f = f'pythonRME_fund_SU{self._N}_{self._target}_numirreps{num_irreps}_'
+            temp_f = f'RME_fund_SU{self._N}_{self._target}_numirreps{num_irreps}_'
             for tech in ['shortcut_cols', 'shortcut_rows', 'base']:
                 file = temp_f + tech + '.pickle'
                 file = os.path.join(os.getcwd(), 'sunpy', 'rme_coefficients', file)
@@ -725,11 +725,11 @@ class DMRG:
             
             lanczos_multiply = lambda v : self.__multiply(HLR, Ai, bool_tensor_vec, v)
             
-            energy, GS = sunpy.lanczos.lanczos(lanczos_multiply, 
-                                               v_init, 
-                                               max_iter=max_iter, 
-                                               tol_residual=self._lanczos_tol_residual, 
-                                               tol_ritz=self._lanczos_tol_ritz)
+            energy, GS = lanczos.lanczos(lanczos_multiply, 
+                                         v_init, 
+                                         max_iter=max_iter, 
+                                         tol_residual=self._lanczos_tol_residual, 
+                                         tol_ritz=self._lanczos_tol_ritz)
         
         return energy, GS
     

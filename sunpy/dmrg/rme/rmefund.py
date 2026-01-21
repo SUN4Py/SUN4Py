@@ -87,7 +87,7 @@ class RMEEngineFund(RMEEngine):
         if 'filename_prefix' in kwargs:
             self._filename_prefix = kwargs['filename_prefix']
         else:
-            self._filename_prefix = 'pythonRME_fund'
+            self._filename_prefix = 'RME_fund'
         
         super().__init__(N, num_irreps, filename_prefix=self._filename_prefix, target=target, tech=tech, **kwargs)
     
