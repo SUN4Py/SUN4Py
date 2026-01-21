@@ -74,7 +74,7 @@ class RMEEngineSymm(RMEEngine):
         if 'filename_prefix' in kwargs:
             self._filename_prefix = kwargs['filename_prefix']
         else:
-            self._filename_prefix = 'pythonRME_symm_m' + str(self._m)
+            self._filename_prefix = 'RME_symm_m' + str(self._m)
         super().__init__(N, num_irreps, self._filename_prefix, target, tech, **kwargs)
         
         return

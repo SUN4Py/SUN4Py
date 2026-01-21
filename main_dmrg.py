@@ -43,7 +43,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 
 # Check that the list of RMEs is already on disk
 tech = 'shortcut_cols'
-rme_filename = f'pythonRME_fund_SU{N}_GS_numirreps{num_irreps}_{tech}.pickle'
+rme_filename = f'RME_fund_SU{N}_GS_numirreps{num_irreps}_{tech}.pickle'
 foldername = os.path.join(current_dir, 'sunpy', 'rme_coefficients')
 rme_filename = os.path.join(foldername, rme_filename)
 
