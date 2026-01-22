@@ -547,17 +547,17 @@ def project_symmetry(y1, y2, Y, CY, COEFF_FINAL, m, symmetry, sort=True):
     if symmetry in ['symmetric', 'symm']:
     
         if m==2:
-            '''
-            # previous implementation
+            
             if not y1[n1-2]==y1[n1-1]:
                 # symmetrize n1-2 and n1-1
                 Y = np.matlib.repmat(Y, 2, 1)
                 COEFF_FINAL = np.matlib.repmat(COEFF_FINAL, 1, 2).flatten()
                 Y[NY:, n1-2] = Y[:NY, n1-1]
                 Y[NY:, n1-1] = Y[:NY, n1-2]
-                recompute_CY = True
+                CY = sun.get_column(Y)
                 cy1 = sun.get_column(y1)
                 rho = 1.0/sun.get_axial_distance(y1, cy1, n1-2, n1-1)
+                # apply Eq. (39) of Nataf & Mila, Phys. Rev. B 93, 155134 (2016)
                 COEFF_FINAL[:NY] *= np.sqrt((1 - rho)/2)
                 COEFF_FINAL[NY:] *= np.sqrt((1 + rho)/2)
             
@@ -565,52 +565,10 @@ def project_symmetry(y1, y2, Y, CY, COEFF_FINAL, m, symmetry, sort=True):
                 # symmetrize n1 and n1+1 (in global numbering)
                 cy2 = sun.get_column(y2)
                 rho = 1.0/sun.get_axial_distance(y2, cy2, n2-2, n2-1)
-                if recompute_CY==True:
-                    CY = sun.get_column(Y)
-                    recompute_CY = False
-                ydev, cydev, coeffdev = sun.t_operator(Y, CY, COEFF_FINAL, n1, rho)
+                ydev, cydev, coeffdev = sun.t_operator(np.copy(Y), np.copy(CY), np.copy(COEFF_FINAL), n1, rho)
+                # apply Eq. (39) of Nataf & Mila, Phys. Rev. B 93, 155134 (2016)
                 coeffdev *= np.sqrt((1 + rho)/2.)
                 COEFF_FINAL *= np.sqrt((1 - rho)/2.)
-                Y, CY, COEFF_FINAL = sun.sum_develop(ydev, cydev, coeffdev, 
-                                                     Y, CY, COEFF_FINAL)
-            '''
-            
-            cy1 = sun.get_column(y1)
-            rho = 1.0/sun.get_axial_distance(y1, cy1, n1-2, n1-1)
-            
-            Y = np.matlib.repmat(Y, 2, 1)
-            COEFF_FINAL = np.matlib.repmat(COEFF_FINAL, 1, 2).flatten()
-            st = NY
-            
-            if not y1[n1-2]==y1[n1-1]:
-                # symmetrize n1-2 and n1-1
-                Y[st:st+NY, n1-2] = Y[:NY, n1-1]
-                Y[st:st+NY, n1-1] = Y[:NY, n1-2]
-                COEFF_FINAL[st:st+NY] *= np.sqrt((1 + rho)/2)
-                recompute_CY = True
-                st += NY
-            
-            COEFF_FINAL[:NY] *= np.sqrt((1 - rho)/2)
-            
-            Y = Y[:st]
-            COEFF_FINAL = COEFF_FINAL[:st]
-            if recompute_CY:
-                CY = sun.get_column(Y)
-                recompute_CY = False
-            
-            cy2 = sun.get_column(y2)
-            rho = 1.0/sun.get_axial_distance(y2, cy2, n2-2, n2-1)
-            
-            add_ydev = False
-            if not y2[n2-2]==y2[n2-1]:
-                # symmetrize n1 and n1+1 (in global numbering)
-                ydev, cydev, coeffdev = sun.t_operator(Y, CY, COEFF_FINAL, n1, rho)
-                coeffdev *= np.sqrt((1 + rho)/2.)
-                add_ydev = True
-                
-            COEFF_FINAL *= np.sqrt((1 - rho)/2.)
-            
-            if add_ydev==True:
                 Y, CY, COEFF_FINAL = sun.sum_develop(ydev, cydev, coeffdev, 
                                                      Y, CY, COEFF_FINAL)
             
@@ -685,8 +643,8 @@ def project_symmetry(y1, y2, Y, CY, COEFF_FINAL, m, symmetry, sort=True):
             add_ydev2 = False
             
             if not y2[n2-3]==y2[n2-2]:
-                ydev, cydev, coeffdev = sun.t_operator(Y, CY, COEFF_FINAL, n1+1, rhox)
-                ydevt1, cydevt1, coeffdevt1 = sun.t_operator(ydev, cydev, coeffdev, n1, rhoy)
+                ydev, cydev, coeffdev = sun.t_operator(np.copy(Y), np.copy(CY), np.copy(COEFF_FINAL), n1+1, rhox)
+                ydevt1, cydevt1, coeffdevt1 = sun.t_operator(np.copy(ydev), np.copy(cydev), np.copy(coeffdev), n1, rhoy)
                 
                 # apply T1
                 coeffdev *= np.sqrt(1+rhox) * np.sqrt(1-rhoy) * np.sqrt(1-rhoz) / np.sqrt(6)
@@ -698,14 +656,14 @@ def project_symmetry(y1, y2, Y, CY, COEFF_FINAL, m, symmetry, sort=True):
                 add_ydev1 = True
             
             if not y2[n2-2]==y2[n2-1]:
-                ydev, cydev, coeffdev = sun.t_operator(Y, CY, COEFF_FINAL, n1, rhoz)
-                ydevt1, cydevt1, coeffdevt1 = sun.t_operator(ydev, cydev, coeffdev, n1+1, rhoy)
+                ydev, cydev, coeffdev = sun.t_operator(np.copy(Y), np.copy(CY), np.copy(COEFF_FINAL), n1, rhoz)
+                ydevt1, cydevt1, coeffdevt1 = sun.t_operator(np.copy(ydev), np.copy(cydev), np.copy(coeffdev), n1+1, rhoy)
                 
                 add_ydevt2 = False
                 
                 if not y2[n2-3]==y2[n2-2]:
                     # apply T5
-                    ydevt2, cydevt2, coeffdevt2 = sun.t_operator(ydevt1, cydevt1, coeffdevt1, n1, rhox)
+                    ydevt2, cydevt2, coeffdevt2 = sun.t_operator(np.copy(ydevt1), np.copy(cydevt1), np.copy(coeffdevt1), n1, rhox)
                     coeffdevt2 *= np.sqrt(1+rhox) * np.sqrt(1+rhoy) * np.sqrt(1+rhoz) / np.sqrt(6)
                     add_ydevt2 = True
                 
@@ -747,8 +705,9 @@ def project_symmetry(y1, y2, Y, CY, COEFF_FINAL, m, symmetry, sort=True):
                 COEFF_FINAL = np.matlib.repmat(COEFF_FINAL, 1, 2).flatten()
                 CY[NY:, n1-2] = CY[:NY, n1-1]
                 CY[NY:, n1-1] = CY[:NY, n1-2]
-                Y = sun.get_column(CY)
+                Y = sun.get_column(CY) # get_column is an involution
                 rho = 1.0/sun.get_axial_distance(y1, cy1, n1-2, n1-1)
+                # apply Eq. (24) of Nataf & Mila, Phys. Rev. B 93, 155134 (2016)
                 COEFF_FINAL[:NY] *= np.sqrt((1 + rho)/2)
                 COEFF_FINAL[NY:] *= -np.sqrt((1 - rho)/2)
             
@@ -757,7 +716,8 @@ def project_symmetry(y1, y2, Y, CY, COEFF_FINAL, m, symmetry, sort=True):
             if not cy2[n2-2]==cy2[n2-1]:
                 # antisymmetrize n1 and n1+1 (in global numbering)
                 rho = 1.0/sun.get_axial_distance(y2, cy2, n2-2, n2-1)
-                ydev, cydev, coeffdev = sun.t_operator(Y, CY, COEFF_FINAL, n1, rho)
+                ydev, cydev, coeffdev = sun.t_operator(np.copy(Y), np.copy(CY), np.copy(COEFF_FINAL), n1, rho)
+                # apply Eq. (24) of Nataf & Mila, Phys. Rev. B 93, 155134 (2016)
                 coeffdev *= -np.sqrt((1 - rho)/2.)
                 COEFF_FINAL *= np.sqrt((1 + rho)/2.)
                 Y, CY, COEFF_FINAL = sun.sum_develop(ydev, cydev, coeffdev, 
@@ -772,56 +732,52 @@ def project_symmetry(y1, y2, Y, CY, COEFF_FINAL, m, symmetry, sort=True):
             rhoz = 1.0/sun.get_axial_distance(y1, cy1, n1-2, n1-1)
             assert(abs(1./rhox+1./rhoz-1./rhoy)<1.0e-12)
             
-            Y = np.matlib.repmat(Y, 6, 1)
+            CY = np.matlib.repmat(CY, 6, 1)
             COEFF_FINAL = np.matlib.repmat(COEFF_FINAL, 1, 6).flatten()
             
             st = NY
             
-            if not y1[n1-3]==y1[n1-2]:
+            if not cy1[n1-3]==cy1[n1-2]:
                 # apply T1
-                Y[st:st+NY, n1-3] = Y[:NY, n1-2]
-                Y[st:st+NY, n1-2] = Y[:NY, n1-3]
+                CY[st:st+NY, n1-3] = CY[:NY, n1-2]
+                CY[st:st+NY, n1-2] = CY[:NY, n1-3]
                 COEFF_FINAL[st:st+NY] *= - np.sqrt(1-rhox) * np.sqrt(1+rhoy) * np.sqrt(1+rhoz) / np.sqrt(6)
                 st += NY
                 
                 # apply T4
-                Y[st:st+NY, n1-3] = Y[:NY, n1-2]
-                Y[st:st+NY, n1-2] = Y[:NY, n1-1]
-                Y[st:st+NY, n1-1] = Y[:NY, n1-3]
+                CY[st:st+NY, n1-3] = CY[:NY, n1-2]
+                CY[st:st+NY, n1-2] = CY[:NY, n1-1]
+                CY[st:st+NY, n1-1] = CY[:NY, n1-3]
                 COEFF_FINAL[st:st+NY] *= np.sqrt(1-rhox) * np.sqrt(1-rhoy) * np.sqrt(1+rhoz) / np.sqrt(6)
-                recompute_CY = True
                 st += NY
             
-            if not y1[n1-2]==y1[n1-1]:                    
+            if not cy1[n1-2]==cy1[n1-1]:                    
                 # apply T2
-                Y[st:st+NY, n1-2] = Y[:NY, n1-1]
-                Y[st:st+NY, n1-1] = Y[:NY, n1-2]
+                CY[st:st+NY, n1-2] = CY[:NY, n1-1]
+                CY[st:st+NY, n1-1] = CY[:NY, n1-2]
                 COEFF_FINAL[st:st+NY] *= -np.sqrt(1+rhox) * np.sqrt(1+rhoy) * np.sqrt(1-rhoz) / np.sqrt(6)
                 st += NY
                 
                 # apply T3
-                Y[st:st+NY, n1-3] = Y[:NY, n1-1]
-                Y[st:st+NY, n1-2] = Y[:NY, n1-3]
-                Y[st:st+NY, n1-1] = Y[:NY, n1-2]
+                CY[st:st+NY, n1-3] = CY[:NY, n1-1]
+                CY[st:st+NY, n1-2] = CY[:NY, n1-3]
+                CY[st:st+NY, n1-1] = CY[:NY, n1-2]
                 COEFF_FINAL[st:st+NY] *= np.sqrt(1+rhox) * np.sqrt(1-rhoy) * np.sqrt(1-rhoz) / np.sqrt(6)
                 st += NY
                 
-                if not y1[n1-3]==y1[n1-2]:
+                if not cy1[n1-3]==cy1[n1-2]:
                     # apply T5
-                    Y[st:st+NY, n1-3] = Y[:NY, n1-1]
-                    Y[st:st+NY, n1-1] = Y[:NY, n1-3]
+                    CY[st:st+NY, n1-3] = CY[:NY, n1-1]
+                    CY[st:st+NY, n1-1] = CY[:NY, n1-3]
                     COEFF_FINAL[st:st+NY] *= -np.sqrt(1-rhox) * np.sqrt(1-rhoy) * np.sqrt(1-rhoz) / np.sqrt(6)
                     st += NY
-                
-                recompute_CY = True
             
             # apply T0
             COEFF_FINAL[:NY] *= np.sqrt(1+rhox) * np.sqrt(1+rhoy) * np.sqrt(1+rhoz) / np.sqrt(6)
             
-            Y = Y[:st]
+            CY = CY[:st]
             COEFF_FINAL = COEFF_FINAL[:st]
-            if recompute_CY:
-                CY = sun.get_column(Y)
+            Y = sun.get_column(CY)
             
             # symmetrize wrt m=3 last particles of y2
             
@@ -832,9 +788,9 @@ def project_symmetry(y1, y2, Y, CY, COEFF_FINAL, m, symmetry, sort=True):
             add_ydev1 = False
             add_ydev2 = False
             
-            if not y2[n2-3]==y2[n2-2]:
-                ydev, cydev, coeffdev = sun.t_operator(Y, CY, COEFF_FINAL, n1+1, rhox)
-                ydevt1, cydevt1, coeffdevt1 = sun.t_operator(ydev, cydev, coeffdev, n1, rhoy)
+            if not cy2[n2-3]==cy2[n2-2]:
+                ydev, cydev, coeffdev = sun.t_operator(np.copy(Y), np.copy(CY), np.copy(COEFF_FINAL), n1+1, rhox)
+                ydevt1, cydevt1, coeffdevt1 = sun.t_operator(np.copy(ydev), np.copy(cydev), np.copy(coeffdev), n1, rhoy)
                 
                 # apply T1
                 coeffdev *= -np.sqrt(1-rhox) * np.sqrt(1+rhoy) * np.sqrt(1+rhoz) / np.sqrt(6)
@@ -845,15 +801,15 @@ def project_symmetry(y1, y2, Y, CY, COEFF_FINAL, m, symmetry, sort=True):
                                                            ydevt1, cydevt1, coeffdevt1)
                 add_ydev1 = True
             
-            if not y2[n2-2]==y2[n2-1]:
-                ydev, cydev, coeffdev = sun.t_operator(Y, CY, COEFF_FINAL, n1, rhoz)
-                ydevt1, cydevt1, coeffdevt1 = sun.t_operator(ydev, cydev, coeffdev, n1+1, rhoy)
+            if not cy2[n2-2]==cy2[n2-1]:
+                ydev, cydev, coeffdev = sun.t_operator(np.copy(Y), np.copy(CY), np.copy(COEFF_FINAL), n1, rhoz)
+                ydevt1, cydevt1, coeffdevt1 = sun.t_operator(np.copy(ydev), np.copy(cydev), np.copy(coeffdev), n1+1, rhoy)
                 
                 add_ydevt2 = False
                 
-                if not y2[n2-3]==y2[n2-2]:
+                if not cy2[n2-3]==cy2[n2-2]:
                     # apply T5
-                    ydevt2, cydevt2, coeffdevt2 = sun.t_operator(ydevt1, cydevt1, coeffdevt1, n1, rhox)
+                    ydevt2, cydevt2, coeffdevt2 = sun.t_operator(np.copy(ydevt1), np.copy(cydevt1), np.copy(coeffdevt1), n1, rhox)
                     coeffdevt2 *= -np.sqrt(1-rhox) * np.sqrt(1-rhoy) * np.sqrt(1-rhoz) / np.sqrt(6)
                     add_ydevt2 = True
                 
@@ -882,13 +838,9 @@ def project_symmetry(y1, y2, Y, CY, COEFF_FINAL, m, symmetry, sort=True):
         else:
             sys.exit('get_SDC: anti-symmetric case m>3 not yet implemented.')
     
-    if recompute_CY==True:
-        CY = sun.get_column(Y)
-    
     if sort==True:
         Y, ind = sun.sort_SYT(Y)
         CY = CY[ind]
         COEFF_FINAL = COEFF_FINAL[ind]
     
     return Y, CY, COEFF_FINAL
-
