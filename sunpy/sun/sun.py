@@ -64,7 +64,6 @@ def get_column(Y) -> np.ndarray:
     return CY
 
 
-
 def transpose_shape(alpha) -> np.ndarray:
     """
     Transpose an irrep (map rows to columns)
@@ -89,7 +88,6 @@ def transpose_shape(alpha) -> np.ndarray:
         for j in range(0, alpha[i]):
             alphaT[j] += 1
     return alphaT
-
 
 
 def casimir_quadratic(alpha) -> float:
@@ -131,7 +129,6 @@ def casimir_quadratic(alpha) -> float:
     return c
 
 
-
 def casimir_quadratic_TT(alpha, N) -> float:
     """
     Compute the quadratic Casimir operator in the usual T*T convention of SU(N)
@@ -162,7 +159,6 @@ def casimir_quadratic_TT(alpha, N) -> float:
     casimir = 0.5 * ( n * (N - n/N) + np.sum(alpha**2) - np.sum(alphaT**2) )
     
     return casimir
-
 
 
 def multiplicity(alpha) -> int:
@@ -210,7 +206,6 @@ def multiplicity(alpha) -> int:
     return falpha
 
 
-
 def get_SYT(alpha, order='LLOS') -> np.ndarray:
     """
     Get all SYTs for the irrep alpha
@@ -256,25 +251,25 @@ def get_SYT(alpha, order='LLOS') -> np.ndarray:
     
     # construct first SYT
     y1 = np.zeros((n,), dtype=int)
-    cptel = 0
+    cptel = int(0)
     for j in range(0, len(alphaT)):
         for row in range(0, alphaT[j]):
             y1[cptel] = row
             cptel += 1
     
-    Y[0,:] = y1
+    Y[0] = y1
     
     # construct all remaining SYT's sequentially
     s = int(1)
     while s<falpha:
         
-        y = np.copy(Y[s-1,:])
+        y = np.copy(Y[s-1])
         
         lbd = np.zeros((nl+1,), dtype=int)
         lbd[0] = 1
         
         j = int(1)
-        while (j<n) and (y[j]>=y[j-1]):
+        while ((j<n) & (y[j]>=y[j-1])):
             lbd[y[j]] += 1
             j += 1
         lbd[y[j]] += 1
@@ -283,20 +278,20 @@ def get_SYT(alpha, order='LLOS') -> np.ndarray:
         i = nl
         while not lbd[i-1]==t:
             i -= 1
-        y[j] = i-1
+        y[j] = i - 1
         lbd[i-1] -= 1
         
         t = j
-        l = int(1)
-        while l<=t:
+        k = int(0)
+        while k<t:
             r = int(1)
             while lbd[r-1]>0:
-                y[l-1] = r-1
-                lbd[r-1] = lbd[r-1] - 1
-                l += 1
+                y[k] = r-1
+                lbd[r-1] -= 1
+                k += 1
                 r += 1
         
-        Y[s, :] = y
+        Y[s] = y
         s += 1
     
     if order=='LLOS':
@@ -306,7 +301,6 @@ def get_SYT(alpha, order='LLOS') -> np.ndarray:
         sys.exit('Problem: number of SYTs is not correct')
     
     return Y
-
 
 
 def get_subSYT(alpha, alphaB, order='iLLOS') -> np.ndarray:
@@ -399,7 +393,6 @@ def get_subSYT(alpha, alphaB, order='iLLOS') -> np.ndarray:
     return Y
 
 
-
 def fill_subSYT(Y, alpha, **kwargs) -> np.ndarray:
     """
     Fill all remaining boxes of a collection of sub-SYTs in order to be a 
@@ -458,8 +451,6 @@ def fill_subSYT(Y, alpha, **kwargs) -> np.ndarray:
     
     alpha0 = alpha - alpha1
     
-    
-    
     y1 = np.zeros((n0,), dtype=int)
     cpt = int(0)
     
@@ -478,7 +469,6 @@ def fill_subSYT(Y, alpha, **kwargs) -> np.ndarray:
     Y = np.hstack([np.tile(y1, [NY, 1]), Y])
     
     return Y
-
 
 
 def index_to_SYT(i, alpha, order) -> np.ndarray:
@@ -508,7 +498,6 @@ def index_to_SYT(i, alpha, order) -> np.ndarray:
         sys.exit('Problem: undefined order.')
     
     return y
-
 
 
 def index_to_SYT_LLOS(i, alpha, order='LLOS') -> np.ndarray:
@@ -572,7 +561,6 @@ def index_to_SYT_LLOS(i, alpha, order='LLOS') -> np.ndarray:
     return y
 
 
-
 def index_to_SYT_iLLOS(i, alpha, order='iLLOS') -> np.ndarray:
     """
     Build the SYT corresponding to its index among the collection of all SYTs
@@ -632,7 +620,6 @@ def index_to_SYT_iLLOS(i, alpha, order='iLLOS') -> np.ndarray:
         k -= 1
     
     return y
-
 
 
 def index_to_SYT_symm(i, alpha, m, order='LLOS') -> np.ndarray:
@@ -778,7 +765,6 @@ def index_to_SYT_symm(i, alpha, m, order='LLOS') -> np.ndarray:
     return y
 
 
-
 def SYT_to_index(y, alpha, order) -> int:
     # Map a SYT to its index in <order> in the list of all SYTs.
     # 
@@ -796,7 +782,6 @@ def SYT_to_index(y, alpha, order) -> int:
         sys.exit('Problem: order undefined.')
     
     return i
-
 
 
 def SYT_to_index_LLOS(y, alpha, order='LLOS') -> int:
@@ -836,7 +821,6 @@ def SYT_to_index_LLOS(y, alpha, order='LLOS') -> int:
     return i
 
 
-
 def SYT_to_index_iLLOS(y, alpha, order='iLLOS') -> int:
     # Map a SYT to its index in the list of all SYTs.
     # 
@@ -871,7 +855,6 @@ def SYT_to_index_iLLOS(y, alpha, order='iLLOS') -> int:
         i = falpha - 1 - i
     
     return i
-
 
 
 def SYT_to_index_symm(y, alpha, m, order='LLOS') -> int:
@@ -1002,7 +985,6 @@ def SYT_to_index_symm(y, alpha, m, order='LLOS') -> int:
         i = falpha - 1 - i
     
     return i
-
 
 
 def binary_search_SYT(y, Y) -> int:
@@ -1799,7 +1781,6 @@ def multiplicity_symm(alpha, m) -> int:
     return kostka
 
 
-
 def get_bottom_corner(alpha) -> np.ndarray:
     """
     Extract the bottom corners of an irrep
@@ -1822,55 +1803,39 @@ def get_bottom_corner(alpha) -> np.ndarray:
     return bc
 
 
-
 def get_transpositions(links):
-    # Compute the string of transpositions for a list of permutations.
-    # 
-    # Input:
-    #   links   list of numpy arrays. Each numpy array must be of dimension 2
-    # 
-    # Example:
-    #   links = [np.array([0, 3], dtype=int)]
-    #   links = [np.array([0, 3], dtype=int), np.array([1, 6], dtype=int)]
-    # 
-    # Outputs:
-    #   listtranspositions  list of transpositions for each link (permutation)
-    #   nbtranspositions    number of transpositions for each link
-    # 
-    # Example 1:
-    #   links = [np.array([0, 3], dtype=int)]
-    #   --->
-    #   listtranspositions = [np.array([0, 1, 2, 1, 0], dtype=int)]
-    #   nbtranspositions = np.array([5], dtype=int)
-    # 
-    # Example 2:
-    #   links = [np.array([0, 3], dtype=int), np.array([1, 6], dtype=int)]
-    #   --->
-    #   listtranspositions = [np.array([0, 1, 2, 1, 0], dtype=int), np.array([1, 2, 3, 4, 5, 4, 3, 2, 1], dtype=int)]
-    #   nbtranspositions = np.array([5, 9], dtype=int)
-    # 
+    """
+    Transform a sequence of transpositions into a sequence of adjacent transpositions
+    
+    Parameters
+    ----------
+    links : numpy array
+        collection of transpositions (stored in the rows)
+    
+    Returns
+    -------
+    listtranspositions : list
+        collection of adjacent transpositions
+    nbtranspositions : numpy array
+        number of adjacent transpositions to represent each input transposition
+    
+    Examples
+    --------
+    links = np.array([[0, 2], [1, 4]], dtype=int) # --> 2 transpositions: (0, 2) and (1, 3)
+    lt, nbt = get_transpositions(links)
+    # --> lt = [np.array([0, 1, 0], dtype=int), np.array([1, 2, 3, 2, 1], dtype=int)]
+    # --> nb = np.array([3, 5], dtype=int)
+    # the transposition (0, 2) is rewritten as a product of 3 adjacent transpositions:
+    #      (0, 2) = (0, 1) (1, 2) (0, 1)
+    # the transposition (1, 4) is rewritten as a product of 5 adjacent transpositions:
+    #      (1, 4) = (1, 2) (2, 3) (3, 4) (2, 3) (1, 2)
+    """
     
     nlinks = len(links)
     nbtranspositions = np.zeros((nlinks,), dtype=int)
-    # nbtranspositions[i] = number of transpositions needed to rewrite the
-    # permutation of the i-th link as a product of transpositions
-    
-    '''
-    for i in range(0, nlinks):
-        nbtranspositions[i] = 2*abs(links[i][1]-links[i][0]) - 1
-    '''
     
     listtranspositions = [None] * nlinks
     
-    '''
-    for i in range(0, nlinks):
-        mini = np.min(links[i])
-        maxi = np.max(links[i])
-        
-        listtranspositions[i] = np.zeros((nbtranspositions[i], ), dtype=int)
-        listtranspositions[i][0:((nbtranspositions[i]-1)/2+1).astype(int)] = np.arange(mini, maxi)
-        listtranspositions[i][((nbtranspositions[i]-1)/2+1).astype(int):] = np.arange(maxi-2, mini-1, -1)
-    '''
     for i in range(0, nlinks):
         listtranspositions[i] = transposition_to_adjacent_transpositions(links[i])
         nbtranspositions[i] = len(listtranspositions[i])
@@ -1921,7 +1886,6 @@ def get_new_shape(alpha, y) -> np.ndarray:
             alphap[y[p]] -= 1
     
     return alphap
-
 
 
 def dim_irrep_sun(alpha, N) -> int:
@@ -1985,7 +1949,6 @@ def dim_irrep_sun(alpha, N) -> int:
     dimension = num
     
     return dimension
-
 
 
 def get_SSYT(alpha, N) -> np.ndarray:
@@ -2057,7 +2020,6 @@ def get_SSYT(alpha, N) -> np.ndarray:
         vec[s,:] = vectemp
     
     return vec
-
 
 
 def tensor_product_irrep(alpha1, alpha2, N) -> np.ndarray:
@@ -2455,7 +2417,6 @@ def reduce_shape(alpha):
     return alpha1, multi1
 
 
-
 def merge_shapes(alpha1, multi1, alpha2, multi2):
     """
     Add two decompositions of irreps
@@ -2515,7 +2476,6 @@ def merge_shapes(alpha1, multi1, alpha2, multi2):
     multi = multi[0:cpt]
     
     return alpha, multi
-
 
 
 def multiplicity_irrep_mixed(alpha, beta, N) -> int:
@@ -2591,7 +2551,6 @@ def multiplicity_irrep_mixed(alpha, beta, N) -> int:
     return fmixedalpha
 
 
-
 def sort_SYT(Y, order='LLOS'):
     """
     Sort SYTs in the increasing order of the LLOS (or iLLOS)
@@ -2615,7 +2574,6 @@ def sort_SYT(Y, order='LLOS'):
         Y = Y[::-1, :]
         ind = ind[::-1]
     return Y, ind
-
 
 
 def get_list_irreps(N, num_irreps, n):
@@ -2767,7 +2725,6 @@ def get_list_irreps(N, num_irreps, n):
     return alpha, casimir
 
 
-
 def get_SYT_symm(alpha, m, order='LLOS')  -> np.ndarray:
     """
     Compute all SYTs for an irrep alpha satisfying local constraints defined by
@@ -2891,7 +2848,6 @@ def get_SYT_symm(alpha, m, order='LLOS')  -> np.ndarray:
     return Y
 
 
-
 def get_SYT_antisymm(alpha, m, order='LLOS') -> np.ndarray:
     """
     Compute all SYTs for an irrep alpha satisfying local constraints defined by
@@ -3013,7 +2969,6 @@ def get_SYT_antisymm(alpha, m, order='LLOS') -> np.ndarray:
     return Y
 
 
-
 def get_SYT_general(alpha, beta, order='LLOS'):
     """
     SYTs of equivalence classes for general local constraints
@@ -3102,7 +3057,6 @@ def get_SYT_general(alpha, beta, order='LLOS'):
         CY = np.flipud(CY)
     
     return Y, CY
-
 
 
 def place_recursive(k, beta_loc, alphap, wvec, cwvec, y, cy, Ynew, CYnew, cpt):
@@ -3197,7 +3151,6 @@ def place_recursive(k, beta_loc, alphap, wvec, cwvec, y, cy, Ynew, CYnew, cpt):
     return Ynew, CYnew, cpt
 
 
-
 def permutation_to_cycles(sigma):
     """
     Transform a permutation of S_n into a product of disjoint cycles
@@ -3225,7 +3178,6 @@ def permutation_to_cycles(sigma):
     return cycles
 
 
-
 def cycle_to_transpositions(cycle):
     """
     Transform a cycle into a product of 2-cycles (transpositions)
@@ -3249,7 +3201,6 @@ def cycle_to_transpositions(cycle):
         t[i] = np.array([min(a, b), max(a, b)])
     
     return t
-
 
 
 def transposition_to_adjacent_transpositions(t):
@@ -3285,7 +3236,6 @@ def transposition_to_adjacent_transpositions(t):
     return z
 
 
-
 def permutation_to_adjacent_transpositions_v1(sigma):
     """
     Transform a permutation into a product of adjacent 2-cycles (transpositions)
@@ -3295,7 +3245,6 @@ def permutation_to_adjacent_transpositions_v1(sigma):
     First method
     """
     
-    # Method A:
     cycles = permutation_to_cycles(sigma)
     
     transpositions = []
@@ -3311,11 +3260,29 @@ def permutation_to_adjacent_transpositions_v1(sigma):
     # remove potential even number multiplying adjacent 2-cycles, such as (2 3)(2 3)=id
     atr = reduce_adjacent_transpositions(at)
     
-    # Method B:
-    
-    
     return atr
 
+
+def permutation_to_adjacent_transpositions_v2(sigma):
+    """
+    Transform a permutation into a product of adjacent 2-cycles (transpositions)
+    
+    Remark
+    ------
+    Second method
+    """
+    
+    transpo = permutation_to_transpositions(sigma)
+    
+    at = np.zeros(shape=(0,), dtype=int)
+    
+    for t in transpo:
+        z = transposition_to_adjacent_transpositions(t)
+        at = np.append(at, z)
+    
+    atr = reduce_adjacent_transpositions(at)
+    
+    return atr
 
 
 def reduce_adjacent_transpositions(at):
@@ -3358,7 +3325,6 @@ def reduce_adjacent_transpositions(at):
             i = j
     
     return atr
-
 
 
 def permutation_to_transpositions(sigma):
@@ -3404,30 +3370,6 @@ def permutation_to_transpositions(sigma):
     return tau
 
 
-
-def permutation_to_adjacent_transpositions_v2(sigma):
-    """
-    Transform a permutation into a product of adjacent 2-cycles (transpositions)
-    
-    Remark
-    ------
-    Second method
-    """
-    
-    transpo = permutation_to_transpositions(sigma)
-    
-    at = np.zeros(shape=(0,), dtype=int)
-    
-    for t in transpo:
-        z = transposition_to_adjacent_transpositions(t)
-        at = np.append(at, z)
-    
-    atr = reduce_adjacent_transpositions(at)
-    
-    return atr
-
-
-
 def permutation_to_adjacent_transpositions(sigma):
     """
     Transform a permutation into a product of adjacent 2-cycles (transpositions)
@@ -3445,7 +3387,6 @@ def permutation_to_adjacent_transpositions(sigma):
         atr = at2
     
     return atr
-
 
 
 def reorder_development(Ynew, Ydev, coeffdev, layout):
@@ -3532,7 +3473,6 @@ def get_matrix_permutation(P, at):
     return M
 
 
-
 def get_subshape(y, cy, particles):
     """
     Get the subshape associated to given particles in a SYT
@@ -3613,11 +3553,23 @@ def get_subshape(y, cy, particles):
     return alphaM, alphaB, alphaP, offset
 
 
-
 def fullsimplify_development(ydev, cydev, coeff):
-    # Sum coefficients of equal SYTs and remove SYTs having vanishing 
-    # coefficients.
-    # 
+    """
+    Sum coefficients of equal SYTs and remove SYTs having vanishing coefficients
+    
+    Parameters
+    ----------
+    ydev : numpy array
+        SYTs
+    cydev : numpy array
+        associated column positions
+    coeff : numpy array
+        coefficients of development
+    
+    Returns
+    -------
+    ydev1, cydev1, coeff1 : simplified development
+    """
     
     if len(ydev.shape)==1:
         # only 1 SYT in the development
@@ -3713,7 +3665,6 @@ def overlap(ydev1, coeff1, ydev2, coeff2, need_fullsimplify=True):
     out = np.sum( np.multiply(coeff1[ind1], coeff2[ind2]) )
     
     return out
-
 
 
 def develop_consecutive_number(alpha, ydev, cydev, coeff, k):
@@ -3907,7 +3858,6 @@ def develop_transposition(alpha, ydev, cydev, coeff, i, j):
     return ydev, cydev, coeff
 
 
-
 def sum_develop(ydev1, cydev1, coeff1, ydev2, cydev2, coeff2):
     """
     Sum two developments    
@@ -3920,7 +3870,6 @@ def sum_develop(ydev1, cydev1, coeff1, ydev2, cydev2, coeff2):
     ydev, cydev, coeff = fullsimplify_development(ydev, cydev, coeff)
     
     return ydev, cydev, coeff
-
 
 
 def developp_symmetric(alpha, y, cy, m, n1, n2):
@@ -4251,7 +4200,6 @@ def developp_symmetric(alpha, y, cy, m, n1, n2):
     return ydevfinal, cydevfinal, coefffinal
 
 
-
 def developp_antisymmetric(alpha, y, cy, m, n1, n2):
     # Apply the permutation of sites (n1, n2) on the SYT y, in the case of m
     # particles per site in the antisymmetric irrep.
@@ -4368,7 +4316,6 @@ def developp_antisymmetric(alpha, y, cy, m, n1, n2):
     return ydevfinal, cydevfinal, coefffinal
 
 
-
 def print_to_latex(y, **kwargs):
     """
     Print a SYT to text in LaTeX format, using \ytableau
@@ -4377,15 +4324,14 @@ def print_to_latex(y, **kwargs):
     ----------
     y : numpy array
         SYT
-    zeroBased : bool
-        optional [True]
-        if True, SYT is filled from 0 to n-1 (n=number of boxes in irrep)
-        if False, SYT is filled from 1 to n
-    shift : float
-        optional [0] vertical shift
-    scale : float
-        optional [1] scaling coefficient of size of ytableau
-    colors : dict
+    zeroBased : bool [optional][default: True]
+        if True, top left box is filled by number 0 (zero-based numbering)
+        if False, top left box is filled by number 1
+    shift : float [optional][default: 0]
+         vertical shift
+    scale : float [optional][default: 1]
+        scaling coefficient of size of ytableau
+    colors : dict [optional][default: {i: '' for i in range(0, n)}]
         key-value pairs, box-to-color
     
     Remark
@@ -4442,7 +4388,6 @@ def print_to_latex(y, **kwargs):
     return
 
 
-
 def print_subSYT_to_latex(y, alpha, **kwargs):
     """
     Print a sub-SYT to text in LaTeX format, using \ytableau
@@ -4453,14 +4398,17 @@ def print_subSYT_to_latex(y, alpha, **kwargs):
         sub-SYT
     alpha : numpy array
         total irrep
-    shift : float
-        optional [0] vertical shift
-    scale : float
-        optional [1] scaling coefficient of size of ytableau
-    lowcol : str
+    shift : float [optional][default: 0]
+         vertical shift
+    scale : float [optional][default: 1]
+        scaling coefficient of size of ytableau
+    lowcol : str [optional][default: '{}']
         color for the base part
-    highcol : str
+    highcol : str [optional][default: '']
         color for the relevant part
+    zeroBased : bool [optional][default: True]
+        if True, top left box is filled by number 0 (zero-based numbering)
+        if False, top left box is filled by number 1
     
     Remark
     ------
@@ -4615,7 +4563,6 @@ def get_adjacent_transposition_matrix(alpha, Y, CY, k):
     return Pk
 
 
-
 def get_adjacent_transposition_matrices(alpha, Y, CY):
     """
     Get all matrices of adjacent transpositions
@@ -4643,70 +4590,5 @@ def get_adjacent_transposition_matrices(alpha, Y, CY):
     
     for k in range(n-1):
         P.append( get_adjacent_transposition_matrix(alpha, Y, CY, k) )
-    
-    '''
-    NY = Y.shape[0]
-    
-    Pk_diagval = np.zeros(shape=(n-1, NY), dtype=float)
-    Pk_offdiagrowindex = np.zeros(shape=(n-1, NY), dtype=int)
-    Pk_offdiagcolindex = np.zeros(shape=(n-1, NY), dtype=int)
-    Pk_offdiagval = np.zeros(shape=(n-1, NY), dtype=float)
-    
-    offdiagcounter = np.zeros(shape=(n-1, ), dtype=int)
-    
-    for k in range(0, n-1):
-        
-        count = 0
-        
-        for i in range(0, NY):
-            
-            y = Y[i]
-            cy = CY[i]
-            
-            if Pk_diagval[k, i]==0:
-                
-                if y[k]==y[k+1]:
-                
-                    Pk_diagval[k, i] = 1
-                
-                else:
-                    
-                    c1 = cy[k]
-                    c2 = cy[k+1]
-                    
-                    if c1==c2:
-                        Pk_diagval[k, i] = -1
-                    else:
-                        rho = 1.0/get_axial_distance(y, cy, k, k+1)
-                        yfriend = np.copy(y)
-                        yfriend[k] = y[k+1]
-                        yfriend[k+1] = y[k]
-                        
-                        # index = np.argwhere(np.sum(np.abs(self.Y - yfriend), axis=1) < 1e-13).flatten()[0]
-                        index = i + np.argwhere(np.sum(np.abs(Y[i:,:] - yfriend), axis=1)<1.0e-13).flatten()[0]
-                        
-                        # diagonal elements
-                        Pk_diagval[k, i] = -rho
-                        Pk_diagval[k, index] = rho
-                        
-                        # off-diagonal elements
-                        Pk_offdiagrowindex[k, count] = i
-                        Pk_offdiagcolindex[k, count] = index
-                        Pk_offdiagval[k, count] = np.sqrt(1.0-rho**2)
-                        count += 1
-        
-        offdiagcounter[k] = count
-    
-    P = [None] * (n-1)
-    
-    for k in range(0, n-1):
-        Pkdiag = scipy.sparse.diags(Pk_diagval[k], offsets=0, shape=(NY, NY))
-        Pkoffdiag = scipy.sparse.csr_matrix(
-                        (Pk_offdiagval[k, 0:offdiagcounter[k]], 
-                        (Pk_offdiagrowindex[k, 0:offdiagcounter[k]], 
-                         Pk_offdiagcolindex[k, 0:offdiagcounter[k]])), 
-                        shape=(NY, NY))    
-        P[k] = Pkdiag + Pkoffdiag + Pkoffdiag.transpose()
-    '''
     
     return P
