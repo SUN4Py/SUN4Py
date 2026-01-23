@@ -48,7 +48,7 @@ class PartialLookupTool:
         # generate all subshapes of alpha with <self.n0> boxes
         pstarnm = partitions.pstarnm(self.n0, self.N) # number of partitions of <self.n0> in at most <self.N> parts
         
-        alpha_all, _ = sun.get_list_irreps(self.N, 2*pstarnm, self.n)
+        alpha_all = sun.get_all_irreps(self.N, self.n)
         
         # restrict to potential shapes
         ind = np.argwhere( (np.sum(alpha_all, axis=1)<=self.n0) & ((np.sum(alpha_all, axis=1)%self.N)==(self.n0%self.N)) ).flatten()

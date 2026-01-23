@@ -2223,7 +2223,6 @@ def get_all_irreps(N, n):
     Columns with N boxes are not counted, namely an irrep of SU(N) should be 
     here understood as an array with N-1 non-negative row counts
     """
-    
     assert(n>0)
     
     num_irreps = int(1) # count for the fundamental irrep
@@ -2249,41 +2248,12 @@ def get_all_irreps(N, n):
                     cpt += 1
         assert(cpt==num_irreps)
     else:
-        sys.exit('Generic method for get_all_irreps not yet implemented.')
-        # in fact, this is done below in get_irreps(N, num_irreps), where I have
-        # used n=40 to generate all irreps with (at most) n boxes
-    
-    irreps, _ = sunpy.common.math.sortrows(irreps)
-    
-    return irreps
-
-
-def get_irreps(N, num_irreps):
-    """
-    Get the first num_irreps irreps of SU(N) sorted in ascending order of quadratic
-    Casimir
-    
-    Parameters
-    ----------
-    N : int
-        SU(N)
-    num_irreps : int
-        number of irreps to find
-    
-    Returns
-    -------
-    irreps : numpy array
-        collection of irreps (stored in the rows), sorted in ascending order of
-        their quadratic Casimir
-    """
-    
-    if N==2:
-        irreps = get_all_irreps(N, num_irreps-1)
-    else:
-        n = int(40) # something much bigger than N
-        irreps = np.zeros(shape=(n+1, n), dtype=int)
+        # this is a totally generic approach for SU(N), which would work for 
+        # N=2, 3 as well, but is slower
+        t = max(n, N)
+        irreps = np.zeros(shape=(n+1, t), dtype=int)
         
-        # in this function, for convenience, we adopt a different convention 
+        # here, for convenience, we adopt a different convention 
         # for labelling irreps:
         # irreps[p] is the p-th irrep (as usual)
         # BUT: 
@@ -2295,7 +2265,7 @@ def get_irreps(N, num_irreps):
         irreps[0][0] = 1 # 1 column with 1 box
         ntemp_prev = int(1)
         
-        for p in range(2, n):
+        for p in range(2, n+1):
             
             # we will generate irreps with p boxes
             cpt = int(0)
@@ -2334,14 +2304,14 @@ def get_irreps(N, num_irreps):
             # remove duplicates            
             irreps_u = np.unique(irreps[:ntemp], axis=0)
             ntemp_new = irreps_u.shape[0]
-            irreps = np.zeros(shape=(ntemp_new*(n+1), n), dtype=int)
+            irreps = np.zeros(shape=(ntemp_new*(n+1), t), dtype=int)
             irreps[:ntemp_new] = np.copy(irreps_u)
             ntemp_prev = ntemp_new
             
         # transform the collections of irreps to the usual convention where
         # irreps[p][k] = number of boxes in the k-th row of irreps[p]
-        A = np.triu(np.full(shape=(n, n), fill_value=1, dtype=int))
-        irreps = A @ irreps.transpose()
+        A = np.triu(np.full(shape=(t, t), fill_value=1, dtype=int))
+        irreps = A @ irreps.transpose() # (t x t) x (t x n+1) ---> t x (n+1)
         
         # irreps are now stored in the columns ...
         
@@ -2356,8 +2326,38 @@ def get_irreps(N, num_irreps):
         # remove duplicates
         irreps = np.unique(irreps, axis=0)
         
-        # just a useful reorganisation of irreps which will have the same Casimir ...
-        irreps, _ = sunpy.common.math.sortrows(irreps)
+        assert(irreps.shape[0]==num_irreps)
+    
+    # useful reorganisation of irreps which will have the same Casimir ...
+    irreps, _ = sunpy.common.math.sortrows(irreps)
+    
+    return irreps
+
+
+def get_irreps_by_casimir(N, num_irreps):
+    """
+    Get the first num_irreps irreps of SU(N) sorted in ascending order of quadratic
+    Casimir
+    
+    Parameters
+    ----------
+    N : int
+        SU(N)
+    num_irreps : int
+        number of irreps to find
+    
+    Returns
+    -------
+    irreps : numpy array
+        collection of irreps (stored in the rows), sorted in ascending order of
+        their quadratic Casimir
+    """
+    
+    if N==2:
+        irreps = get_all_irreps(N, num_irreps-1)
+    else:
+        n = int(40) # something much bigger than N
+        irreps = get_all_irreps(N, n)
         
         # sort in ascending order of Casimir
         casimir = np.zeros(shape=(irreps.shape[0],))
@@ -2366,7 +2366,6 @@ def get_irreps(N, num_irreps):
         ind = np.argsort(casimir, kind='mergesort').flatten()
         # we use mergesort, because the default 'quicksort' is not stable
         irreps = irreps[ind]
-        # keep the num_irreps first irreps
         irreps = irreps[:num_irreps]
     
     return irreps
@@ -2574,155 +2573,6 @@ def sort_SYT(Y, order='LLOS'):
         Y = Y[::-1, :]
         ind = ind[::-1]
     return Y, ind
-
-
-def get_list_irreps(N, num_irreps, n):
-    # Generate the list of the <num_irreps> first irreps of SU(N), sorted by 
-    # increasing number of the quadratic Casimir, and by taking the fundamental 
-    # irrep to the power <n>.
-    # 
-    # Inputs:
-    #   N           SU(N)
-    #   num_irreps  number of irreps to generate
-    #   n           generated irreps live in the tensor product (fundamental)^{\otimes n}
-    # 
-    # Outputs:
-    #   alpha       numpy array of irreps. Each row is an irrep.
-    #   casimir     numpy array, each element is the quadratic Casimir of the irreps
-    # 
-    # Remark:
-    # CAUTION: That is a rather dirty implementation, were some arrays change 
-    #          size in an uncontrolled way ! To be cleaned !
-    # 
-    
-    
-    if N==2:
-        
-        alpha = np.zeros((num_irreps, 2), dtype=int)
-        alpha[:, 0] = np.arange(0, num_irreps)
-        
-        casimir = alpha[:,0]/2 * (alpha[:,0]/2 + 1)
-        
-    else:
-        
-        p = np.zeros((n+1,), dtype=int)
-        p[0] = 1
-        for i in range(1, n+1):
-            j = int(1)
-            k = int(1)
-            s = int(0)
-            while j>0:
-                j = i - (3*k*k+k)//2
-                if j>=0:
-                    s -= ((-1)**k) * p[j]
-                j = i - (3*k*k-k)//2
-                if j>=0:
-                    s -= ((-1)**k) * p[j]
-                k += 1
-            # end while
-            p[i] = s
-        # end for i
-        p[0] = 0
-        
-        
-        Forme = np.zeros((np.sum(p[1:]), n), dtype=int)
-        Forme[0, 0] = 1
-        Forme_tt_N = np.zeros((2, n), dtype=int)
-        Forme_tt_N[1,0] = 1
-        
-        s = int(0)
-        PI = np.pi**np.arange(0, n)
-        index_N = int(2)
-        
-        for tt in range(2, n+1):
-            print('tt = ', tt, '/', n)
-            
-            index_sum = np.sum(p[0:tt])
-            
-            for pp in range(s+1, s+p[tt-1]+1):
-                
-                if index_sum<Forme.shape[0]:
-                    Forme[index_sum, :] = np.copy(Forme[pp-1, :]) + np.copy(Forme[0,:])
-                elif index_sum==Forme.shape[0]:
-                    # add a row to Forme
-                    Forme = np.vstack([Forme, np.copy(Forme[pp-1, :]) + np.copy(Forme[0,:])])
-                else:
-                    sys.exit('Problem A')
-                
-                index_sum += 1
-                
-                W_k = np.argwhere(Forme[pp-1, :]>0).flatten() + 1
-                N_W = len(W_k)
-                
-                for hh in range(1, N_W+1):
-                    if index_sum+hh-1<Forme.shape[0]:
-                        Forme[index_sum+hh-1, :] = np.copy(Forme[pp-1, :])
-                        Forme[index_sum+hh-1, W_k[hh-1]-1] -= 1
-                        Forme[index_sum+hh-1, W_k[hh-1]] += 1
-                    elif index_sum+hh-1==Forme.shape[0]:
-                        # add a row to Forme
-                        tmp = np.copy(Forme[pp-1, :])
-                        tmp[W_k[hh-1]-1] -= 1
-                        tmp[W_k[hh-1]] += 1
-                        Forme = np.vstack([Forme, tmp])
-                    else:
-                        sys.exit('Problem B')
-                
-                index_sum += N_W
-            # end for pp
-            
-            s += p[tt-1]
-            
-            temp, _ = sunpy.common.math.sortrows(Forme[s:index_sum, :])
-            Forme[s:index_sum, :] = temp
-            
-            FormePrec = np.zeros((index_sum-s, n), dtype=int)
-            FormePrec[1:, :] = np.copy(Forme[s:index_sum-1, :])
-            
-            Fdiff = np.argwhere( (Forme[s:index_sum, :] - FormePrec) @ PI ).flatten() + 1
-            N_Fdiff = len(Fdiff)
-            
-            Forme[s:s+N_Fdiff, :] = np.copy(Forme[s+Fdiff-1, :])
-            
-            # That is dirty: remove rows to Forme --> change its shape
-            Forme = np.delete(Forme, obj=np.arange(s+N_Fdiff, index_sum), axis=0)
-            
-            Forme_tt = np.copy(Forme[np.sum(p[0:tt]):np.sum(p[0:tt+1]), :])
-            
-            for q in range(1, p[tt]+1):
-                if np.sum(Forme_tt[q-1, N-1:])==0:
-                    index_N += 1
-                    # add a row to Forme_tt_N
-                    Forme_tt_N = np.vstack([Forme_tt_N, np.copy(Forme_tt[q-1, :])])
-            # end for q
-        # end for tt
-        
-        Number_N = index_N
-        
-        '''
-        if Number_N<1.5*num_irreps:
-            sys.exit('Problem: considering (fund irrep)^{\\otimes q} ' + 'for q=1, ..., {n}, we did not extract more than 3/2*num_irreps={3/2*num_irreps} different irreps of SU(N).')
-        '''
-        print('Generated ', Number_N, ' irreps.')
-        
-        alpha = Forme_tt_N @ np.tril(np.full(shape=(n, n), fill_value=1, dtype=int))
-        alpha = alpha[:, 0:N]
-        
-        casimir = np.zeros((Number_N, ))
-        
-        for qq in range(0, Number_N):
-            sumqq = np.sum(alpha[qq,:])
-            sumqq2 = np.sum(alpha[qq,:]**2)
-            casimir[qq] = sumqq * (N - sumqq/N) + sumqq2 - np.sum( Forme_tt_N[qq,:] * (np.arange(1, n+1)**2) )
-        
-        ind = np.argsort(casimir)
-        alpha = alpha[ind, :]
-        casimir = casimir[ind]
-        # alpha = alpha[0:num_irreps, :]
-        # casimir = casimir[0: num_irreps]
-    # end if
-    
-    return alpha, casimir
 
 
 def get_SYT_symm(alpha, m, order='LLOS')  -> np.ndarray:
