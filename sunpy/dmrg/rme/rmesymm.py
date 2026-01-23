@@ -7,7 +7,6 @@ Copyright 2023 Samuel GOZEL, GNU GPLv3
 
 import numpy as np
 import sys
-import os
 import time
 
 from sunpy.dmrg.rme.rmebase import RMEEngine
@@ -43,6 +42,8 @@ class RMEEngineSymm(RMEEngine):
             string describing the technique to use to compute RMEs ('base', 'shortcut_cols', 'shortcut_rows')
         
         [optional]
+        rme_folder : str [default]'path/to/SUNPy/sunpy/rme_coefficients/'
+            path to directory containing RME coefficients files
         checkpointing : bool  [default]False
             if True, perform checkpointing
         chkpt_method : str [default]'log2', 'custom'
@@ -69,7 +70,7 @@ class RMEEngineSymm(RMEEngine):
                 'ES330_idmrg_edgeAdjoint'                
         """
         
-        self._m = m
+        self._m = int(m)
         
         if 'filename_prefix' in kwargs:
             self._filename_prefix = kwargs['filename_prefix']
@@ -279,15 +280,6 @@ class RMEEngineSymm(RMEEngine):
                 condition = cond1 * cond2
         
         return condition
-    
-    
-    def _get_filename(self, num_irreps):
-        """
-        
-        """
-        filename = self._filename_prefix + '_SU' + str(self._N) + '_' + self._target + '_numirreps' + str(num_irreps) +  '_' + self._tech +  '.pickle'
-        filename = os.path.join(os.getcwd(), 'sunpy', 'rme_coefficients', filename)
-        return filename
     
     
     def _get_sdc(self, alpha, alpha1, l1, alpha2, l2):

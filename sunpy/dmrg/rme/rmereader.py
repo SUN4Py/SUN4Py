@@ -36,9 +36,9 @@ class RMEReader:
             symmetry type, when m>1
         
         """
-        self._N = N
-        self._m = m
-        self._num_irreps = num_irreps
+        self._N = int(N)
+        self._m = int(m)
+        self._num_irreps = int(num_irreps)
         self._filename = filename
         
         with open(self._filename, 'rb') as file:

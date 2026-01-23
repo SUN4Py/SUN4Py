@@ -12,6 +12,8 @@ import os
 import re
 from abc import ABC, abstractmethod
 
+from sunpy import ROOT_PATH
+
 
 
 class RMEEngine(ABC):
@@ -35,6 +37,8 @@ class RMEEngine(ABC):
             string describing the technique to use to compute RMEs ('base', 'shortcut_cols', 'shortcut_rows')
         
         [optional]
+        rme_folder : str [default]'path/to/SUNPy/sunpy/rme_coefficients/'
+            path to directory containing RME coefficients files
         checkpointing : bool  [default]False
             if True, perform checkpointing
         chkpt_method : str [default]'log2', 'custom'
@@ -49,7 +53,7 @@ class RMEEngine(ABC):
             path to filename from which to restart
         """
         
-        self._N = N
+        self._N = int(N)
         
         if (num_irreps<=int(300)):
             irreps_filename = f'SU{self._N}_irreps_300.npy'
@@ -69,7 +73,7 @@ class RMEEngine(ABC):
             print('Loading list of ', max(int(300), num_irreps), 'first irreps of SU(', N ,')')
             self._irreps_all = np.load(irreps_filename).astype(int)
         
-        self._num_irreps = num_irreps
+        self._num_irreps = int(num_irreps)
         self._irreps = self._init_irreps(self._num_irreps)
         
         self._target = target
@@ -78,44 +82,37 @@ class RMEEngine(ABC):
             sys.exit('ERROR : RMEEngine.__init__ : Tech undefined')
         self._tech = tech
         
-        if 'restarting' in kwargs:
-            self._restarting = kwargs['restarting']
-        else:
-            self._restarting = True
+        self._rme_folder = kwargs.get('rme_folder', os.path.join(ROOT_PATH, 'rme_coefficients'))
+        self._restarting = kwargs.get('restarting', True)
         
         if self._restarting==True:
             if 'restarting_filename' in kwargs:
                 path_head, path_tail = os.path.split(kwargs['restarting_filename'])
                 if path_head=='':
-                    self._restarting_filename = os.path.join(os.getcwd(), 
-                                                             'sunpy', 
-                                                             'rme_coefficients', 
+                    self._restarting_filename = os.path.join(self._rme_folder, 
                                                              kwargs['restarting_filename'])
                 else:
                     self._restarting_filename = kwargs['restarting_filename']
                 if not os.path.isfile(self._restarting_filename):
-                    print('Restarting file : ', self._restarting_filename, ' was not found.')
+                    print('Restarting file : ', self._restarting_filename, ' was not found. Provide absolute path.')
                     sys.exit('Exit')
                 pattern = re.compile(r'^' + filename_prefix + '_SU(\d+)_' + self._target + '_numirreps(\d+)_' + self._tech + '.pickle$')
-                m = pattern.match(os.path.basename(self._restarting_filename))
-                assert( int(m.group(1)) == self._N )
-                self._num_irreps_old = int(m.group(2))
+                pm = pattern.match(os.path.basename(self._restarting_filename))
+                assert( int(pm.group(1)) == self._N )
+                self._num_irreps_old = int(pm.group(2))
             else:
-                if 'restarting_folder' in kwargs:
-                    self._restarting_folder = kwargs['restarting_folder']
-                else:
-                    self._restarting_folder = os.path.join(os.getcwd(), 'sunpy', 'rme_coefficients')
-                    # self.restarting_folder = os.path.dirname(os.path.abspath(__file__))
+                self._restarting_folder = kwargs.get('restarting_folder', self._rme_folder)
+                # self.restarting_folder = os.path.dirname(os.path.abspath(__file__))
                 # search for restart file
                 files_in_dir = [f for f in os.listdir(self._restarting_folder) if os.path.isfile(os.path.join(self._restarting_folder, f))]
                 # search for pattern
                 pattern = re.compile(r'^' + filename_prefix + '_SU(\d+)_' + self._target + '_numirreps(\d+)_' + self._tech + '.pickle$')
                 self._num_irreps_old = int(0)
                 for file in files_in_dir:
-                    m = pattern.match(file)
-                    if m:
-                        fN = int(m.group(1))
-                        fni = int(m.group(2))
+                    pm = pattern.match(file)
+                    if pm:
+                        fN = int(pm.group(1))
+                        fni = int(pm.group(2))
                         if fN==self._N:
                             if fni>self._num_irreps_old:
                                 self._num_irreps_old = fni
@@ -131,10 +128,7 @@ class RMEEngine(ABC):
             print(self._restarting_filename)
             self._irreps_old = self._init_irreps(self._num_irreps_old)
         
-        if 'checkpointing' in kwargs:
-            self._checkpointing = kwargs['checkpointing']
-        else:
-            self._checkpointing = False
+        self._checkpointing = kwargs.get('checkpointing', False)
         
         if self._num_irreps<self._num_irreps_old:
             # the list of RME for self.num_irreps will be extracted by reading
@@ -142,11 +136,7 @@ class RMEEngine(ABC):
             self._checkpointing = False
         
         if self._checkpointing==True:
-            if 'chkpt_method' in kwargs:
-                self._chkpt_method = kwargs['chkpt_method']
-            else:
-                self._chkpt_method = 'log2'
-            
+            self._chkpt_method = kwargs.get('chkpt_method', 'log2')            
             if self._chkpt_method=='custom':
                 if 'chkpt_ni' in kwargs:
                     assert(isinstance(kwargs['chkpt_ni'], np.ndarray))
@@ -162,12 +152,15 @@ class RMEEngine(ABC):
                 assert(self._chkpt_ni[-1]==self._num_irreps)
                 assert(self._chkpt_ni[0]>self._num_irreps_old)
         
-        self._filename = os.path.join(os.getcwd(), 
-                                      'sunpy', 
-                                      'rme_coefficients', 
+        self._filename = os.path.join(self._rme_folder, 
                                       self._get_filename(self._num_irreps))
         
         return
+    
+    
+    @property
+    def filename(self):
+        return self._filename
     
     
     def run(self):
@@ -214,12 +207,12 @@ class RMEEngine(ABC):
         raise NotImplementedError()
     
     
-    @abstractmethod
     def _get_filename(self, num_irreps):
         """
         
         """
-        raise NotImplementedError()
+        filename = f'{self._filename_prefix}_SU{self._N}_{self._target}_numirreps{num_irreps}_{self._tech}.pickle'
+        return filename
     
     
     @abstractmethod
