@@ -62,7 +62,7 @@ class RMEEngine(ABC):
             # generate list of 300 (or num_irreps if 300<num_irreps) first irreps of SU(N)
             from sunpy.sun import sun
             print('Generating list of ', max(int(300), num_irreps), 'first irreps of SU(', N ,')')
-            self._irreps_all = sun.get_irreps(N, max(int(300), num_irreps))
+            self._irreps_all = sun.get_irreps_by_casimir(N, max(int(300), num_irreps))
             print('Done. Dumping to:', irreps_filename)
             np.save(irreps_filename, self._irreps_all)
         else:

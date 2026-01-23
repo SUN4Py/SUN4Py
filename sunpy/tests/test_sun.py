@@ -8,6 +8,8 @@ Copyright 2023 Samuel GOZEL, GNU GPLv3
 
 import pytest
 import numpy as np
+import pickle
+import os
 
 from sunpy.sun import sun
 
@@ -27,7 +29,6 @@ def test_get_SYT(alpha, expected):
     assert(np.linalg.norm( sun.get_SYT(alpha) - expected )==0)
 
 
-
 @pytest.mark.parametrize("alpha, expected", [
     (np.array([1], dtype=int), int(1)),
     (np.array([2], dtype=int), int(1)),
@@ -41,7 +42,6 @@ def test_get_SYT(alpha, expected):
 ])
 def test_multiplicity(alpha, expected):
     assert(sun.multiplicity(alpha)==expected)
-
 
 
 @pytest.mark.parametrize("alpha, expected", [
@@ -68,7 +68,6 @@ def test_casimir(alpha, expected):
     assert(abs( sun.casimir_quadratic(alpha) - expected )<prec)
 
 
-
 @pytest.mark.parametrize("alpha, N, expected", [
     (np.array([1, 0, 0]), int(3), int(3)), 
     (np.array([1, 1, 0]), int(3), int(3)), 
@@ -85,7 +84,6 @@ def test_casimir(alpha, expected):
 def test_dim_irrep_sun(alpha, N, expected):
     dimension = sun.dim_irrep_sun(alpha, N)
     assert(dimension==expected)
-
 
 
 @pytest.mark.parametrize("alpha, expected", [
@@ -108,7 +106,6 @@ def test_binary_search_SYT(alpha, expected):
             actual = False
             break
     assert(actual==expected)
-
 
 
 @pytest.mark.parametrize("alpha, m, order, expected", [
@@ -169,7 +166,6 @@ def test_map_syt_to_index(alpha, m, order, expected):
             actual = False
             break
     assert(actual==expected)
-
 
 
 @pytest.mark.parametrize("alpha, m, order, expected", [
@@ -234,7 +230,6 @@ def test_map_index_to_syt(alpha, m, order, expected):
     assert(actual==expected)
 
 
-
 @pytest.mark.parametrize("y, ytarget, expected", [
     (np.array([0, 0, 1, 2], dtype=int), np.array([0, 1, 0, 2], dtype=int), (np.array([1], dtype=int), np.array([1./2.]))),
     (np.array([0, 1, 2, 0], dtype=int), np.array([0, 0, 1, 2], dtype=int), (np.array([2, 1], dtype=int), np.array([-1./3., -1./2.])))
@@ -247,7 +242,6 @@ def test_SYT_to_target_1(y, ytarget, expected):
     # assert
     assert(np.linalg.norm( sigma - expected[0] )==0)
     assert(np.linalg.norm( rho - expected[1] )<prec)
-
 
 
 @pytest.mark.parametrize("y, ytarget", [
@@ -263,3 +257,56 @@ def test_SYT_to_target_2(y, ytarget):
     # assert
     assert(np.linalg.norm(sigma - np.flip(sigmap))==0)
     assert(np.linalg.norm(rho - np.flip(-rhop))<prec)
+
+
+@pytest.mark.parametrize("n", [
+    (int(1)), 
+    (int(2)), 
+    (int(3)), 
+    (int(10))
+])
+def test_get_all_irreps_SU2(n):
+    # arange
+    N = int(2)
+    # act
+    irreps = sun.get_all_irreps(N, n)
+    # assert
+    assert(np.sum(abs(irreps[:, 0] - np.arange(0, n+1)))==0)
+    assert(np.sum(abs(irreps[:, 1]))==0)
+
+@pytest.mark.parametrize("N, n", [
+    #-------------
+    # SU(3)
+    (int(3), int(1)), 
+    (int(3), int(2)), 
+    (int(3), int(3)), 
+    (int(3), int(4)), 
+    (int(3), int(5)),
+    #-------------
+    # SU(4)
+    (int(4), int(1)), 
+    (int(4), int(2)), 
+    (int(4), int(3)), 
+    (int(4), int(4)), 
+    (int(4), int(5)), 
+    #-------------
+    # SU(5)
+    (int(5), int(1)), 
+    (int(5), int(2)), 
+    (int(5), int(3)), 
+    (int(5), int(4)), 
+    (int(5), int(5))
+])
+def test_get_all_irreps_SU(N, n):
+    # arange
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    testdata_file = f'testdata_irreps_SU{N}.pickle'
+    testdata_dir = 'testdata'
+    test_datafile = os.path.join(test_dir, testdata_dir, testdata_file)
+    with open(test_datafile, 'rb') as file:
+        data = pickle.load(file)
+        expected = data[n]
+    # act
+    irreps = sun.get_all_irreps(N, n)
+    # assert
+    assert(np.sum(abs(irreps - expected))==0)
