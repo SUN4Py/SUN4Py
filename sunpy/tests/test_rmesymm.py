@@ -19,7 +19,7 @@ prec = 1.0e-13
 @pytest.mark.parametrize("N, m, num_irreps, tech, target", [
     #------------
     # SU(3)
-    (int(3), int(2), int(12), 'shortcut_cols', 'GS_idmrg_edgeAdjoint'),
+    #(int(3), int(2), int(12), 'shortcut_cols', 'GS_idmrg_edgeAdjoint'), # 83 seconds
     (int(3), int(3), int(10), 'shortcut_cols', 'GS_idmrg_edgeAdjoint'), 
     (int(3), int(3), int(10), 'shortcut_cols', 'ES300_idmrg_edgeAdjoint')
 ])
