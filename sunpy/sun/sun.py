@@ -1380,10 +1380,10 @@ def get_ascendants(alpha, N, m=1, **kwargs):
     return alpha_asc_u, row_pos_u
 
 
-def apply_transpositions(nu, sigma, rho, ydev1, cydev1, coeffdev1):
+def apply_transpositions(nu, sigma, rho, ydev, cydev, coeffdev, sort=False):
     """
     Apply a sequence of transposition operators defined by (sigma, rho) to a 
-    development
+    development and return a newly alloacted development
     
     Let T[i] = (P_{sigma[i], sigma[i]+1} + rho[i])/sqrt(1-rho[i]**2) for i=0, ..., len(sigma)-1
     
@@ -1392,63 +1392,7 @@ def apply_transpositions(nu, sigma, rho, ydev1, cydev1, coeffdev1):
     
     where
     
-        |input development> = coeffdev1[0] |ydev1[0]> + ... + coeffdev1[-1] |ydev1[-1]>
-    
-    Parameters
-    ----------
-    nu : numpy array
-        irrep
-    sigma : numpy array
-        sequence of adjacent transpositions
-    rho : numpy array
-        inverses of axial distances
-    ydev1 : numpy array
-        SYT development
-    cydev1 : numpy array
-        associated column positions
-    coeffdev1 : numpy array
-        associated coefficients
-    
-    Returns
-    -------
-    ydev1, cydev1, coeffdev1 : updated development
-    """
-    
-    for ll in range(0, len(sigma)):
-        
-        ydev2, cydev2, coeffdev2 = develop_consecutive_number(
-                                        nu, 
-                                        ydev1, cydev1, coeffdev1, 
-                                        k=sigma[ll])
-        
-        ydev2, cydev2, coeffdev2 = sum_develop(ydev1, cydev1, rho[ll]*coeffdev1, 
-                                               ydev2, cydev2, coeffdev2)
-        
-        ydev2, cydev2, coeffdev2 = fullsimplify_development(ydev2, cydev2, coeffdev2)
-        
-        coeffdev2 = coeffdev2/np.sqrt(1.0-rho[ll]**2)
-        
-        ydev1 = ydev2
-        cydev1 = cydev2
-        coeffdev1 = coeffdev2
-    
-    return ydev1, cydev1, coeffdev1
-
-
-
-def apply_transpositions_v2(nu, sigma, rho, ydev, cydev, coeffdev, sort=False):
-    """
-    Apply a sequence of transposition operators defined by (sigma, rho) to a 
-    development
-    
-    Let T[i] = (P_{sigma[i], sigma[i]+1} + rho[i])/sqrt(1-rho[i]**2) for i=0, ..., len(sigma)-1
-    
-    Then we compute
-        |output development> = T[-1] ... T[1] T[0] |input development>
-    
-    where
-    
-        |input development> = coeffdev1[0] |ydev1[0]> + ... + coeffdev1[-1] |ydev1[-1]>
+        |input development> = coeffdev[0] |ydev[0]> + ... + coeffdev[-1] |ydev[-1]>
     
     Parameters
     ----------
@@ -1459,30 +1403,95 @@ def apply_transpositions_v2(nu, sigma, rho, ydev, cydev, coeffdev, sort=False):
     rho : numpy array
         inverses of axial distances
     ydev : numpy array
-        SYT development
+        SYTs (stored in the rows)
     cydev : numpy array
         associated column positions
     coeffdev : numpy array
-        associated coefficients
-    sort : bool [optional], default: False
+        coefficients
+    sort : bool [optional][default: False]
         if True, sort the output SYTs in ascending order of LLOS
     
     Returns
     -------
-    ydev1, cydev1, coeffdev1 : updated development
+    ydev_out, cydev_out, coeffdev_out : output development
     """
     
-    for ll in range(0, len(sigma)):
-        ydev, cydev, coeffdev = t_operator(ydev, cydev, coeffdev, 
-                                           k=sigma[ll], 
-                                           rho=rho[ll])
+    ydev_out = np.copy(ydev)
+    cydev_out = np.copy(cydev)
+    coeffdev_out = np.copy(coeffdev)
+    
+    for i in range(0, len(sigma)):
+        ydev_temp, cydev_temp, coeffdev_temp = develop_consecutive_number(
+                                        nu, 
+                                        ydev_out, 
+                                        cydev_out, 
+                                        coeffdev_out, 
+                                        k=sigma[i])        
+        ydev_out, cydev_out, coeffdev_out = sum_develop(ydev_out, cydev_out, rho[i]*coeffdev_out, 
+                                                        ydev_temp, cydev_temp, coeffdev_temp)        
+        coeffdev_out = coeffdev_out/np.sqrt(1.0-rho[i]**2)
     
     if sort==True:
-         ydev, ind = sort_SYT(ydev, order='LLOS')
-         cydev = cydev[ind, :]
-         coeffdev = coeffdev[ind]
+         ydev_out, ind = sort_SYT(ydev_out, order='LLOS')
+         cydev_out = cydev_out[ind, :]
+         coeffdev_out = coeffdev_out[ind]
     
-    return ydev, cydev, coeffdev
+    return ydev_out, cydev_out, coeffdev_out
+
+
+def apply_transpositions_v2(nu, sigma, rho, ydev, cydev, coeffdev, sort=False):
+    """
+    Apply a sequence of transposition operators defined by (sigma, rho) to a 
+    development and return a newly alloacted development
+    
+    Let T[i] = (P_{sigma[i], sigma[i]+1} + rho[i])/sqrt(1-rho[i]**2) for i=0, ..., len(sigma)-1
+    
+    Then we compute
+        |output development> = T[-1] ... T[1] T[0] |input development>
+    
+    where
+    
+        |input development> = coeffdev[0] |ydev[0]> + ... + coeffdev[-1] |ydev[-1]>
+    
+    Parameters
+    ----------
+    nu : numpy array
+        irrep
+    sigma : numpy array
+        sequence of adjacent transpositions
+    rho : numpy array
+        inverses of axial distances
+    ydev : numpy array
+        SYTs (stored in the rows)
+    cydev : numpy array
+        associated column positions
+    coeffdev : numpy array
+        coefficients
+    sort : bool [optional][default: False]
+        if True, sort the output SYTs in ascending order of LLOS
+    
+    Returns
+    -------
+    ydev_out, cydev_out, coeffdev_out : output development
+    """
+    
+    ydev_out = np.copy(ydev)
+    cydev_out = np.copy(cydev)
+    coeffdev_out = np.copy(coeffdev)
+    
+    for i in range(0, len(sigma)):
+        ydev_out, cydev_out, coeffdev_out = t_operator(ydev_out, 
+                                                       cydev_out, 
+                                                       coeffdev_out, 
+                                                       k=sigma[i], 
+                                                       rho=rho[i])
+    
+    if sort==True:
+         ydev_out, ind = sort_SYT(ydev_out, order='LLOS')
+         cydev_out = cydev_out[ind, :]
+         coeffdev_out = coeffdev_out[ind]
+    
+    return ydev_out, cydev_out, coeffdev_out
 
 
 def apply_transpositions_v3(nu, sigma, rho, ydev, cydev, coeffdev, ifd, sort=False):
@@ -3517,9 +3526,13 @@ def overlap(ydev1, coeff1, ydev2, coeff2, need_fullsimplify=True):
     return out
 
 
-def develop_consecutive_number(alpha, ydev, cydev, coeff, k):
+def develop_consecutive_number_cpp(alpha, ydev, cydev, coeffdev, k):
     """
-    Apply a transposition (k, k+1) on a development
+    Apply a transposition (k, k+1) on a development and return a new memory-allocated
+    development
+    
+    [Slow on Python, C++-style implementation]
+    [Prefer a call to develop_consecutive_number]
     
     Parameters
     ----------
@@ -3529,65 +3542,68 @@ def develop_consecutive_number(alpha, ydev, cydev, coeff, k):
         SYTs of development
     cydev : numpy array
         associated column positions
-    coeff : numpy array
+    coeffdev : numpy array
         coefficients of development
     k : int
         transposition to apply (k, k+1)
     
     Returns
     -------
-    ydev2, cydev2, coeff2 : updated development
+    ydev1, cydev1, coeffdev1 : development (as newly memory allocated instances)
     
     Details
     -------
-    |input-development> = coeff[0] |ydev[0]> + ... + coeff[-1] |ydev[-1]>
+    |input-development> = coeffdev[0] |ydev[0]> + ... + coeffdev[-1] |ydev[-1]>
     
-    |output-development> = T_{k, k+1} |input-development>
+    |output-development> = P_{k, k+1} |input-development>
     
-    where T is the operator representing the transposition (k, k+1) acting on 
+    where P_{k, k+1} is the operator representing the transposition (k, k+1) acting on 
     the Hilbert space of SYTs.
+    
+    Remarks
+    -------
+    - Returns a newly allocated development
+    - C++-style implementation
+    - Slow with Python
     """
     
+    print('WARNING : calling sun.develop_consecutive_number_cpp is slow. Prefer a call to sun.develop_consecutive_number.')
+    
     n = np.sum(alpha)
-    assert n==ydev.shape[-1]
+    assert(ydev.shape[-1]==n)
     
     if len(ydev.shape)==1:
-        # only 1 SYT in the development
-        Ny = int(1)
-        assert n==ydev.shape[0]
-        ydev = np.reshape(ydev, (1, n))
-        cydev = np.reshape(cydev, (1, n))
+        Nydev = int(1)
+        ydev = np.reshape(ydev, (Nydev, n))
+        cydev = np.reshape(cydev, (Nydev, n))
     else:
-        Ny = ydev.shape[0]
-        assert n==ydev.shape[1]
+        Nydev = ydev.shape[0]
     
     if k>=n-1:
         sys.exit('Problem: [develop_consecutive_number] k too large. k must be striclty less than n-1.')
     
-    ydev1 = np.full(shape=(2*Ny, n), fill_value=-1, dtype=int)
-    cydev1 = np.full(shape=(2*Ny, n), fill_value=-1, dtype=int)
-    coeff1 = np.zeros((2*Ny,), dtype=float)
+    ydev1 = np.zeros(shape=(2*Nydev, n), dtype=int)
+    cydev1 = np.zeros(shape=(2*Nydev, n), dtype=int)
+    coeffdev1 = np.zeros((2*Nydev,), dtype=float)
     
-    ydev1[0:Ny,:] = np.copy(ydev)
-    cydev1[0:Ny,:] = np.copy(cydev)
-    coeff1[0:Ny] = np.copy(coeff)
+    ydev1[:Nydev] = ydev
+    cydev1[:Nydev] = cydev
+    coeffdev1[:Nydev] = coeffdev
     
-    count = Ny
+    count = Nydev
 
-    for i in range(0, Ny):
+    # this loop can be parallel, with a critical section
+    for i in range(0, Nydev):
         
-        y = np.copy(ydev[i,:])
-        cy = np.copy(cydev[i,:])
+        y = ydev[i]
+        cy = cydev[i]
         
         if not y[k]==y[k+1]:
             
-            c1 = cy[k]
-            c2 = cy[k+1]
-            
-            if c1==c2:
-                coeff1[i] *= (-1)
+            if cy[k]==cy[k+1]:
+                coeffdev1[i] *= (-1)
             else:                
-                ax = get_axial_distance(y, cy, k+1, k) # axial distance from k+1 to k
+                ax = get_axial_distance(y, cy, k, k+1)
                 rho = 1.0/ax
                 yfriend = np.copy(y)
                 cyfriend = np.copy(cy)
@@ -3596,25 +3612,113 @@ def develop_consecutive_number(alpha, ydev, cydev, coeff, k):
                 cyfriend[k] = cy[k+1]
                 cyfriend[k+1] = cy[k]
                 
-                ydev1[count,:] = np.copy(yfriend)
-                cydev1[count,:] = np.copy(cyfriend)
-                
-                coeff1[count] = coeff1[i] * np.sqrt(1.0-rho*rho)
-                coeff1[i] *= rho
+                # start critical section - avoid concurrent writes
+                ydev1[count] = yfriend
+                cydev1[count] = cyfriend
+                coeffdev1[count] = coeffdev1[i] * np.sqrt(1.0-rho*rho)
                 count += 1
+                # finish critical section
+                coeffdev1[i] *= (-rho)
     
-    ydev1 = ydev1[0:count,:]
-    cydev1 = cydev1[0:count,:]
-    coeff1 = coeff1[0:count]
+    ydev1 = ydev1[0:count]
+    cydev1 = cydev1[0:count]
+    coeffdev1 = coeffdev1[0:count]
     
-    ydev2, cydev2, coeff2 = fullsimplify_development(ydev1, cydev1, coeff1)
+    ydev1, cydev1, coeffdev1 = fullsimplify_development(ydev1, cydev1, coeffdev1)
     
-    return ydev2, cydev2, coeff2
+    return ydev1, cydev1, coeffdev1
+
+
+def develop_consecutive_number(alpha, ydev, cydev, coeffdev, k):
+    """
+    Apply a transposition (k, k+1) on a development and return a new memory-allocated
+    development
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    ydev : numpy array
+        SYTs of development
+    cydev : numpy array
+        associated column positions
+    coeffdev : numpy array
+        coefficients of development
+    k : int
+        transposition to apply (k, k+1)
+    
+    Returns
+    -------
+    ydev1, cydev1, coeffdev1 : development (as newly memory allocated instances)
+    
+    Details
+    -------
+    |input-development> = coeffdev[0] |ydev[0]> + ... + coeffdev[-1] |ydev[-1]>
+    
+    |output-development> = P_{k, k+1} |input-development>
+    
+    where P_{k, k+1} is the operator representing the transposition (k, k+1) acting on 
+    the Hilbert space of SYTs.
+    
+    Remarks
+    -------
+    - This is a Pythonic, vectorized version of the code
+    - The output development is a newly allocated development
+    """
+    
+    n = np.sum(alpha)
+    if len(ydev.shape)==1:
+        Nydev = int(1)
+        assert(ydev.shape[0]==n)
+        ydev = np.reshape(ydev, (Nydev, n))
+        cydev = np.reshape(cydev, (Nydev, n))
+    else:
+        Nydev = ydev.shape[0]
+        assert(ydev.shape[1]==n)
+    
+    if k>=n-1:
+        sys.exit('Problem: [develop_consecutive_number_v2] k too large. k must be striclty less than n-1.')
+    
+    b_row = (ydev[:, k]==ydev[:, k+1])
+    b_col = (cydev[:, k]==cydev[:, k+1])
+    
+    # indices of SYTs where k and k+1 are neither in the same row nor same column
+    ind = np.argwhere(np.multiply(1-b_row, 1-b_col)).flatten()
+    
+    Nydev1 = Nydev + len(ind)
+    ydev1 = np.zeros(shape=(Nydev1, n), dtype=int)
+    ydev1[:Nydev] = ydev
+    cydev1 = np.zeros(shape=(Nydev1, n), dtype=int)
+    cydev1[:Nydev] = cydev
+    coeffdev1 = np.zeros(shape=(Nydev1,), dtype=float)
+    coeffdev1[:Nydev] = coeffdev
+    
+    coeffdev1[np.argwhere(b_col).flatten()] *= -1.0
+    
+    if len(ind)>0:
+        ax_vec = cydev[ind, k] - ydev[ind, k] - cydev[ind, k+1] + ydev[ind, k+1]
+        rho_vec = 1.0/ax_vec
+    
+        ydev1[Nydev:] = ydev[ind]
+        ydev1[Nydev:, k] = ydev[ind, k+1]
+        ydev1[Nydev:, k+1] = ydev[ind, k]
+        
+        cydev1[Nydev:] = cydev[ind, :]
+        cydev1[Nydev:, k] = cydev[ind, k+1]
+        cydev1[Nydev:, k+1] = cydev[ind, k]
+        
+        coeffdev1[Nydev:] = np.multiply(np.sqrt( 1.0 - rho_vec**2 ), coeffdev[ind])
+        coeffdev1[ind] = np.multiply(-rho_vec, coeffdev[ind])
+    
+    ydev1, cydev1, coeffdev1 = fullsimplify_development(ydev1, cydev1, coeffdev1)
+    
+    return ydev1, cydev1, coeffdev1
 
 
 def t_operator(ydev, cydev, coeffdev, k, rho):
     """
     Apply operator T_{(k, k+1)} := (P_{(k, k+1)} + rho)/sqrt(1 - rho**2) on a development
+    Return a newly allocated development
     
     Parameters
     ----------
@@ -3631,11 +3735,11 @@ def t_operator(ydev, cydev, coeffdev, k, rho):
     
     Returns
     -------
-   ydev : numpy array
+    ydev1 : numpy array
         SYTs
-    cydev : numpy array
+    cydev1 : numpy array
         associated column positions
-    coeffdev : numpy array
+    coeffdev1 : numpy array
         coefficients
     
     Example
@@ -3654,58 +3758,70 @@ def t_operator(ydev, cydev, coeffdev, k, rho):
     if abs(abs(rho)-1)<1.0e-12:
         raise Exception('t_operator: cannot apply t_operator on development because |rho|=1.')
     
+    assert(len(ydev.shape)==2)
     Nydev = ydev.shape[0]
+    n = ydev.shape[1]
     
-    b_row = (ydev[:, k]==ydev[:, k+1]) # all SYTs where k and k+1 are in the same row
-    b_col = (cydev[:, k]==cydev[:, k+1]) # all SYTs where k and k+1 are in the same column
-    
-    # diagonal part
-    coeffdev[b_row] = (1.0 + rho) * coeffdev[b_row]
-    coeffdev[b_col] = (-1.0 + rho) * coeffdev[b_col]
+    b_row = (ydev[:, k]==ydev[:, k+1])
+    b_col = (cydev[:, k]==cydev[:, k+1])
     
     # indices of SYTs where k and k+1 are neither in the same row nor same column
     ind = np.argwhere(np.multiply(1-b_row, 1-b_col)).flatten()
     
+    Nydev1 = Nydev + len(ind)
+    ydev1 = np.zeros(shape=(Nydev1, n), dtype=int)
+    ydev1[:Nydev] = ydev
+    cydev1 = np.zeros(shape=(Nydev1, n), dtype=int)
+    cydev1[:Nydev] = cydev
+    coeffdev1 = np.zeros(shape=(Nydev1,), dtype=float)
+    coeffdev1[:Nydev] = coeffdev
+    
+    coeffdev1[np.argwhere(b_row).flatten()] = (1.0 + rho) * coeffdev[b_row]
+    coeffdev1[np.argwhere(b_col).flatten()] = (-1.0 + rho) * coeffdev[b_col]
+    
     if len(ind)>0:
-        # axial distance from k to k+1
         ax_vec = cydev[ind, k] - ydev[ind, k] - cydev[ind, k+1] + ydev[ind, k+1]
         rho_vec = 1.0/ax_vec
     
-        # perform interchange of k and k+1
-        ydev = np.vstack((ydev, ydev[ind, :]))
-        ydev[Nydev:, k] = ydev[ind, k+1]
-        ydev[Nydev:, k+1] = ydev[ind, k]
+        ydev1[Nydev:] = ydev[ind]
+        ydev1[Nydev:, k] = ydev[ind, k+1]
+        ydev1[Nydev:, k+1] = ydev[ind, k]
         
-        cydev = np.vstack((cydev, cydev[ind, :]))
-        cydev[Nydev:, k] = cydev[ind, k+1]
-        cydev[Nydev:, k+1] = cydev[ind, k]
+        cydev1[Nydev:] = cydev[ind, :]
+        cydev1[Nydev:, k] = cydev[ind, k+1]
+        cydev1[Nydev:, k+1] = cydev[ind, k]
         
         # add coefficients of off-diagonal terms coming from P_{(k, k+1)}
-        coeffdev = np.hstack((coeffdev, np.multiply(np.sqrt( 1.0 - rho_vec**2 ), coeffdev[ind])))
+        coeffdev1[Nydev:] = np.multiply(np.sqrt( 1.0 - rho_vec**2 ), coeffdev[ind])
         
         # diagonal part of P_{(k, k+1)} and +rho*Id part on off-diagonal elements
-        coeffdev[ind] = np.multiply(-rho_vec + rho, coeffdev[ind])
+        coeffdev1[ind] = np.multiply(-rho_vec + rho, coeffdev[ind])
     
     # apply denominator of T_{(k, k+1)}
-    coeffdev *= 1.0/np.sqrt(1.0 - rho**2)
+    coeffdev1 *= 1.0/np.sqrt(1.0 - rho**2)
     
-    ydev, cydev, coeffdev = fullsimplify_development(ydev, cydev, coeffdev)
+    ydev1, cydev1, coeffdev1 = fullsimplify_development(ydev1, cydev1, coeffdev1)
     
-    return ydev, cydev, coeffdev
+    return ydev1, cydev1, coeffdev1
 
 
 def develop_transposition(alpha, ydev, cydev, coeff, i, j):
     """
-    Apply the transposition (i,j) on a development
+    Apply the transposition (i, j) on a development
     """
+    assert(not i==j)
+    listtranspositions, _ = get_transpositions([np.array([min(i, j), max(i, j)], dtype=int)])
+    out_ydev = np.copy(ydev)
+    out_cydev = np.copy(cydev)
+    out_coeff = np.copy(coeff)
+    for k in listtranspositions[0]:
+        out_ydev, out_cydev, out_coeff = develop_consecutive_number(alpha, 
+                                                                    out_ydev, 
+                                                                    out_cydev, 
+                                                                    out_coeff, 
+                                                                    k)
     
-    if not i==j:
-        listtranspositions, nbtranspositions = get_transpositions([np.array([min(i, j), max(i, j)], dtype=int)])
-        for l in range(nbtranspositions[0]-1, -1, -1):
-            k = listtranspositions[0][l]
-            ydev, cydev, coeff = develop_consecutive_number(alpha, ydev, cydev, coeff, k)
-    
-    return ydev, cydev, coeff
+    return out_ydev, out_cydev, out_coeff
 
 
 def sum_develop(ydev1, cydev1, coeff1, ydev2, cydev2, coeff2):
