@@ -113,16 +113,29 @@ class SUNFundamental:
         
         self._H = scipy.sparse.csr_matrix((self._falpha, self._falpha))
         
-        for link in self._lattice.links:
-            # transform transposition (link[0], link[1]) into product of adjacent transpositions
+        # We illustrate the very generic case, although for the fundamental irrep
+        # at each site, only bilinear terms are relevant
+        for i, link in enumerate(self._lattice.links):            
             adja_transpos = sun.transposition_to_adjacent_transpositions(link)
-            Hlink = scipy.sparse.eye(self._falpha)            
+            Hbond = scipy.sparse.eye(self._falpha)
             for k in adja_transpos:
-                Hlink = P[k] @ Hlink            
-            self._H += Hlink
+                Hbond = P[k] @ Hbond
+            
+            order_next = self._lattice.bond_orders[i][0]
+            for t in range(1, order_next):
+                Hbond = Hbond @ Hbond            
+            order_prev = order_next
+            
+            self._H += self._lattice.bonds[self._lattice.indices[i][0]].J * Hbond
+            
+            for j in range(1, len(self._lattice.indices[i])):
+                order_next = self._lattice.bond_orders[i][j]
+                for t in range(order_prev, order_next):
+                    Hbond = Hbond @ Hbond
+                order_prev = order_next
+                self._H += self._lattice.bonds[self._lattice.indices[i][j]].J * Hbond
         
         self._H_computed = True
-        #H = 0.5*(H + H.transpose())
         
         return self._H
     
@@ -139,10 +152,15 @@ class SUNFundamental:
             w = np.zeros(self._falpha)
             
             # serial loop over all bonds in the lattice
-            for link in self._lattice.links:
+            for bond in self._lattice.bonds:
                 
-                # transform transposition (link[0], link[1]) into product of adjacent transpositions
-                adja_transpos = sun.transposition_to_adjacent_transpositions(link)
+                if (bond.bond_order>1):
+                    raise ValueError('ERROR : SUNFundamental : multiply : bonds should be order-1 '
+                                     'bonds (bilinear Heisenberg exchange is the only non-trivial interaction '
+                                     'for 1 particle per site).')
+                
+                # transform transposition (bond.site1, bond.site2) into product of adjacent transpositions
+                adja_transpos = sun.transposition_to_adjacent_transpositions(bond.bond)
                 
                 # parallel loop over all states in the Hilbert space
                 for i in range(0, self._falpha):
@@ -170,8 +188,8 @@ class SUNFundamental:
                             indj = sun.binary_search_SYT(ydev[j], self._Y)
                         else:
                             indj = sun.SYT_to_index(ydev[j], self._alpha, self._basisOrder)
-                        #w[indj] += coeff[j] * v[i] # this is prone to concurrent writes when the loop on i is parallel
-                        w[i] += coeff[j] * v[indj] # trick to avoid concurrent writes on w
+                        #w[indj] += bond.J * coeff[j] * v[i] # this is prone to concurrent writes when the loop on i is parallel
+                        w[i] += bond.J * coeff[j] * v[indj] # trick to avoid concurrent writes on w
             
             return w
     
