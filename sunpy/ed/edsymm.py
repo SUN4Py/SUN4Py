@@ -14,58 +14,109 @@ from sunpy.sun import sun
 
 
 class SUNSymmetric:
+    """
+    Class to represent SU(N) Heisenberg models with m particle per site in the 
+    symmetric m-box representation
+    """
     
     def __init__(self, Ns, N, m, alpha, lattice):
+        """
+        Constructor of ED engine for m particles per site in the symmetric irrep
         
-        if not np.sum(alpha)==Ns*m:
+        Parameters
+        ----------
+        Ns : int
+            number of sites
+        N : int
+            SU(N)
+        m : int
+            number of particles per site
+        alpha : numpy array
+            irrep
+        lattice : Lattice
+            lattice of bonds
+        """
+        
+        if not np.sum(alpha)==int(Ns)*int(m):
             sys.exit('Problem: number of boxes in alpha must match Ns*m')
         
-        if not lattice.Ns==Ns:
+        if not lattice.Ns==int(Ns):
             sys.exit('lattice object does not have the correct number of sites.')
         
         if m>3:
             sys.exit('Code not yet implemented for m>3')
         
-        self.N = N
-        self.Ns = Ns
-        self.m = m
-        self.alpha = np.copy(alpha)
-        self.n = np.sum(self.alpha)
-        self.lattice = lattice
-        self.Y = sun.get_SYT_symm(self.alpha, self.m)
-        self.CY = sun.get_column(self.Y)
-        self.NY = self.Y.shape[0]
+        self._N = int(N)
+        self._Ns = int(Ns)
+        self._m = int(m)
+        self._alpha = np.copy(alpha)
+        self._n = np.sum(self._alpha)
+        self._lattice = lattice
+        
+        self._Y = None
+        self._CY = None
+        self._NY = sun.multiplicity_symm(self._alpha, self._m)
+        self._basis_computed = False
+        
+        self._H = None
+        self._H_computed = False
+        
+        return
     
+    def get_basis(self):
+        """
+        Compute the collection of SYTs
+        """
+        self._Y = sun.get_SYT_symm(self._alpha, self._m)
+        self._CY = sun.get_column(self._Y)
+        self._NY = self._Y.shape[0]
+        self._basis_computed = True
+        return
     
     def sun_hamiltonian(self):
+        """
+        Compute the Hamiltonian
+        """
         
-        H = scipy.sparse.csr_matrix((self.NY, self.NY))
+        if (self._basis_computed==False):
+            self.get_basis()
         
-        for link in self.lattice.links:
+        self._H = scipy.sparse.csr_matrix((self._NY, self._NY))
+        
+        for i, link in enumerate(self._lattice.links):
             
-            Hbond = scipy.sparse.csr_matrix((self.NY, self.NY))
+            Hbond = scipy.sparse.csr_matrix((self._NY, self._NY))
             
-            for i in range(0, self.NY):
-                
+            for j in range(0, self._NY):
                 ydev, cydev, coeffdev = sun.developp_symmetric(
-                                            self.alpha, 
-                                            self.Y[i], 
-                                            self.CY[i], 
-                                            self.m, 
+                                            self._alpha, 
+                                            self._Y[j], 
+                                            self._CY[j], 
+                                            self._m, 
                                             link[0], 
                                             link[1])
-                ndev = len(coeffdev)                
-                row = np.full(shape=(ndev,), fill_value=i, dtype=int)
-                col = np.zeros(shape=(ndev,), dtype=int)
-                
+                ndev = len(coeffdev)
+                row = np.full(shape=(ndev,), fill_value=j, dtype=int)
+                col = np.zeros(shape=(ndev,), dtype=int)   
                 for t in range(0, ndev):
-                    index = np.argwhere(np.sum(abs(self.Y - ydev[t]), axis=1) < 1e-13).flatten()[0]                    
+                    index = np.argwhere(np.sum(abs(self._Y - ydev[t]), axis=1)==0).flatten()[0]
                     col[t] = index
-                
-                Hbond += scipy.sparse.csr_matrix( (coeffdev, (row, col)), shape=(self.NY, self.NY))
+                Hbond += scipy.sparse.csr_matrix( (coeffdev, (row, col)), shape=(self._NY, self._NY))
             
-            H += Hbond
+            order_next = self._lattice.bond_orders[i][0]
+            for t in range(1, order_next):
+                Hbond = Hbond @ Hbond
+            order_prev = order_next
+            
+            self._H += self._lattice.bonds[self._lattice.indices[i][0]].J * Hbond
+            
+            for j in range(1, len(self._lattice.indices[i])):
+                order_next = self._lattice.bond_orders[i][j]
+                for t in range(order_prev, order_next):
+                    Hbond = Hbond @ Hbond
+                order_prev = order_next
+                self._H += self._lattice.bonds[self._lattice.indices[i][j]].J * Hbond
         
-        #H = 0.5 * (H + H.transpose())
+        self._H_computed = True
         
-        return H
+        return self._H

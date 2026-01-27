@@ -132,7 +132,7 @@ class GeneralBasis:
         
         self.alpha = alpha
         self.beta = beta
-        self.N = N
+        self.N = int(N)
         self.Ns = beta.shape[0]
         
         self.Y, self.CY = sun.get_SYT_general(self.alpha, self.beta)
@@ -161,14 +161,13 @@ class GeneralBasis:
         
         return
     
-    
-    
+        
     def __get_index_sec(self, ec, site):
-        
-        si = site*self.NY + ec
-        
-        return si
-    
+        """
+        Get the linear index of an equivalence class at a given site
+        """
+        si = site*self.NY + ec        
+        return si    
     
     
     def get_states_of_class(self, ec, sites):
@@ -565,30 +564,73 @@ def get_projector(beta_loc, y, cy, particles):
 
 
 class SUNGeneral:
+    """
+    Class to represent SU(N) Heisenberg models with any irreducible representation 
+    at each site
+    """
     
     def __init__(self, alpha, beta, N, lattice):
+        """
+        Constructor
         
-        self.N = N
-        self.Ns = beta.shape[0]
-        self.alpha = alpha
-        self.beta = beta
-        self.lattice = lattice
+        Parameters
+        ----------
+        alpha : numpy array
+            global target irrep
+        beta : numpy array
+            local irreps (stored in the rows)
+        N : int
+            SU(N)
+        lattice : Lattice
+            lattice of bonds
         
-        self.Basis = GeneralBasis(alpha, beta, N)
+        Remarks
+        -------
+        - The number of sites is given by the number of rows in beta
+        - The number of boxes in alpha must match with the sum of the number of 
+          boxes in each local irrep
+        """
+        assert(np.sum(alpha)==np.sum(beta))
+        assert(beta.shape[1]<=int(N))
+        assert(len(alpha)<=N)
+        assert(lattice.Ns==beta.shape[0])
+        
+        self._N = int(N)
+        self._Ns = beta.shape[0]
+        self._alpha = np.copy(alpha)
+        self._beta = np.copy(beta)
+        self._lattice = lattice
+        
+        self._basis_computed = False
+        
+        self._H = None
+        self._H_computed = False
         
         return
     
-    
+    def get_basis(self):
+        """
+        
+        """
+        self._Basis = GeneralBasis(self._alpha, self._beta, self._N)
+        self._basis_computed = True
+        return
     
     def sun_hamiltonian(self):
+        """
+        Compute the Hamiltonian
+        """
+        
+        if (self._basis_computed==False):
+            self.get_basis()
         
         print('==========================')
         print('Generating Hamiltonian')
         print('==========================')
         
-        H = scipy.sparse.csr_matrix((self.Basis.NH, self.Basis.NH))
+        self._H = scipy.sparse.csr_matrix((self._Basis.NH, self._Basis.NH))
         
-        for link in self.lattice.links:
+        for i, link in enumerate(self._lattice.links):
             
             site1 = link[0]
             site2 = link[1]
@@ -597,20 +639,20 @@ class SUNGeneral:
             print('link = ', site1, ' -- ', site2)
             print('==========================')
             
-            m1 = np.sum(self.beta[site1])
-            m2 = np.sum(self.beta[site2])
+            m1 = np.sum(self._beta[site1])
+            m2 = np.sum(self._beta[site2])
             
-            particles1 = np.sum(self.beta[0:site1]) + np.arange(m1)
-            particles2 = np.sum(self.beta[0:site2]) + np.arange(m2)
+            particles1 = np.sum(self._beta[0:site1]) + np.arange(m1)
+            particles2 = np.sum(self._beta[0:site2]) + np.arange(m2)
             
             # all particles from site1 to site2
-            allparticles = np.sum(self.beta[0:site1]) + np.arange(np.sum(self.beta[site1:site2+1]))
+            allparticles = np.sum(self._beta[0:site1]) + np.arange(np.sum(self._beta[site1:site2+1]))
             
-            Hbond = scipy.sparse.csr_matrix((self.Basis.NH, self.Basis.NH))
+            Hbond = scipy.sparse.csr_matrix((self._Basis.NH, self._Basis.NH))
             
-            for ec1 in range(self.Basis.NY):
+            for ec1 in range(self._Basis.NY):
                 # generates the states living on all sites [site1, ... , site2]
-                states_class1 = self.Basis.get_states_of_class(ec=ec1, sites=link)
+                states_class1 = self._Basis.get_states_of_class(ec=ec1, sites=link)
                 states_class1.Ydev = sun.fill_subSYT(states_class1.Ydev, states_class1.alphaM, fill_type='largest')
                 
                 # generate all SYTs associated to [site1, ..., site2]
@@ -650,7 +692,7 @@ class SUNGeneral:
                 Hint = scipy.sparse.csr_matrix(P1[0].shape)
                 
                 for perm in perms:
-                    atr = sun.transposition_to_adjacent_transpositions(perm)                    
+                    atr = sun.transposition_to_adjacent_transpositions(perm)   
                     Hp = sun.get_matrix_permutation(P1, atr-np.sum(states_class1.alphaB))
                     #Hint += Hp.todense()
                     Hint += Hp
@@ -658,14 +700,14 @@ class SUNGeneral:
                 Hcoeffs1 = Hint @ coeffs1
                 
                 # Determine all relevant equivalence classes for the <bra|
-                ind_ec2 = self.Basis.get_sister_equivalence_class(ec1, particles1, particles2)
+                ind_ec2 = self._Basis.get_sister_equivalence_class(ec1, particles1, particles2)
                 
                 for ec2 in ind_ec2:
                     
                     if ec2==ec1:
                         states_class2 = states_class1
                     else:
-                        states_class2 = self.Basis.get_states_of_class(ec=ec2, sites=link)
+                        states_class2 = self._Basis.get_states_of_class(ec=ec2, sites=link)
                         states_class2.Ydev = sun.fill_subSYT(states_class2.Ydev, states_class2.alphaM, fill_type='largest')                    
                     
                     # re-index components of states onto the full local basis              
@@ -682,13 +724,13 @@ class SUNGeneral:
                     Hloc = coeffs2.T @ Hcoeffs1
                     
                     # duplicate and embedd elements in interaction Hamiltonian in full basis
-                    ind_st_1 = self.Basis.find_indices(ec1, site1, site2)
-                    ind_st_2 = self.Basis.find_indices(ec2, site1, site2)
+                    ind_st_1 = self._Basis.find_indices(ec1, site1, site2)
+                    ind_st_2 = self._Basis.find_indices(ec2, site1, site2)
                     
                     nD = ind_st_1.shape[1]
                     n1 = coeffs1.shape[1]
                     n2 = coeffs2.shape[1]
-                    assert nD==ind_st_2.shape[1]                    
+                    assert nD==ind_st_2.shape[1]
                     
                     rows = np.matlib.repmat(ind_st_2, 1, n1)
                     rows = np.reshape(rows, (nD*n1*n2, ))
@@ -697,18 +739,31 @@ class SUNGeneral:
                     vals = np.repeat(Hloc, repeats=nD)
                     HTemp = scipy.sparse.csr_matrix(
                              (vals, (rows, cols)),
-                             shape=(self.Basis.NH, self.Basis.NH))
+                             shape=(self._Basis.NH, self._Basis.NH))
                     if not ec1==ec2:
                         HTemp += scipy.sparse.csr_matrix(
                                     (vals, (cols, rows)),
-                                    shape=(self.Basis.NH, self.Basis.NH))
+                                    shape=(self._Basis.NH, self._Basis.NH))
                     
                     Hbond += HTemp
             
-            H += Hbond
+            order_next = self._lattice.bond_orders[i][0]
+            for t in range(1, order_next):
+                Hbond = Hbond @ Hbond
+            order_prev = order_next
             
-        return H
-
+            self._H += self._lattice.bonds[self._lattice.indices[i][0]].J * Hbond
+            
+            for j in range(1, len(self._lattice.indices[i])):
+                order_next = self._lattice.bond_orders[i][j]
+                for t in range(order_prev, order_next):
+                    Hbond = Hbond @ Hbond
+                order_prev = order_next
+                self._H += self._lattice.bonds[self._lattice.indices[i][j]].J * Hbond
+        
+        self._H_computed = True
+        
+        return self._H
 
 
 def sg_null_space(A, rcond=None):
