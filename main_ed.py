@@ -17,20 +17,78 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 import numpy as np
-import scipy.sparse
-import time
 
-from sunpy.sun import sun
+#from sunpy.sun import sun
 from sunpy.ed import edfund
 from sunpy.ed import edsymm
-import sunpy.ed.edgeneral
+from sunpy.ed import edgeneral
 import sunpy.ed.lattice
 
+###############################################################################
+# Example for ED with fundamental irrep at each site
+###############################################################################
 
-# Example of creation and diagonalization of Heisenberg Hamiltonian with local
-# adjoint irrep on each site
+print(':::::::::::::::::::::::::::::::')
+print('EXAMPLE FUNDAMENTAL IRREPS')
+print(':::::::::::::::::::::::::::::::')
+
+N = int(3) # SU(N)
+alpha = np.array([4, 4, 2], dtype=int) # global target irrep
+Ns = np.sum(alpha) # number of sites
+latt0 = sunpy.ed.lattice.chainLattice(Ns=Ns, isPBC=True)
+latt0.plot()
+
+engine = edfund.EDSolverFund(N, Ns, alpha, latt0) # light initialization
+engine.sun_hamiltonian() # build Hamiltonian matrix
+EGS, _ = engine.diagonalize(num_eigenvalues=1)
+print('Target irrep: ', alpha)
+print('GS Energy: ', EGS[0])
 
 
+###############################################################################
+# Example for ED with m-box symmetric irrep at each site
+###############################################################################
+
+print(':::::::::::::::::::::::::::::::')
+print('EXAMPLE SYMMETRIC IRREPS')
+print(':::::::::::::::::::::::::::::::')
+
+N = int(3) # SU(N)
+m = int(3) # number of particles per site
+alpha = np.array([4, 4, 4], dtype=int) # global target irrep
+Ns = np.sum(alpha)//m # number of sites
+isPBC = False
+latt1 = sunpy.ed.lattice.chainLattice(Ns=Ns, isPBC=isPBC)
+
+# Let's add the biquadratic couplings which make it the AKLT model of 
+# Greiter & Rachel, expressed in the language of permutations
+# See Eq. (S30) in the Supplemental Material of
+# Gozel, Nataf, Mila, Physical Review Letters 125, 057202 (2020)
+# https://doi.org/10.1103/PhysRevLett.125.057202
+# And see https://doi.org/10.1103/PhysRevB.75.184441 for the original formulation
+# by Greiter & Rachel
+J2 = 1.0/4.0 # biquadratic coupling
+for i in range(Ns-1):
+    latt1.add_bond(i, i+1, 'HB2', J2)
+latt1.plot()
+
+engine = edsymm.EDSolverSymm(N, Ns, alpha, m, latt1)
+engine.sun_hamiltonian()
+EGS, _ = engine.diagonalize(num_eigenvalues=1)
+# Let's add the constant energy shift which was omitted so far
+EGS += (Ns-1+int(isPBC)) * 3.0/4.0
+print('Target irrep: ', alpha)
+print('GS Energy of AKLT model: ', EGS[0])
+assert(abs(EGS[0])<1.0e-13)
+
+
+###############################################################################
+# Example for ED with general irrep at each site (here, adjoint)
+###############################################################################
+
+print(':::::::::::::::::::::::::::::::')
+print('EXAMPLE GENERAL LOCAL IRREPS')
+print(':::::::::::::::::::::::::::::::')
 
 N = int(3) # SU(N)
 Ns = int(5) # number of sites
@@ -42,61 +100,26 @@ beta = np.tile(beta_loc, (Ns, 1)) # same local irrep on each site
 # using different irreps at the edges
 beta_loc_edge = np.array([2, 1, 0], dtype=int)
 beta_loc_bulk = np.array([3, 0, 0], dtype=int)
+<<<<<<< a0bd5eca243a2117f8a6d332d2adde8161610b6c
 beta = np.tile(beta_loc, (Ns, 1))
+=======
+beta = np.tile(beta_loc, (Ns, 1)) # np.matlib.repmat(beta_loc, Ns, 1)
+>>>>>>> Replace numpy.matlib.repmat by numpy.tile
 beta[0] = beta_loc_edge
 beta[-1] = beta_loc_edge
 '''
 
-lattice = sunpy.ed.lattice.chainLattice(Ns=Ns, isPBC=False)
+latt2 = sunpy.ed.lattice.chainLattice(Ns=Ns, isPBC=False)
+latt2.plot()
 
-start = time.perf_counter()
-engine = sunpy.ed.edgeneral.SUNGeneral(alpha, beta, N, lattice)
-end = time.perf_counter()
-print("Elapsed init general = {}s".format((end - start)))
-
-start = time.perf_counter()
-H = engine.sun_hamiltonian()
-end = time.perf_counter()
-print("Elapsed Hamiltonian general = {}s".format((end - start)))
-
-if H.shape[0]==1:
-    EGS = H[0,0]
-elif H.shape[0]<100:
-    H = H.todense()
-    E, _ = np.linalg.eigh(H)
-    EGS = E[0]
-else:
-    E, PSI = scipy.sparse.linalg.eigsh(H, k=1, which='SA')
-    EGS = E[0]
-
-print('GS Energy: ', EGS)
-print('GS Energy per site: ', EGS/Ns)
+engine = edgeneral.EDSolverGeneral(N, Ns, alpha, beta, latt2)
+engine.get_basis()
+engine.sun_hamiltonian()
+EGS, _ = engine.diagonalize(num_eigenvalues=1)
+print('Target irrep: ', alpha)
+print('GS Energy: ', EGS[0])
 
 
-'''
-# Example for symmetric local constraints with m particles per site
-N = int(3) # SU(N)
-m = int(2) # m=2 particles per site
-alpha = np.array([4, 4, 2], dtype=int) # global target irrep
-Ns = np.sum(alpha)//m # number of sites
-
-# get the lattice
-lattice = sunpy.ed.lattice.chainLattice(Ns=Ns, isPBC=False)
-
-# build SU(N) engine
-if m==1:
-    Engine = edfund.SUNFundamental(Ns=Ns, N=N, alpha=alpha, lattice=lattice)
-else:
-    Engine = edsymm.SUNSymmetric(Ns=Ns, N=N, m=m, alpha=alpha, lattice=lattice)
-
-# construct matrix of Hamiltonian
-H = Engine.sun_hamiltonian()
-
-# diagonalize
-E, PSI = scipy.sparse.linalg.eigsh(H, k=1, which='SA')
-EGS = E[0]
-print('GS Energy: ', E[0])
-'''
 
 '''
 # This shows how to use get_subSYT, fill_subSYT and how to print SYTs to text
@@ -129,7 +152,11 @@ N = int(3) # SU(N)
 Ns = int(8) # numbr of sites
 alpha = np.array([Ns, Ns, Ns], dtype=int) # global target sector
 beta_loc = np.array([3, 0, 0], dtype=int) # local irrep ---> symmetric irrep
+<<<<<<< a0bd5eca243a2117f8a6d332d2adde8161610b6c
 beta = np.tile(beta_loc, (Ns, 1))
+=======
+beta = np.tile(beta_loc, (Ns, 1)) # np.matlib.repmat(beta_loc, Ns, 1)
+>>>>>>> Replace numpy.matlib.repmat by numpy.tile
 
 start = time.perf_counter()
 Ysymm = sun.get_SYT_symm(alpha, 3, order='iLLOS')

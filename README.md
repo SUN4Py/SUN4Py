@@ -1,6 +1,6 @@
 # SUNPy
 
-SUNPy (for SU(_N_)Py) is a Python library implementing the SU(_N_) symmetry, exploiting the Schur-Weyl duality between the SU(_N_) group and the symmetric group $S_N$. The library implements the symmetry through Standard Young Tableaux.
+SUNPy is a Python library implementing the SU(_N_) symmetry, exploiting the Schur-Weyl duality between the SU(_N_) group and the symmetric group $S_n$. The library implements the symmetry through Standard Young Tableaux.
 
 It allows solving the SU(_N_) Heisenberg model (or any other SU(_N_)-symmetric model) on a lattice making full use of the SU(_N_) symmetry.
 
@@ -8,7 +8,7 @@ It allows solving the SU(_N_) Heisenberg model (or any other SU(_N_)-symmetric m
 
 - Compute basic quantities related to irreducible representations of SU(_N_) (dimension, number of standard Young tableaux, quadratic Casimir, etc ...).
 - Generate standard Young tableaux for any irreducible representation of SU(_N_), with or without internal constraints.
-- Solve Heisenberg-like models on any lattice, for any target irreducible representation, and any local constraints, using Exact Diagonalization.
+- Solve Heisenberg-like models on any lattice, for any target irreducible representation and any local constraints, using Lanczos-based Exact Diagonalization.
 - Compute subduction coefficients.
 - Perform DMRG calculations.
 
@@ -22,8 +22,8 @@ SUNPy is a Python 3 implementation requiring:
 
 - numpy
 - scipy
+- matplotlib
 - pytest
-
 
 ## Running tests
 
