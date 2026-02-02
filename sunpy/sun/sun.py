@@ -1800,6 +1800,27 @@ def multiplicity_symm(alpha, m) -> int:
     return kostka
 
 
+def multiplicity_antisymm(alpha, m) -> int:
+    """
+    Compute the total number of SYTs associated to the irrep alpha for local 
+    m-box antisymmetric constraints
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    m : int
+        number of boxes in local antisymmetric irrep
+    
+    Returns
+    -------
+    kostka : int
+        number of SYTs
+    """
+    kostka = multiplicity_symm(transpose_shape(alpha), m)
+    return kostka
+
+
 def get_bottom_corner(alpha) -> np.ndarray:
     """
     Extract the bottom corners of an irrep
@@ -2738,8 +2759,7 @@ def get_SYT_antisymm(alpha, m, order='LLOS') -> np.ndarray:
     nly = len(np.argwhere(alpha>0).flatten())
     alpha = np.hstack([alpha[0:nly], 0])
     
-    # NY = multiplicitiy_antisymm(alpha, m)
-    NY = int(1e5)
+    NY = multiplicity_antisymm(alpha, m)
     
     Y = np.full(shape=(10*NY, n), fill_value=-1, dtype=int)
     nbsyt = int(1)

@@ -61,7 +61,7 @@ class EDSolverAntiSymm(EDSolver):
         if self._m>2:
             sys.exit('ERROR : EDEngineAntiSymm : __init__ : Code not yet implemented for m>2')
         
-        self._NY = sun.multiplicity_symm(sun.transpose_shape(self._alpha), self._m) # sun.multiplicity_antisymm(self._alpha, self._m)
+        self._NY = sun.multiplicity_antisymm(self._alpha, self._m)
         
         return
         
