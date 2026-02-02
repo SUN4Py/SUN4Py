@@ -217,17 +217,17 @@ def develop_symmetry_two_ensembles(nu, y, xvec1, xvec2, symmetry):
     NY = Ny1 * Ny2
     Y = np.full(shape=(NY, n), fill_value=-1, dtype=int)    
     
-    Y[:, 0:m1] = np.matlib.repmat(y[0:m1], NY, 1)
+    Y[:, 0:m1] = np.tile(y[0:m1], (NY, 1))
     if M2<n-1:
-        Y[:, M2+1:] = np.matlib.repmat(y[M2+1:], NY, 1)
+        Y[:, M2+1:] = np.tile(y[M2+1:], (NY, 1))
     
     Y[:, xvec1] = np.repeat(y1[:, xvec1], repeats=Ny2, axis=0)
-    Y[:, xvec2] = np.matlib.repmat(y2[:, xvec2], Ny1, 1)
+    Y[:, xvec2] = np.tile(y2[:, xvec2], (Ny1, 1))
     coeffY = np.kron(V1, V2)
     
     '''
     # other possible ordering - not a great choice
-    Y[:, xvec1] = np.matlib.repmat(y1[:, xvec1], Ny2, 1)
+    Y[:, xvec1] = np.tile(y1[:, xvec1], (Ny2, 1))
     Y[:, xvec2] = np.repeat(y2[:, xvec2], repeats=Ny1, axis=0)
     coeffY = np.kron(V2, V1)
     ''' 
@@ -248,8 +248,8 @@ def __develop_symmetry(y, nu_M, nu_m, M, m, symmetry):
     y2 = sun.get_subSYT(nu_M, nu_m, order='LLOS')
     
     Ny2 = y2.shape[0]
-    y_lowpart = np.matlib.repmat(y[0:m], Ny2, 1)
-    y_highpart = np.matlib.repmat(y[M+1:], Ny2, 1)
+    y_lowpart = np.tile(y[0:m], (Ny2, 1))
+    y_highpart = np.tile(y[M+1:], (Ny2, 1))
     y2 = np.hstack((y_lowpart, y2, y_highpart))
     cy2 = sun.get_column(y2)
     
@@ -561,8 +561,8 @@ def project_symmetry(y1, y2, Y, CY, COEFF_FINAL, m, symmetry, sort=True):
             
             if not y1[n1-2]==y1[n1-1]:
                 # symmetrize n1-2 and n1-1
-                Y = np.matlib.repmat(Y, 2, 1)
-                COEFF_FINAL = np.matlib.repmat(COEFF_FINAL, 1, 2).flatten()
+                Y = np.tile(Y, (2, 1))
+                COEFF_FINAL = np.tile(COEFF_FINAL, 2)
                 Y[NY:, n1-2] = Y[:NY, n1-1]
                 Y[NY:, n1-1] = Y[:NY, n1-2]
                 CY = sun.get_column(Y)
@@ -593,8 +593,8 @@ def project_symmetry(y1, y2, Y, CY, COEFF_FINAL, m, symmetry, sort=True):
             rhoz = 1.0/sun.get_axial_distance(y1, cy1, n1-2, n1-1)
             assert(abs(1./rhox+1./rhoz-1./rhoy)<1.0e-12)
             
-            Y = np.matlib.repmat(Y, 6, 1)
-            COEFF_FINAL = np.matlib.repmat(COEFF_FINAL, 1, 6).flatten()
+            Y = np.tile(Y, (6, 1))
+            COEFF_FINAL = np.tile(COEFF_FINAL, 6)
             
             st = NY
             
@@ -712,8 +712,8 @@ def project_symmetry(y1, y2, Y, CY, COEFF_FINAL, m, symmetry, sort=True):
             
             if not cy1[n1-2]==cy1[n1-1]:
                 # antisymmetrize n1-2 and n1-1
-                CY = np.matlib.repmat(CY, 2, 1)
-                COEFF_FINAL = np.matlib.repmat(COEFF_FINAL, 1, 2).flatten()
+                CY = np.tile(CY, (2, 1))
+                COEFF_FINAL = np.tile(COEFF_FINAL, 2)
                 CY[NY:, n1-2] = CY[:NY, n1-1]
                 CY[NY:, n1-1] = CY[:NY, n1-2]
                 Y = sun.get_column(CY) # get_column is an involution
@@ -743,8 +743,8 @@ def project_symmetry(y1, y2, Y, CY, COEFF_FINAL, m, symmetry, sort=True):
             rhoz = 1.0/sun.get_axial_distance(y1, cy1, n1-2, n1-1)
             assert(abs(1./rhox+1./rhoz-1./rhoy)<1.0e-12)
             
-            CY = np.matlib.repmat(CY, 6, 1)
-            COEFF_FINAL = np.matlib.repmat(COEFF_FINAL, 1, 6).flatten()
+            CY = np.tile(CY, (6, 1))
+            COEFF_FINAL = np.tile(COEFF_FINAL, 6)
             
             st = NY
             

@@ -341,12 +341,10 @@ def get_SDC(N, nu, nu1, l1, nu2, l2, ref2firstLLOS=True, ref1firstLLOS=True, **k
                                     symmetry=symmetryshortcut)
             N_temp = len(coeff_temp)
             
-            ydev_t = np.matlib.repmat(ydev_t, N_temp, 1)
+            ydev_t = np.tile(ydev_t, (N_temp, 1))
             y_temp = np.repeat(y_temp[:, rc1], repeats=Nt, axis=0)
             ydev_t[:, rc1] = y_temp
-            coeffdev_t = np.multiply( np.matlib.repmat(coeffdev_t, 1, N_temp).flatten(), 
-                                      np.repeat(coeff_temp, Nt) )
-            
+            coeffdev_t = np.multiply( np.tile(coeffdev_t, N_temp), np.repeat(coeff_temp, Nt) )
             Nt *= N_temp
         
         # TO DO need to define a sum_develop without column positions

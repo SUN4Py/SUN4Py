@@ -158,7 +158,7 @@ def get_SDC(N, nu, nu1, nu2, Y2=None, ref2firstLLOS=True, ref1firstLLOS=True):
     
     # Fill all obtained SYTs with numbers from 0 to n1-1
     Y = np.zeros(shape=(NY, n), dtype=int)
-    Y[:, :n1] = np.matlib.repmat(y1, NY, 1)
+    Y[:, :n1] = np.tile(y1, (NY, 1))
     Y[:, n1:] = Ys
     CY = sun.get_column(Y)
     

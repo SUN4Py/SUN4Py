@@ -242,7 +242,7 @@ class GeneralBasis:
             
             # "kronecker cross" SYTs (merging)
             A = np.repeat(local_states_to_add.Ydev[:,-m_to_add:] + off1, repeats=q, axis=0)
-            B = np.matlib.repmat(out.Ydev[:,-mtot:] + off2, qadd, 1)
+            B = np.tile(out.Ydev[:,-mtot:] + off2, (qadd, 1))
             out.Ydev = np.concatenate((A, B), axis=1)
             
             # compute coefficients
@@ -688,7 +688,7 @@ class SUNGeneral:
                 
                 # compute all transpositions between site1 and site2
                 perms = np.stack( (np.repeat(particles1, repeats=len(particles2)), 
-                                   np.matlib.repmat(particles2, 1, len(particles1)).flatten()),
+                                   np.tile(particles2, len(particles1))),
                                    axis=1 )
                 
                 # Compute shift between global numbering (particles1, particles2)
@@ -743,9 +743,9 @@ class SUNGeneral:
                     n2 = coeffs2.shape[1]
                     assert nD==ind_st_2.shape[1]
                     
-                    rows = np.matlib.repmat(ind_st_2, 1, n1)
+                    rows = np.tile(ind_st_2, (1, n1))
                     rows = np.reshape(rows, (nD*n1*n2, ))
-                    cols = np.matlib.repmat(ind_st_1, n2, 1)
+                    cols = np.tile(ind_st_1, (n2, 1))
                     cols = np.reshape(cols, (nD*n1*n2, ))
                     vals = np.repeat(Hloc, repeats=nD)
                     HTemp = scipy.sparse.csr_matrix(

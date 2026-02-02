@@ -36,13 +36,13 @@ N = int(3) # SU(N)
 Ns = int(5) # number of sites
 alpha = np.array([6, 5, 4], dtype=int) # global target sector
 beta_loc = np.array([2, 1, 0], dtype=int) # local irrep
-beta = np.matlib.repmat(beta_loc, Ns, 1) # same local irrep on each site
+beta = np.tile(beta_loc, (Ns, 1)) # same local irrep on each site
 
 '''
 # using different irreps at the edges
 beta_loc_edge = np.array([2, 1, 0], dtype=int)
 beta_loc_bulk = np.array([3, 0, 0], dtype=int)
-beta = np.matlib.repmat(beta_loc, Ns, 1)
+beta = np.tile(beta_loc, (Ns, 1))
 beta[0] = beta_loc_edge
 beta[-1] = beta_loc_edge
 '''
@@ -129,7 +129,7 @@ N = int(3) # SU(N)
 Ns = int(8) # numbr of sites
 alpha = np.array([Ns, Ns, Ns], dtype=int) # global target sector
 beta_loc = np.array([3, 0, 0], dtype=int) # local irrep ---> symmetric irrep
-beta = np.matlib.repmat(beta_loc, Ns, 1)
+beta = np.tile(beta_loc, (Ns, 1))
 
 start = time.perf_counter()
 Ysymm = sun.get_SYT_symm(alpha, 3, order='iLLOS')
