@@ -54,6 +54,30 @@ def test_multiplicity(alpha, expected):
     assert(sun.multiplicity(alpha)==expected)
 
 
+@pytest.mark.parametrize("alpha, m, expected", [
+    # See Tables I & II of Nataf & Mila, Phys. Rev. B 93, 155134 (2016)
+    # -- m=2 --
+    (np.array([10, 10, 10], dtype=int), int(2), int(6879236)),
+    (np.array([11, 10, 9], dtype=int), int(2), int(44994040)),
+    (np.array([12, 12, 12], dtype=int), int(2), int(767746656)),
+    (np.array([8, 8, 8, 8], dtype=int), int(2), int(190720530)),
+    (np.array([9, 8, 8, 7], dtype=int), int(2), int(2077175100)),
+    (np.array([6, 6, 6, 6, 6], dtype=int), int(2), int(25468729)),
+    (np.array([7, 6, 6, 6, 5], dtype=int), int(2), int(377182806)),
+    (np.array([4, 4, 4, 4, 4, 4], dtype=int), int(2), int(16071)),
+    (np.array([5, 4, 4, 4, 4, 3], dtype=int), int(2), int(272712)),
+    (np.array([4, 4, 4, 4, 4, 4, 4, 4], dtype=int), int(2), int(3607890)),
+    (np.array([5, 4, 4, 4, 4, 4, 4, 3], dtype=int), int(2), int(93683590)),
+    #(np.array([4, 4, 4, 4, 4, 4, 4, 4, 4, 4], dtype=int), int(2), int(1135871490)),
+    # -- m=3 --
+    (np.array([12, 12, 12], dtype=int), int(3), int(3463075)),
+    (np.array([9, 9, 9, 9], dtype=int), int(3), int(10260228)),
+    (np.array([6, 6, 6, 6, 6, 6], dtype=int), int(3), int(1113860))
+])
+def test_multiplicity_symm(alpha, m, expected):
+    assert(sun.multiplicity_symm(alpha, m)==expected)
+
+
 @pytest.mark.parametrize("alpha, expected", [
     (np.array([1], dtype=int), 0),
     (np.array([2], dtype=int), 1),
