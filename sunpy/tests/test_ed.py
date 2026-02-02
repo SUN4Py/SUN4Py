@@ -178,7 +178,7 @@ def test_energy(alpha, m, symmetry, N, isPBC, expected):
             elif '::antisymmetric' in symmetry:
                 beta_loc = np.zeros(shape=N, dtype=int)
                 beta_loc[:m] = int(1)
-            beta = np.matlib.repmat(beta_loc, Ns, 1)
+            beta = np.tile(beta_loc, (Ns, 1))
             Engine = edgeneral.SUNGeneral(alpha, beta, N, latt)
         else:
             sys.exit('symmetry undefined.')

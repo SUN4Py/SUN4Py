@@ -133,6 +133,6 @@ def states_rme(N, num_irreps, irreps, m=1, **kwargs):
     states = np.zeros(shape=(num_states2, 2*(m+1)), dtype=int)
     
     states[:, 0:(m+1)] = np.repeat(states1, repeats=num_states, axis=0)
-    states[:, (m+1):] = np.matlib.repmat(states1, num_states, 1)
+    states[:, (m+1):] = np.tile(states1, (num_states, 1))
     
     return states

@@ -631,7 +631,7 @@ class DMRG:
                         # sparse version
                         #-------------------
                         indx_sp = np.repeat(indx, repeats=len(indy))
-                        indy_sp = np.matlib.repmat(indy, 1, len(indx)).flatten()
+                        indy_sp = np.tile(indy, len(indx))
                         Hcoffdiag_sparse += scipy.sparse.csr_matrix((np.reshape(M, -1), (indx_sp, indy_sp)), 
                                                          (self._num_states[n][p], self._num_states[n][p]))
                         #assert(np.linalg.norm(Hcoffdiag_sparse.todense() -  Hcoffdiag)<1.0e-10)
@@ -652,7 +652,7 @@ class DMRG:
                 # sparse version
                 #-------------------
                 indx_sp = np.repeat(indx, repeats=gpiph)
-                indy_sp = np.matlib.repmat(indx, 1, gpiph).flatten()
+                indy_sp = np.tile(indx, gpiph)
                 Hcdiag_sparse += scipy.sparse.csr_matrix((np.reshape(Htemp, -1), (indx_sp, indy_sp)), 
                                                          (self._num_states[n][p], self._num_states[n][p]))
                 #assert(np.linalg.norm(Hcdiag_sparse.todense() -  Hcdiag)<1.0e-12)
@@ -1137,7 +1137,7 @@ class DMRG:
                 
                 bottom_vecteur_cross = np.zeros(shape=(length_bottom, 2), dtype=int)
                 bottom_vecteur_cross[:, 0] = np.repeat(bcs1, repeats=len(bcs2))
-                bottom_vecteur_cross[:, 1] = np.matlib.repmat(bcs2, 1, len(bcs1))
+                bottom_vecteur_cross[:, 1] = np.tile(bcs2, len(bcs1))
                 
                 for k in range(0, length_bottom):
                     
@@ -1262,8 +1262,8 @@ class DMRG:
                                 vecxAB_temp = np.arange(iAB1, iAB1+lenR)
                                 vecyAB_temp = np.arange(jAB1, jAB1+lenR)
                                 
-                                vecxAB = np.matlib.repmat(vecxAB_temp, 1, lenL).flatten() + np.repeat(np.arange(0, lenL)*num_relevant_states, repeats=lenR)
-                                vecyAB = np.matlib.repmat(vecyAB_temp, 1, lenL).flatten() + np.repeat(np.arange(0, lenL)*num_relevant_states, repeats=lenR)
+                                vecxAB = np.tile(vecxAB_temp, lenL) + np.repeat(np.arange(0, lenL)*num_relevant_states, repeats=lenR)
+                                vecyAB = np.tile(vecyAB_temp, lenL) + np.repeat(np.arange(0, lenL)*num_relevant_states, repeats=lenR)
                                 
                                 vecHLRx[index_cat:index_cat+lenL*lenR] = vecxAB
                                 vecHLRy[index_cat:index_cat+lenL*lenR] = vecyAB
