@@ -17,12 +17,16 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 import sys
+import time
 import numpy as np
+# from numpy.typing import NDArray # numpy>=1.20
 import scipy.sparse
 import itertools
 import math
 import copy
 
+from sunpy.ed.edbase import EDSolver
+from sunpy.ed.lattice import Lattice
 from sunpy.sun import sun
 
 
@@ -574,24 +578,26 @@ def get_projector(beta_loc, y, cy, particles):
 
 
 
-class SUNGeneral:
+class EDSolverGeneral(EDSolver):
     """
-    Class to represent SU(N) Heisenberg models with any irreducible representation 
-    at each site
+    Class to represent an exact diagonalization solver for SU(N) Heisenberg 
+    models with any irreducible representation at each site
     """
     
-    def __init__(self, alpha, beta, N, lattice):
+    def __init__(self, N: int, Ns: int, alpha, beta, lattice: Lattice):
         """
         Constructor
         
         Parameters
         ----------
-        alpha : numpy array
-            global target irrep
-        beta : numpy array
-            local irreps (stored in the rows)
         N : int
             SU(N)
+        Ns : int
+            number of sites
+        alpha : numpy array
+            irrep
+        beta : numpy array
+            local irreps (stored in the rows)
         lattice : Lattice
             lattice of bonds
         
@@ -601,30 +607,31 @@ class SUNGeneral:
         - The number of boxes in alpha must match with the sum of the number of 
           boxes in each local irrep
         """
-        assert(np.sum(alpha)==np.sum(beta))
-        assert(beta.shape[1]<=int(N))
-        assert(len(alpha)<=N)
-        assert(lattice.Ns==beta.shape[0])
         
-        self._N = int(N)
-        self._Ns = beta.shape[0]
-        self._alpha = np.copy(alpha)
+        super().__init__(N, Ns, alpha, lattice)
         self._beta = np.copy(beta)
-        self._lattice = lattice
         
-        self._basis_computed = False
+        if not self._n==np.sum(beta):
+            sys.exit('ERROR : EDEngineGeneral : __init__ : missmatch bewteen alpha and beta.')
         
-        self._H = None
-        self._H_computed = False
+        if not self._Ns==beta.shape[0]:
+            sys.exit('ERROR : EDEngineGeneral : __init__ : missmatch bewteen beta and Ns.')
+        
+        if not beta.shape[1]<=self._N:
+            sys.exit('ERROR : EDEngineGeneral : __init__ : missmatch bewteen beta and N.')
         
         return
     
     def get_basis(self):
         """
-        
+        Compute basis states
         """
+        tstart = time.perf_counter()
         self._Basis = GeneralBasis(self._alpha, self._beta, self._N)
         self._basis_computed = True
+        self._NY = self._Basis.NH
+        tend = time.perf_counter()
+        print('Elapsed time Basis construction = {}s'.format((tend - tstart)))
         return
     
     def sun_hamiltonian(self):
@@ -634,6 +641,8 @@ class SUNGeneral:
         
         if (self._basis_computed==False):
             self.get_basis()
+        
+        tstart = time.perf_counter()
         
         print('==========================')
         print('Generating Hamiltonian')
@@ -743,6 +752,7 @@ class SUNGeneral:
                     n2 = coeffs2.shape[1]
                     assert nD==ind_st_2.shape[1]
                     
+
                     rows = np.tile(ind_st_2, (1, n1))
                     rows = np.reshape(rows, (nD*n1*n2, ))
                     cols = np.tile(ind_st_1, (n2, 1))
@@ -758,24 +768,14 @@ class SUNGeneral:
                     
                     Hbond += HTemp
             
-            order_next = self._lattice.bond_orders[i][0]
-            for t in range(1, order_next):
-                Hbond = Hbond @ Hbond
-            order_prev = order_next
-            
-            self._H += self._lattice.bonds[self._lattice.indices[i][0]].J * Hbond
-            
-            for j in range(1, len(self._lattice.indices[i])):
-                order_next = self._lattice.bond_orders[i][j]
-                for t in range(order_prev, order_next):
-                    Hbond = Hbond @ Hbond
-                order_prev = order_next
-                self._H += self._lattice.bonds[self._lattice.indices[i][j]].J * Hbond
+            self._add_H_link(i, Hbond)
         
         self._H_computed = True
         
+        tend = time.perf_counter()
+        print('Elapsed time Hamiltonian construction = {}s'.format((tend - tstart)))
+        
         return self._H
-
 
 def sg_null_space(A, rcond=None):
     """

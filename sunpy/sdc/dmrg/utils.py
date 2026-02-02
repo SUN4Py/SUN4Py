@@ -227,7 +227,11 @@ def develop_symmetry_two_ensembles(nu, y, xvec1, xvec2, symmetry):
     
     '''
     # other possible ordering - not a great choice
+<<<<<<< a0bd5eca243a2117f8a6d332d2adde8161610b6c
     Y[:, xvec1] = np.tile(y1[:, xvec1], (Ny2, 1))
+=======
+    Y[:, xvec1] = np.tile(y1[:, xvec1], (Ny2, 1)) # np.matlib.repmat(y1[:, xvec1], Ny2, 1)
+>>>>>>> Replace numpy.matlib.repmat by numpy.tile
     Y[:, xvec2] = np.repeat(y2[:, xvec2], repeats=Ny1, axis=0)
     coeffY = np.kron(V2, V1)
     ''' 

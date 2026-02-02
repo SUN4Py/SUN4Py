@@ -17,60 +17,51 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 import sys
+import time
 import numpy as np
+# from numpy.typing import NDArray # numpy>=1.20
 import scipy.sparse
 
+from sunpy.ed.edbase import EDSolver
+from sunpy.ed.lattice import Lattice
 from sunpy.sun import sun
 
 
 
-class SUNAntiSymmetric:
+class EDSolverAntiSymm(EDSolver):
     """
-    Class to represent SU(N) Heisenberg models with m particle per site in the 
-    antisymmetric m-box representation
+    Class to represent an exact diagonalization solver for SU(N) Heisenberg 
+    models with m particles per site in the antisymmetric m-box representation
     """
     
-    def __init__(self, Ns, N, m, alpha, lattice):
+    def __init__(self, N: int, Ns: int, alpha, m: int, lattice: Lattice):
         """
         Constructor of ED engine for m particles per site in the antisymmetric irrep
         
         Parameters
         ----------
-        Ns : int
-            number of sites
         N : int
             SU(N)
-        m : int
-            number of particles per site
+        Ns : int
+            number of sites
         alpha : numpy array
             irrep
+        m : int
+            number of particles per site
         lattice : Lattice
             lattice of bonds
         """
         
-        if not np.sum(alpha)==int(Ns)*int(m):
-            sys.exit('Problem: number of boxes in alpha must match Ns*m')
-        
-        if not lattice.Ns==int(Ns):
-            sys.exit('lattice object does not have the correct number of sites.')
-        
-        if m>2:
-            sys.exit('Code not yet implemented for m>2.')
-        
-        self._N = int(N)
-        self._Ns = int(Ns)
+        super().__init__(N, Ns, alpha, lattice)
         self._m = int(m)
-        self._alpha = np.copy(alpha)
-        self._n = np.sum(self._alpha)
-        self._lattice = lattice
         
-        self._Y = None
-        self._CY = None
-        self._NY = None # sun.multiplicity_antisymm(self._alpha, self._m)
-        self._basis_computed = False
+        if not self._n==self._Ns*self._m:
+            sys.exit('ERROR : EDEngineAntiSymm : __init__ : number of boxes in alpha must match Ns*m')
         
-        self._H = None
-        self._H_computed = False
+        if self._m>2:
+            sys.exit('ERROR : EDEngineAntiSymm : __init__ : Code not yet implemented for m>2')
+        
+        self._NY = sun.multiplicity_symm(sun.transpose_shape(self._alpha), self._m) # sun.multiplicity_antisymm(self._alpha, self._m)
         
         return
         
@@ -78,10 +69,12 @@ class SUNAntiSymmetric:
         """
         Compute the collection of SYTs
         """
+        tstart = time.perf_counter()
         self._Y = sun.get_SYT_antisymm(self._alpha, self._m)
         self._CY = sun.get_column(self._Y)
-        self._NY = self._Y.shape[0]
         self._basis_computed = True
+        tend = time.perf_counter()
+        print('Elapsed time Basis construction = {}s'.format((tend - tstart)))
         return
     
     def sun_hamiltonian(self):
@@ -91,6 +84,8 @@ class SUNAntiSymmetric:
         
         if (self._basis_computed==False):
             self.get_basis()
+        
+        tstart = time.perf_counter()
         
         self._H = scipy.sparse.csr_matrix((self._NY, self._NY))
         
@@ -113,21 +108,11 @@ class SUNAntiSymmetric:
                     index = np.argwhere(np.sum(abs(self._Y - ydev[t]), axis=1)==0).flatten()[0]
                     col[t] = index
                 Hbond += scipy.sparse.csr_matrix( (coeffdev, (row, col)), shape=(self._NY, self._NY))
+            self._add_H_link(i, Hbond)
             
-            order_next = self._lattice.bond_orders[i][0]
-            for t in range(1, order_next):
-                Hbond = Hbond @ Hbond
-            order_prev = order_next
-            
-            self._H += self._lattice.bonds[self._lattice.indices[i][0]].J * Hbond
-            
-            for j in range(1, len(self._lattice.indices[i])):
-                order_next = self._lattice.bond_orders[i][j]
-                for t in range(order_prev, order_next):
-                    Hbond = Hbond @ Hbond
-                order_prev = order_next
-                self._H += self._lattice.bonds[self._lattice.indices[i][j]].J * Hbond
-        
         self._H_computed = True
+        
+        tend = time.perf_counter()
+        print('Elapsed time Hamiltonian construction = {}s'.format((tend - tstart)))
         
         return self._H

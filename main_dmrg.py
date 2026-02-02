@@ -101,7 +101,7 @@ for k, edNs in enumerate(ed_lengths):
     alphaGS = np.full(shape=(N,), fill_value=nc, dtype=int)
     for i in range(0, r):
         alphaGS[i] += 1
-    edfundenginefullchain = edfund.SUNFundamental(edNs, N, alphaGS, latticeedNs)
+    edfundenginefullchain = edfund.EDSolverFund(N, edNs, alphaGS, latticeedNs)
     HedNs = edfundenginefullchain.sun_hamiltonian()
     HedNs = HedNs.todense()
     EedNs, _ = np.linalg.eigh(HedNs)

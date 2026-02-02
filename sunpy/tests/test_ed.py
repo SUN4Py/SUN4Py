@@ -20,7 +20,6 @@ import pytest
 
 import sys
 import numpy as np
-import scipy.sparse
 
 from sunpy.ed import lattice
 from sunpy.ed import edfund
@@ -161,12 +160,12 @@ def test_energy(alpha, m, symmetry, N, isPBC, expected):
     Ns = np.sum(alpha)//m
     latt = lattice.chainLattice(Ns=Ns, isPBC=isPBC)
     if m==1:
-        Engine = edfund.SUNFundamental(Ns, N, alpha, latt)
+        Engine = edfund.EDSolverFund(N, Ns, alpha, latt)
     else:        
         if symmetry=='symmetric':
-            Engine = edsymm.SUNSymmetric(Ns, N, m, alpha, latt)
+            Engine = edsymm.EDSolverSymm(N, Ns, alpha, m, latt)
         elif symmetry=='antisymmetric':
-            Engine = edantisymm.SUNAntiSymmetric(Ns, N, m, alpha, latt)
+            Engine = edantisymm.EDSolverAntiSymm(N, Ns, alpha, m, latt)
         elif 'general' in symmetry:
             if 'adjoint' in symmetry:
                 beta_loc = np.zeros(shape=N, dtype=int)
@@ -179,17 +178,11 @@ def test_energy(alpha, m, symmetry, N, isPBC, expected):
                 beta_loc = np.zeros(shape=N, dtype=int)
                 beta_loc[:m] = int(1)
             beta = np.tile(beta_loc, (Ns, 1))
-            Engine = edgeneral.SUNGeneral(alpha, beta, N, latt)
+            Engine = edgeneral.EDSolverGeneral(N, Ns, alpha, beta, latt)
         else:
             sys.exit('symmetry undefined.')
     
-    H = Engine.sun_hamiltonian()
-    
-    if H.shape[0]<100:
-        H = H.todense()
-        E, _ = np.linalg.eigh(H)
-        E = E[0]
-    else:    
-        E, _ = scipy.sparse.linalg.eigsh(H, k=1, which='SA')
-        E = E[0]
-    assert abs(E-expected)<prec
+    Engine.sun_hamiltonian()
+    E, _ = Engine.diagonalize(num_eigenvalues=1)
+    E = E[0]
+    assert(abs(E-expected)<prec)

@@ -266,10 +266,11 @@ class DMRG:
             alpha = np.copy(TAB1[q])
             num_states_init[q] = sun.multiplicity(alpha)            
             # compute Hamiltonian for target irrep alpha
-            Engine = sunpy.ed.edfund.SUNFundamental(Ns=self._Ns_min, N=self._N, 
-                                                    alpha=alpha, 
-                                                    lattice=lattice, 
-                                                    basisOrder='iLLOS')
+            Engine = sunpy.ed.edfund.EDSolverFund(self._N, 
+                                                  self._Ns_min, 
+                                                  alpha, 
+                                                  lattice, 
+                                                  basisOrder='iLLOS')
             self._H[self._Ns_min].append(Engine.sun_hamiltonian())
             
             bcs = sun.get_bottom_corner(alpha)
@@ -669,9 +670,11 @@ class DMRG:
                 test_dmrg_energy, _ = np.linalg.eigh(self._H[n][p].todense())
                 #----------------------------
                 test_lattice = sunpy.ed.lattice.chainLattice(Ns=np.sum(TAB2[p]), isPBC=False)
-                test_edengine = sunpy.ed.edfund.SUNFundamental(np.sum(TAB2[p]), self._N, TAB2[p], test_lattice)
-                test_H = test_edengine.sun_hamiltonian()
-                test_H = test_H.todense()
+                test_edengine = sunpy.ed.edfund.EDSolverFund(N=self._N, 
+                                                             Ns=np.sum(TAB2[p]), 
+                                                             alpha=TAB2[p], 
+                                                             lattice=test_lattice)
+                test_H = test_edengine.sun_hamiltonian().todense()
                 test_ed_energy, _ = np.linalg.eigh(test_H)
                 if (np.sum(abs(test_ed_energy-test_dmrg_energy))>1.0e-13):
                     print('Energy unmatch')
