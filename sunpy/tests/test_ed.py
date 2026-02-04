@@ -186,3 +186,56 @@ def test_energy(alpha, m, symmetry, N, isPBC, expected):
     E, _ = Engine.diagonalize(num_eigenvalues=1)
     E = E[0]
     assert(abs(E-expected)<prec)
+
+
+@pytest.mark.parametrize("Ns, expected", [
+    (int(4), 0.0), 
+    (int(5), 0.0), 
+    (int(6), 0.0), 
+])
+def test_aklt_su3_obc(Ns, expected):
+    # arrange
+    N = int(3)
+    m = int(3)
+    alpha_000 = np.array([Ns, Ns, Ns], dtype=int)
+    alpha_210 = np.array([Ns+1, Ns, Ns-1], dtype=int)
+    alpha_300 = np.array([Ns+2, Ns-1, Ns-1], dtype=int)
+    alpha_330 = np.array([Ns+1, Ns+1, Ns-2], dtype=int)
+    alpha_420 = np.array([Ns+2, Ns, Ns-2], dtype=int)
+    latt = lattice.chainLattice(Ns=Ns, isPBC=False)
+    J2 = 1.0/4.0 # biquadratic coupling
+    for i in range(Ns-1):
+        latt.add_bond(i, i+1, 'HB2', J2)
+    # act
+    Engine_000 = edsymm.EDSolverSymm(N, Ns, alpha_000, m, latt)
+    Engine_000.sun_hamiltonian()
+    E_000, _ = Engine_000.diagonalize(num_eigenvalues=1)
+    E_000 = E_000[0] + (Ns-1) * 3.0/4.0
+    
+    Engine_210 = edsymm.EDSolverSymm(N, Ns, alpha_210, m, latt)
+    Engine_210.sun_hamiltonian()
+    E_210, _ = Engine_210.diagonalize(num_eigenvalues=2)
+    E_210_0 = E_210[0] + (Ns-1) * 3.0/4.0
+    E_210_1 = E_210[1] + (Ns-1) * 3.0/4.0
+    
+    Engine_300 = edsymm.EDSolverSymm(N, Ns, alpha_300, m, latt)
+    Engine_300.sun_hamiltonian()
+    E_300, _ = Engine_300.diagonalize(num_eigenvalues=1)
+    E_300 = E_300[0] + (Ns-1) * 3.0/4.0
+    
+    Engine_330 = edsymm.EDSolverSymm(N, Ns, alpha_330, m, latt)
+    Engine_330.sun_hamiltonian()
+    E_330, _ = Engine_330.diagonalize(num_eigenvalues=1)
+    E_330 = E_330[0] + (Ns-1) * 3.0/4.0
+    
+    Engine_420 = edsymm.EDSolverSymm(N, Ns, alpha_420, m, latt)
+    Engine_420.sun_hamiltonian()
+    E_420, _ = Engine_420.diagonalize(num_eigenvalues=1)
+    E_420 = E_420[0] + (Ns-1) * 3.0/4.0
+    
+    # assert
+    assert(abs(E_000-expected)<prec)
+    assert(abs(E_210_0-expected)<prec)
+    assert(abs(E_210_1-expected)<prec)
+    assert(abs(E_300-expected)<prec)
+    assert(abs(E_420-expected)<prec)

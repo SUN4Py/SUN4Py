@@ -136,7 +136,7 @@ def convergence(tmat, k, tol_residual, tol_ritz):
     if (n>k+1):
         residuals = residual(tmat, k)
         deltas = ritz_value_stabilization(tmat, k)
-        if (all(residuals<tol_residual) & (all(deltas<tol_ritz))):
+        if (all(residuals<tol_residual) | (all(deltas<tol_ritz))):
             isConverged = True
     return isConverged
 
