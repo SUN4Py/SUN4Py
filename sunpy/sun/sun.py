@@ -140,12 +140,13 @@ def casimir_quadratic(alpha) -> float:
 
 
 def casimir_quadratic_TT(alpha, N) -> float:
-    """
+    r"""
     Compute the quadratic Casimir operator in the usual T*T convention of SU(N)
     
-    C = ( n (N - n/N) + \sum_i \alpha_i^2 - \sum_j (alpha^T_j)^2 ) / 2
+    .. math::
+        C = ( n (N - n/N) + \sum_i \alpha_i^2 - \sum_j (alpha^T_j)^2 ) / 2
     
-    where n=\sum_i \alpha_i is the total number of boxes in \alpha
+    where :math:`n=\sum_i \alpha_i` is the total number of boxes in :math:`\alpha`
     
     Parameters
     ----------
@@ -2461,7 +2462,7 @@ def reduce_shape(alpha):
 
 
 def merge_shapes(alpha1, multi1, alpha2, multi2):
-    """
+    r"""
     Add two decompositions of irreps
     
     Parameters
@@ -2484,10 +2485,8 @@ def merge_shapes(alpha1, multi1, alpha2, multi2):
     
     Remarks
     -------
-    \left( \oplus_{j=0}^{N_1} \mu^{(1)}_j \alpha^{(1)}_j \right) 
-        \oplus \left( \oplus_{j=0}^{N_2} \mu^{(2)}_j \alpha^{(2)}_j \right)
-        ------
-    This operation
+    :math:
+        \left( \oplus_{j=0}^{N_1} \mu^{(1)}_j \alpha^{(1)}_j \right) \oplus \left( \oplus_{j=0}^{N_2} \mu^{(2)}_j \alpha^{(2)}_j \right)
     """
     
     n1 = len(multi1)
@@ -3221,13 +3220,13 @@ def reduce_adjacent_transpositions(at):
 
 
 def permutation_to_transpositions(sigma):
-    """
-    Transform a permutation of S_n into a product of transpositions (2-cycles)
+    r"""
+    Transform a permutation of :math:`\mathcal{S}_n` into a product of transpositions (2-cycles)
     
     Parameters
     ----------
     sigma : numpy array
-        permutation of S_n, as a permutation of [0, 1, ..., n-1]
+        permutation of :math:`\mathcal{S}_n`, as a permutation of [0, 1, ..., n-1]
     
     Returns
     -------
@@ -3236,13 +3235,13 @@ def permutation_to_transpositions(sigma):
     
     Description
     -----------
-    Decompose a permutation of S_n (such as (3, 2, 0, 5, 4, 1) \in S_6) as a 
+    Decompose a permutation of :math:`\mathcal{S}_n` (such as :math:`(3, 2, 0, 5, 4, 1) \in \mathcal{S}_6`) as a 
     product of 2-cycles (transpositions).
     
     Example
     -------
-    sigma = (3, 2, 5, 0, 1, 4, 6, 8, 7) \in S_9
-    ---> sigma = (0, 3)(1, 2)(2, 5)(4, 5)(7, 8)
+    :math:`\sigma = (3, 2, 5, 0, 1, 4, 6, 8, 7) \in \mathcal{S}_9`
+    ---> :math:`sigma = (0, 3)(1, 2)(2, 5)(4, 5)(7, 8)`
     """
     
     n = len(sigma)
@@ -4329,7 +4328,7 @@ def developp_antisymmetric(alpha, y, cy, m, n1, n2):
 
 
 def print_to_latex(y, **kwargs):
-    """
+    r"""
     Print a SYT to text in LaTeX format, using \ytableau
     
     Parameters
@@ -4401,7 +4400,7 @@ def print_to_latex(y, **kwargs):
 
 
 def print_subSYT_to_latex(y, alpha, **kwargs):
-    """
+    r"""
     Print a sub-SYT to text in LaTeX format, using \ytableau
     
     Parameters
