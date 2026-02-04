@@ -131,8 +131,9 @@ class EDSolver(ABC):
         elif ((self._H_computed) & (self._NY<=self._threshold_eigsh)):
                 
             eigvals, eigvecs = scipy.sparse.linalg.eigsh(self._H, k=self._lanczos_params['num_eigenvalues'], which='SA')
+            eigvals = np.asarray(eigvals)
             eigvecs = np.asarray(eigvecs)
-                
+            
         else:
             # use custom Lanczos algorithm
             rng = np.random.default_rng(seed=42)
