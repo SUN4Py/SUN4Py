@@ -17,7 +17,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 import numpy as np
-import sys
 import pickle
 import os
 import re
@@ -90,7 +89,7 @@ class RMEEngine(ABC):
         self._target = target
         
         if not tech in ['base', 'shortcut_cols', 'shortcut_rows']:
-            sys.exit('ERROR : RMEEngine.__init__ : Tech undefined')
+            raise ValueError(f'ERROR : RMEEngine.__init__ : Tech {tech} undefined')
         self._tech = tech
         
         self._rme_folder = kwargs.get('rme_folder', os.path.join(ROOT_PATH, 'rme_coefficients'))
@@ -105,9 +104,8 @@ class RMEEngine(ABC):
                 else:
                     self._restarting_filename = kwargs['restarting_filename']
                 if not os.path.isfile(self._restarting_filename):
-                    print('Restarting file : ', self._restarting_filename, ' was not found. Provide absolute path.')
-                    sys.exit('Exit')
-                pattern = re.compile(r'^' + filename_prefix + '_SU(\d+)_' + self._target + '_numirreps(\d+)_' + self._tech + '.pickle$')
+                    raise FileNotFoundError(f'Restarting file : {self._restarting_filename} was not found. Provide absolute path.')
+                pattern = re.compile(rf'^{filename_prefix}_SU(\d+)_{self._target}_numirreps(\d+)_{self._tech}\.pickle$')
                 pm = pattern.match(os.path.basename(self._restarting_filename))
                 assert( int(pm.group(1)) == self._N )
                 self._num_irreps_old = int(pm.group(2))
@@ -117,7 +115,7 @@ class RMEEngine(ABC):
                 # search for restart file
                 files_in_dir = [f for f in os.listdir(self._restarting_folder) if os.path.isfile(os.path.join(self._restarting_folder, f))]
                 # search for pattern
-                pattern = re.compile(r'^' + filename_prefix + '_SU(\d+)_' + self._target + '_numirreps(\d+)_' + self._tech + '.pickle$')
+                pattern = re.compile(rf'^{filename_prefix}_SU(\d+)_{self._target}_numirreps(\d+)_{self._tech}\.pickle$')
                 self._num_irreps_old = int(0)
                 for file in files_in_dir:
                     pm = pattern.match(file)
@@ -155,7 +153,7 @@ class RMEEngine(ABC):
                     if not self._chkpt_ni[-1]==self._num_irreps:
                         self._chkpt_ni = np.hstack((self._chkpt_ni, self._num_irreps))
                 else:
-                    sys.exit('Missing input argument chkpt_ni for custom checkpointing.')
+                    raise ValueError('Missing input argument chkpt_ni for custom checkpointing.')
             else:
                 t = np.floor(np.log2(self._num_irreps-self._num_irreps_old)) + 1
                 xx = np.arange(1, t+1, 1)
