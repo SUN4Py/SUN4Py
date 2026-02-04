@@ -1037,7 +1037,11 @@ class DMRG:
             rho_eigvals = rho_eigvals / dimq
             
             # measure entanglement entropy
-            entropy -= dimq * np.sum( np.multiply(rho_eigvals, np.log(rho_eigvals)) )
+            ind_nv = np.argwhere(rho_eigvals<=0.0).flatten()
+            if not all(abs(rho_eigvals[ind_nv])<1.0e-14):
+                raise ValueError('ERROR : DMRG : density matrix has large negative eigenvalues')
+            ind_pv = np.setdiff1d(np.arange(len(rho_eigvals)), ind_nv).flatten()
+            entropy -= dimq * np.sum( np.multiply(rho_eigvals[ind_pv], np.log(rho_eigvals[ind_pv])) )
             
             # rotate Hamiltonian
             self._H[n][ind_relevant_irreps[q]] = rho_eigvecs.transpose() @ (self._H[n][ind_relevant_irreps[q]] @ rho_eigvecs)
