@@ -1993,7 +1993,7 @@ def dim_irrep_sun(alpha, N) -> int:
 
 def get_SSYT(alpha, N) -> np.ndarray:
     """
-    Get all semi-standard Young tableaux of an irrep
+    Get all semi-standard Young tableaux of an irrep, expressed as Gelfand-Tsetlin patterns
     
     Parameters
     ----------
@@ -2004,8 +2004,14 @@ def get_SSYT(alpha, N) -> np.ndarray:
     
     Returns
     -------
-    vec : numpy array
-        collection of SSYTs
+    gtp : numpy array
+        collection of Gelfand-Tsetlin patterns (stored in the rows)
+    
+    Details
+    -------
+    - gtp[i] is the i-th Gelfand-Tsetlin pattern
+    - gtp[i][:N] is the irrep (alpha)
+    - gtp[i][j] is the j-th row of the Gelfand-Tsetlin pattern
     """
     
     nl = len(np.argwhere(alpha>0).flatten())
@@ -2013,53 +2019,51 @@ def get_SSYT(alpha, N) -> np.ndarray:
         sys.exit('Problem: alpha has more rows than N.')
     alphap = np.zeros((N,), dtype=int)
     alphap[0:nl] = alpha[0:nl]
-    alpha = alphap
     
-    dimension = dim_irrep_sun(alpha, N)
+    dimension = dim_irrep_sun(alphap, N)
     
-    vec = np.zeros(shape=(dimension, N*(N+1)//2), dtype=int)
+    gtp = np.zeros(shape=(dimension, N*(N+1)//2), dtype=int)
     long_ligne = np.zeros((N,), dtype=int)
     long_ligne[0] = N
     long_ligne_offset = np.zeros((N,), dtype=int)
     acc = int(0)
     
-    for p in range(2, N+1):
-        long_ligne[p-1] = N - p + 1
-        acc += long_ligne[p-2]
-        long_ligne_offset[p-1] = acc
+    for p in range(1, N):
+        long_ligne[p] = N - p
+        acc += long_ligne[p-1]
+        long_ligne_offset[p] = acc
     
     # create max pattern
-    vec[0,0:N] = np.copy(alpha)
-    for p in range(1, N):
-        vec[0, p+long_ligne_offset[1:N-p+1]-1] = np.full(shape=(1, N-p), 
-                                                         fill_value=vec[0, p-1], 
+    gtp[0, :N] = np.copy(alphap)
+    for p in range(0, N-1):
+        gtp[0, p+long_ligne_offset[1:N-p]] = np.full(shape=(1, N-p-1), 
+                                                         fill_value=gtp[0, p], 
                                                          dtype=int)
     
     for s in range(1, dimension):
-        vectemp = np.copy(vec[s-1, :])
-        
+        vectemp = np.copy(gtp[s-1, :])
         # find pivoting index
         indice = N*(N+1)//2
-        j_indice = np.argwhere( (long_ligne_offset - indice*np.full(shape=(N,), fill_value=1, dtype=int))<0).flatten()[-1] +1
-        i_indice = indice - long_ligne_offset[j_indice-1]
-        indice_friend = i_indice +1 + long_ligne_offset[j_indice-2]
+        j_indice = np.argwhere( (long_ligne_offset - indice*np.full(shape=(N,), fill_value=1, dtype=int))<0).flatten()[-1]
+        i_indice = indice - long_ligne_offset[j_indice]
+        indice_friend = i_indice + long_ligne_offset[j_indice-1]
         
-        while (vectemp[indice-1]==vectemp[indice_friend-1]):
+        while (vectemp[indice-1]==vectemp[indice_friend]):
             indice -= 1
-            j_indice = np.argwhere( (long_ligne_offset - indice*np.full(shape=(N,), fill_value=1, dtype=int))<0).flatten()[-1] +1
-            i_indice = indice - long_ligne_offset[j_indice-1]
-            indice_friend = i_indice + 1 + long_ligne_offset[j_indice-2]
+            j_indice = np.argwhere( (long_ligne_offset - indice*np.full(shape=(N,), fill_value=1, dtype=int))<0).flatten()[-1]
+            i_indice = indice - long_ligne_offset[j_indice]
+            indice_friend = i_indice + long_ligne_offset[j_indice-1]
         
         # apply (C9) from Alex' article
         vectemp[indice-1] -= 1
         for k in range(indice+1, N*(N+1)//2+1):
-            j_k = np.argwhere( (long_ligne_offset-k*np.full(shape=(N,), fill_value=1, dtype=int))<0 )[-1] +1
-            i_k = k - long_ligne_offset[j_k-1]
-            vectemp[k-1] = vectemp[i_k+long_ligne_offset[j_k-2]-1]
+            j_k = np.argwhere( (long_ligne_offset-k*np.full(shape=(N,), fill_value=1, dtype=int))<0 ).flatten()[-1]
+            i_k = k - long_ligne_offset[j_k]
+            vectemp[k-1] = vectemp[i_k-1+long_ligne_offset[j_k-1]]
         
-        vec[s,:] = vectemp
+        gtp[s, :] = vectemp
     
-    return vec
+    return gtp
 
 
 def tensor_product_irrep(alpha1, alpha2, N) -> np.ndarray:
