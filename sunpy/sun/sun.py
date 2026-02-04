@@ -3471,15 +3471,27 @@ def fullsimplify_development(ydev, cydev, coeff):
         coeff1 = np.copy(coeff)
     else:
         Ny = ydev.shape[0] # number of SYTs in the development
-        ydev1, ia, ic = np.unique(ydev, axis=0, return_index=True, return_inverse=True)
-        cydev1 = np.copy(cydev[ia,:])
-        M = scipy.sparse.csr_matrix( (np.full(fill_value=1, shape=(Ny,), dtype=int), (ic, np.arange(0, Ny))), shape=(len(ia), Ny) )
+        ydev1, ia, ic = np.unique(ydev, return_index=True, return_inverse=True, axis=0)
+        cydev1 = np.copy(cydev[ia, :])
         
+        # the following line (ic = ic.flatten())
+        # is necessary to bypass a breaking change introduced in numpy 2.0.0, 
+        # which was later fixed in numpy 2.0.1 with pull request #26961
+        # https://github.com/numpy/numpy/pull/26961
+        # Without this bypass, when using numpy 2.0.0, using ic as the "x-coordinates" 
+        # to build the scipy.sparse.csr_matrix throws a ValueError, because 
+        # (idx.ndim!=1) evaluated to True
+        ic = ic.flatten()
+        
+        data = np.full(shape=(Ny,), fill_value=1, dtype=int)
+        idx = ic
+        idy = np.arange(Ny)
+        M = scipy.sparse.csr_matrix( (data, (idx, idy)), shape=(len(ia), Ny) )
         coeff1 = M @ coeff
     
     ind = np.argwhere(abs(coeff1)>1.0e-12).flatten()
-    ydev1 = ydev1[ind,:]
-    cydev1 = cydev1[ind,:]
+    ydev1 = ydev1[ind, :]
+    cydev1 = cydev1[ind, :]
     coeff1 = coeff1[ind]
     
     return ydev1, cydev1, coeff1
