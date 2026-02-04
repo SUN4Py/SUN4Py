@@ -16,7 +16,6 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-import os
 import numpy as np
 import scipy.special
 import matplotlib.pyplot as plt
@@ -45,29 +44,6 @@ Ns_min = int(2) # starting half-chain length
 num_irreps = int(18) # number of irreps to consider
 max_num_states = int(200) # total number of "states" (SYTs) to keep
 target = 'GS'
-
-###############################################################################
-# Preparation
-###############################################################################
-
-current_dir = os.path.dirname(os.path.abspath(__file__))
-
-# Check that the list of RMEs is already on disk
-tech = 'shortcut_cols'
-rme_filename = f'RME_fund_SU{N}_GS_numirreps{num_irreps}_{tech}.pickle'
-foldername = os.path.join(current_dir, 'sunpy', 'rme_coefficients')
-rme_filename = os.path.join(foldername, rme_filename)
-
-if not os.path.exists(rme_filename):
-    if not os.path.exists(foldername):
-        os.makedirs(foldername)
-    # perform calculation of RMEs
-    from sunpy.dmrg.rme import rmefund
-    rme_engine = rmefund.RMEEngineFund(N, num_irreps, 
-                                   target=target, 
-                                   tech=tech, 
-                                   restarting=True)
-    rme_engine.run()
 
 ###############################################################################
 # RUN DMRG

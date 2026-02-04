@@ -16,7 +16,6 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-import sys
 import os
 import time
 import numpy as np
@@ -29,7 +28,6 @@ import sunpy.dmrg.rme.rmereader
 from sunpy.lanczos import lanczos
 import sunpy.ed.edfund
 import sunpy.ed.lattice
-from sunpy import ROOT_PATH
 
 
 
@@ -68,8 +66,6 @@ class DMRG:
         
         Remarks
         -------
-        - The reduced matrix elements of the interaction (RMEs) must be computed
-          beforehand
         - the 'target' is a string describing the target sector (sector for the
           entire chain). target='GS' means that the target sector will be:
                 - the singlet sector when the total chain length is a multiple of N
@@ -92,16 +88,21 @@ class DMRG:
         self._truncated = False
         self._target = kwargs.get('target', 'GS')
         
-        self._do_check = False
+        self._do_check = False # set to True for checking versus ED on first iterations of iDMRG
         self._test_Ns_threshold = int(6) # tests will be performed up to this length (half-chain)
         
         if (num_irreps<=int(300)):
             irreps_filename = f'SU{self._N}_irreps_300.npy'
         else:
             irreps_filename = f'SU{self._N}_irreps_{num_irreps}.npy'
-        irreps_filename = os.path.join(ROOT_PATH, 'irreps', irreps_filename)
+        
+        user_dir = os.getcwd()
+        irreps_dir = os.path.join(user_dir, 'sunpy_irreps')
+        irreps_filename = os.path.join(irreps_dir, irreps_filename)
         
         if not os.path.exists(irreps_filename):
+            if not os.path.isdir(irreps_dir):
+                os.makedirs(irreps_dir)
             # generate list of 300 (or num_irreps if 300<num_irreps) first irreps of SU(N)
             print(f'Generating list of {max(int(300), num_irreps)} first irreps of SU({self._N})')
             self._irreps_all = sun.get_irreps_by_casimir(self._N, max(int(300), num_irreps))
@@ -121,17 +122,31 @@ class DMRG:
         if 'rme_filename' in kwargs:
             self._rme_filename = kwargs['rme_filename']
         else:
-            # search for an appropriate filename
+            rme_dir = os.path.join(user_dir, 'sunpy_rmes')
             self._rme_filename = ''
             temp_f = f'RME_fund_SU{self._N}_{self._target}_numirreps{num_irreps}_'
             for tech in ['shortcut_cols', 'shortcut_rows', 'base']:
                 file = temp_f + tech + '.pickle'
-                file = os.path.join(os.getcwd(), 'sunpy', 'rme_coefficients', file)
+                file = os.path.join(rme_dir, file)
                 if os.path.isfile(file):
                     self._rme_filename = file
                     break
             if self._rme_filename=='':
-                sys.exit('ERROR : RME file not found.')
+                print('WARNING : DMRG : __init__ : RMEs not found. Computing RMEs now ...')
+                from sunpy.dmrg.rme import rmefund
+                tech = 'shortcut_cols'
+                rmefund_engine = rmefund.RMEEngineFund(self._N, 
+                                                       self._num_irreps, 
+                                                       target=self._target, 
+                                                       tech=tech, 
+                                                       restarting=True, 
+                                                       checkpointing=False)
+
+                rmefund_engine.run()
+                self._rme_filename = f'RME_fund_SU{self._N}_{self._target}_numirreps{num_irreps}_{tech}.pickle'
+                self._rme_filename = os.path.join(rme_dir, self._rme_filename)
+                if not os.path.isfile(self._rme_filename):
+                    raise FileNotFoundError('DMRG: __init__ : RMEs not found after computation.')
         
         self._lanczos_max_iter = int(kwargs.get('lanczos_max_iter', 200))
         self._lanczos_tol_ritz = kwargs.get('lanczos_tol_ritz', 1.0e-13)
@@ -365,7 +380,7 @@ class DMRG:
             indc = np.argmin(casimir)
             alpha += self._irreps_all[ind[indc]]
         else:
-            sys.exit('DMRG.__target_irrep : Target undefined.')
+            raise ValueError('DMRG : __target_irrep : Target undefined.')
         
         print('::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::')
         print('Target irrep: ', alpha)
@@ -690,7 +705,7 @@ class DMRG:
                     print(test_dmrg_energy)
                     print('Energies from ED: ')
                     print(test_ed_energy)
-                    sys.exit()
+                    raise ValueError('Check with ED energy failed.')
                 else:
                     print('GS energy = ', test_dmrg_energy[0])
                     print('Check ED OK.')

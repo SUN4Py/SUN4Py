@@ -17,7 +17,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 import numpy as np
-import sys
 import pickle
 
 import sunpy.common.math
@@ -71,9 +70,9 @@ class RMEReader:
                 if kwargs['symmetry'] in ['symm', 'symmetric', 'antisymm', 'antisymmetric']:
                     self._states = states_rme(self._N, self._num_irreps, self._irreps, m=self._m, symmetry=kwargs['symmetry'])
                 else:
-                    sys.exit('RMEReader: symmetry undefined.')
+                    raise ValueError('RMEReader: __init__ : symmetry undefined.')
             else:
-                sys.exit('RMEReader: missing symmetry specification for m>1.')
+                raise ValueError('RMEReader: __init__ : missing symmetry specification for m>1.')
         
         self._num_states = self._states.shape[0]
     
