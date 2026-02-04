@@ -29,6 +29,7 @@ import sunpy.dmrg.rme.rmereader
 from sunpy.lanczos import lanczos
 import sunpy.ed.edfund
 import sunpy.ed.lattice
+from sunpy import ROOT_PATH
 
 
 
@@ -98,10 +99,17 @@ class DMRG:
             irreps_filename = f'SU{self._N}_irreps_300.npy'
         else:
             irreps_filename = f'SU{self._N}_irreps_{num_irreps}.npy'
-        irreps_filename = os.path.join('sunpy', 'irreps', irreps_filename)
-        print('Loading list of ', max(int(300), num_irreps), 'first irreps of SU(', N ,')')
-        print('from: ', irreps_filename)
-        self._irreps_all = np.load(irreps_filename).astype(int)
+        irreps_filename = os.path.join(ROOT_PATH, 'irreps', irreps_filename)
+        
+        if not os.path.exists(irreps_filename):
+            # generate list of 300 (or num_irreps if 300<num_irreps) first irreps of SU(N)
+            print(f'Generating list of {max(int(300), num_irreps)} first irreps of SU({self._N})')
+            self._irreps_all = sun.get_irreps_by_casimir(self._N, max(int(300), num_irreps))
+            print('Done. Dumping to:', irreps_filename)
+            np.save(irreps_filename, self._irreps_all)
+        else:
+            print(f'Loading list of {max(int(300), num_irreps)} first irreps of SU({self._N})')
+            self._irreps_all = np.load(irreps_filename).astype(int)
         
         self._irreps0 = self._irreps_all[:self._num_irreps] # does not have a column with N boxes
         
