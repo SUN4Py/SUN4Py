@@ -35,7 +35,7 @@ prec = 1.0e-13
     (int(3), int(3), int(10), 'shortcut_cols', 'ES300_idmrg_edgeAdjoint')
 ])
 def test_rme_symm(N, m, num_irreps, tech, target):
-    # arange
+    # arrange
     temp_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'temp')
     testdata_filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), 
                                      'testdata', 

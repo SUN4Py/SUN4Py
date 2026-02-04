@@ -42,7 +42,7 @@ prec = 1.0e-13
     #(int(5), int(12), 'shortcut_cols', 'GS')
 ])
 def test_rme_fund(N, num_irreps, tech, target):
-    # arange
+    # arrange
     temp_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'temp')
     testdata_filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), 
                                      'testdata', 

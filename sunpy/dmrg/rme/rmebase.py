@@ -22,8 +22,6 @@ import os
 import re
 from abc import ABC, abstractmethod
 
-from sunpy import ROOT_PATH
-
 
 
 class RMEEngine(ABC):
@@ -47,8 +45,8 @@ class RMEEngine(ABC):
             string describing the technique to use to compute RMEs ('base', 'shortcut_cols', 'shortcut_rows')
         
         [optional]
-        rme_folder : str [default]'path/to/SUNPy/sunpy/rme_coefficients/'
-            path to directory containing RME coefficients files
+        rme_folder : str [default]'path/to/user/script/sunpy_rmes/'
+            path to directory containing files with RMEs
         checkpointing : bool  [default]False
             if True, perform checkpointing
         chkpt_method : str [default]'log2', 'custom'
@@ -70,9 +68,13 @@ class RMEEngine(ABC):
         else:
             irreps_filename = f'SU{self._N}_irreps_{num_irreps}.npy'
         
-        irreps_filename = os.path.join(ROOT_PATH, 'irreps', irreps_filename)
+        user_dir = os.getcwd()
+        irreps_dir = os.path.join(user_dir, 'sunpy_irreps')
+        irreps_filename = os.path.join(irreps_dir, irreps_filename)
         
-        if not os.path.exists(irreps_filename):
+        if not os.path.exists(irreps_filename):            
+            if not os.path.isdir(irreps_dir):
+                os.makedirs(irreps_dir)
             # generate list of 300 (or num_irreps if 300<num_irreps) first irreps of SU(N)
             from sunpy.sun import sun
             print(f'Generating list of {max(int(300), num_irreps)} first irreps of SU({self._N})')
@@ -92,7 +94,10 @@ class RMEEngine(ABC):
             raise ValueError(f'ERROR : RMEEngine.__init__ : Tech {tech} undefined')
         self._tech = tech
         
-        self._rme_folder = kwargs.get('rme_folder', os.path.join(ROOT_PATH, 'rme_coefficients'))
+        self._rme_folder = kwargs.get('rme_folder', os.path.join(user_dir, 'sunpy_rmes'))
+        if not os.path.isdir(self._rme_folder):
+            os.makedirs(self._rme_folder)
+        
         self._restarting = kwargs.get('restarting', True)
         
         if self._restarting==True:
@@ -111,29 +116,29 @@ class RMEEngine(ABC):
                 self._num_irreps_old = int(pm.group(2))
             else:
                 self._restarting_folder = kwargs.get('restarting_folder', self._rme_folder)
-                # self.restarting_folder = os.path.dirname(os.path.abspath(__file__))
-                # search for restart file
-                files_in_dir = [f for f in os.listdir(self._restarting_folder) if os.path.isfile(os.path.join(self._restarting_folder, f))]
-                # search for pattern
-                pattern = re.compile(rf'^{filename_prefix}_SU(\d+)_{self._target}_numirreps(\d+)_{self._tech}\.pickle$')
-                self._num_irreps_old = int(0)
-                for file in files_in_dir:
-                    pm = pattern.match(file)
-                    if pm:
-                        fN = int(pm.group(1))
-                        fni = int(pm.group(2))
-                        if fN==self._N:
-                            if fni>self._num_irreps_old:
-                                self._num_irreps_old = fni
-                                self._restarting_filename = os.path.join(self._restarting_folder, file)
+                if os.path.isdir(self._restarting_folder):
+                    # search for restart file
+                    files_in_dir = [f for f in os.listdir(self._restarting_folder) if os.path.isfile(os.path.join(self._restarting_folder, f))]
+                    pattern = re.compile(rf'^{filename_prefix}_SU(\d+)_{self._target}_numirreps(\d+)_{self._tech}\.pickle$')
+                    self._num_irreps_old = int(0)
+                    for file in files_in_dir:
+                        pm = pattern.match(file)
+                        if pm:
+                            fN = int(pm.group(1))
+                            fni = int(pm.group(2))
+                            if fN==self._N:
+                                if fni>self._num_irreps_old:
+                                    self._num_irreps_old = fni
+                                    self._restarting_filename = os.path.join(self._restarting_folder, file)
+                else:
+                    raise ValueError('Provided restarding folder does not exist.')
                 if self._num_irreps_old==0:
-                    # we did not find a restarting file
                     self._restarting = False
         else:
             self._num_irreps_old = int(0)
         
         if self._restarting==True:
-            print('Found restarting file with ', self._num_irreps_old, ' irreps')
+            print(f'Found restarting file with {self._num_irreps_old} irreps')
             print(self._restarting_filename)
             self._irreps_old = self._init_irreps(self._num_irreps_old)
         
@@ -145,7 +150,7 @@ class RMEEngine(ABC):
             self._checkpointing = False
         
         if self._checkpointing==True:
-            self._chkpt_method = kwargs.get('chkpt_method', 'log2')            
+            self._chkpt_method = kwargs.get('chkpt_method', 'log2')
             if self._chkpt_method=='custom':
                 if 'chkpt_ni' in kwargs:
                     assert(isinstance(kwargs['chkpt_ni'], np.ndarray))
