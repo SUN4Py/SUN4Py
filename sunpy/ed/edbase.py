@@ -69,12 +69,7 @@ class EDSolver(ABC):
         if not self._lattice.Ns==self._Ns:
             sys.exit('ERROR : EDEngine : __init__ : lattice object does not have the correct number of sites.')
         
-        self._Y = None
-        self._CY = None
-        self._NY = None
         self._basis_computed = False
-        
-        self._H = None
         self._H_computed = False
         
         self._threshold_eigfull = int(1000)
