@@ -128,11 +128,11 @@ def casimir_quadratic(alpha) -> float:
     B = np.sum(alpha**2)
     A = np.sum(s**2)
     
-    c = 0.5 * (B - A)
+    c: float = 0.5 * (B - A)
     
     # other formula
     lvec = np.arange(1, k+1)
-    cprime = 0.5 * ( np.sum(alpha[0:k]*(alpha[0:k] - 2*lvec + 1)) )
+    cprime: float = 0.5 * ( np.sum(alpha[0:k]*(alpha[0:k] - 2*lvec + 1)) )
     
     assert cprime==c
     
@@ -167,7 +167,7 @@ def casimir_quadratic_TT(alpha, N) -> float:
     assert(len(alpha)<=N)
     n = np.sum(alpha)
     alphaT = transpose_shape(alpha)
-    casimir = 0.5 * ( n * (N - n/N) + np.sum(alpha**2) - np.sum(alphaT**2) )
+    casimir: float = 0.5 * ( n * (N - n/N) + np.sum(alpha**2) - np.sum(alphaT**2) )
     
     return casimir
 
@@ -212,7 +212,7 @@ def multiplicity(alpha) -> int:
     
     arnum, denom = sunpy.common.math.reduce_by_divide(arnum, denom)
     assert(np.prod(denom)==1)
-    falpha = np.prod(arnum)
+    falpha: int = np.prod(arnum)
     
     return falpha
 
@@ -404,7 +404,7 @@ def get_subSYT(alpha, alphaB, order='iLLOS') -> np.ndarray:
     return Y
 
 
-def fill_subSYT(Y, alpha, **kwargs) -> np.ndarray:
+def fill_subSYT(Y, alpha, **kwargs):
     """
     Fill all remaining boxes of a collection of sub-SYTs in order to be a 
     collection of valid SYTs for a given irrep
@@ -1794,9 +1794,9 @@ def multiplicity_symm(alpha, m) -> int:
         vecindex = np.argwhere(Mattest==0).flatten() + 1
     
     if len(vecindex)>0:
-        kostka = Forme[vecindex[0]-1, N]
+        kostka: int = Forme[vecindex[0]-1, N]
     else:
-        kostka = 0
+        kostka: int = int(0)
     
     return kostka
 
@@ -1818,7 +1818,7 @@ def multiplicity_antisymm(alpha, m) -> int:
     kostka : int
         number of SYTs
     """
-    kostka = multiplicity_symm(transpose_shape(alpha), m)
+    kostka: int = multiplicity_symm(transpose_shape(alpha), m)
     return kostka
 
 
@@ -1889,7 +1889,7 @@ def get_axial_distance(y, cy, i, j) -> int:
     Compute axial distance from i to j in SYT y (and columns cy)
     """
     
-    ad = cy[i] - y[i] - cy[j] + y[j]
+    ad: int = cy[i] - y[i] - cy[j] + y[j]
     
     return ad
 
@@ -1945,9 +1945,12 @@ def dim_irrep_sun(alpha, N) -> int:
     dimension : int
         dimension of irrep
     
-    Description
+    Notes
     -----------
-    Compute the dimension of the irrep of SU(N) using the Hook-length formula
+    - Compute the dimension of the irrep of SU(N) using the Hook-length formula
+    - Alternatively, the dimension corresponds to the number of semi-standard 
+      Young tableaux (or, equivalently, of Gelfand-Tsetlin patterns) associated 
+      to the irrep
     """
     
     nl = len(np.argwhere(alpha>0).flatten())
@@ -1984,10 +1987,9 @@ def dim_irrep_sun(alpha, N) -> int:
     
     numvec, denomvec = sunpy.common.math.reduce_by_divide(numvec, denomvec)
     
-    num = np.prod(numvec)
-    denom = np.prod(denomvec)
-    assert(denom==1)
-    dimension = num
+    denom: int = np.prod(denomvec)
+    assert(denom==int(1))
+    dimension: int = np.prod(numvec)
     
     return dimension
 

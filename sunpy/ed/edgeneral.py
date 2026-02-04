@@ -660,7 +660,7 @@ class GeneralBasis:
         site1 = np.min(sites)
         site2 = np.max(sites)
         si = self.__get_index_sec(ec, site2)
-        out = copy.deepcopy(self.local_states[si])
+        out: LocalStates = copy.deepcopy(self.local_states[si])
         
         for site in range(site2-1, site1-1, -1):
             si = self.__get_index_sec(ec, site)
