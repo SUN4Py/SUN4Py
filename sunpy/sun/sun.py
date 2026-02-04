@@ -128,11 +128,11 @@ def casimir_quadratic(alpha) -> float:
     B = np.sum(alpha**2)
     A = np.sum(s**2)
     
-    c = 0.5 * (B - A)
+    c: float = 0.5 * (B - A)
     
     # other formula
     lvec = np.arange(1, k+1)
-    cprime = 0.5 * ( np.sum(alpha[0:k]*(alpha[0:k] - 2*lvec + 1)) )
+    cprime: float = 0.5 * ( np.sum(alpha[0:k]*(alpha[0:k] - 2*lvec + 1)) )
     
     assert cprime==c
     
@@ -140,12 +140,13 @@ def casimir_quadratic(alpha) -> float:
 
 
 def casimir_quadratic_TT(alpha, N) -> float:
-    """
+    r"""
     Compute the quadratic Casimir operator in the usual T*T convention of SU(N)
     
-    C = ( n (N - n/N) + \sum_i \alpha_i^2 - \sum_j (alpha^T_j)^2 ) / 2
+    .. math::
+        C = ( n (N - n/N) + \sum_i \alpha_i^2 - \sum_j (alpha^T_j)^2 ) / 2
     
-    where n=\sum_i \alpha_i is the total number of boxes in \alpha
+    where :math:`n=\sum_i \alpha_i` is the total number of boxes in :math:`\alpha`
     
     Parameters
     ----------
@@ -166,7 +167,7 @@ def casimir_quadratic_TT(alpha, N) -> float:
     assert(len(alpha)<=N)
     n = np.sum(alpha)
     alphaT = transpose_shape(alpha)
-    casimir = 0.5 * ( n * (N - n/N) + np.sum(alpha**2) - np.sum(alphaT**2) )
+    casimir: float = 0.5 * ( n * (N - n/N) + np.sum(alpha**2) - np.sum(alphaT**2) )
     
     return casimir
 
@@ -211,7 +212,7 @@ def multiplicity(alpha) -> int:
     
     arnum, denom = sunpy.common.math.reduce_by_divide(arnum, denom)
     assert(np.prod(denom)==1)
-    falpha = np.prod(arnum)
+    falpha: int = np.prod(arnum)
     
     return falpha
 
@@ -403,7 +404,7 @@ def get_subSYT(alpha, alphaB, order='iLLOS') -> np.ndarray:
     return Y
 
 
-def fill_subSYT(Y, alpha, **kwargs) -> np.ndarray:
+def fill_subSYT(Y, alpha, **kwargs):
     """
     Fill all remaining boxes of a collection of sub-SYTs in order to be a 
     collection of valid SYTs for a given irrep
@@ -1747,12 +1748,15 @@ def multiplicity_symm(alpha, m) -> int:
         # implement the equivalent of Matlab's sortrows
         A = np.asarray(Forme[s:index_sum,:])
         if A.shape[0]>1:
+            '''
             tmp = []
             for i in range(A.shape[1]-1,-1,-1):
                 tmp.append(tuple(A[:,i]))
             ix = np.lexsort(tmp)
             B = np.copy(A)
             B = B[ix,:]
+            '''
+            B, _ = sunpy.common.math.sortrows(A)
             Forme[s:index_sum,:] = B
         
         FormePrec = np.zeros((index_sum, N), dtype=int)
@@ -1792,10 +1796,9 @@ def multiplicity_symm(alpha, m) -> int:
     elif lM==1:
         vecindex = np.argwhere(Mattest==0).flatten() + 1
     
+    kostka: int = int(0)
     if len(vecindex)>0:
         kostka = Forme[vecindex[0]-1, N]
-    else:
-        kostka = 0
     
     return kostka
 
@@ -1817,7 +1820,7 @@ def multiplicity_antisymm(alpha, m) -> int:
     kostka : int
         number of SYTs
     """
-    kostka = multiplicity_symm(transpose_shape(alpha), m)
+    kostka: int = multiplicity_symm(transpose_shape(alpha), m)
     return kostka
 
 
@@ -1888,7 +1891,7 @@ def get_axial_distance(y, cy, i, j) -> int:
     Compute axial distance from i to j in SYT y (and columns cy)
     """
     
-    ad = cy[i] - y[i] - cy[j] + y[j]
+    ad: int = cy[i] - y[i] - cy[j] + y[j]
     
     return ad
 
@@ -1944,9 +1947,12 @@ def dim_irrep_sun(alpha, N) -> int:
     dimension : int
         dimension of irrep
     
-    Description
+    Notes
     -----------
-    Compute the dimension of the irrep of SU(N) using the Hook-length formula
+    - Compute the dimension of the irrep of SU(N) using the Hook-length formula
+    - Alternatively, the dimension corresponds to the number of semi-standard 
+      Young tableaux (or, equivalently, of Gelfand-Tsetlin patterns) associated 
+      to the irrep
     """
     
     nl = len(np.argwhere(alpha>0).flatten())
@@ -1983,17 +1989,16 @@ def dim_irrep_sun(alpha, N) -> int:
     
     numvec, denomvec = sunpy.common.math.reduce_by_divide(numvec, denomvec)
     
-    num = np.prod(numvec)
-    denom = np.prod(denomvec)
-    assert(denom==1)
-    dimension = num
+    denom: int = np.prod(denomvec)
+    assert(denom==int(1))
+    dimension: int = np.prod(numvec)
     
     return dimension
 
 
 def get_SSYT(alpha, N) -> np.ndarray:
     """
-    Get all semi-standard Young tableaux of an irrep
+    Get all semi-standard Young tableaux of an irrep, expressed as Gelfand-Tsetlin patterns
     
     Parameters
     ----------
@@ -2004,8 +2009,14 @@ def get_SSYT(alpha, N) -> np.ndarray:
     
     Returns
     -------
-    vec : numpy array
-        collection of SSYTs
+    gtp : numpy array
+        collection of Gelfand-Tsetlin patterns (stored in the rows)
+    
+    Details
+    -------
+    - gtp[i] is the i-th Gelfand-Tsetlin pattern
+    - gtp[i][:N] is the irrep (alpha)
+    - gtp[i][j] is the j-th row of the Gelfand-Tsetlin pattern
     """
     
     nl = len(np.argwhere(alpha>0).flatten())
@@ -2013,53 +2024,51 @@ def get_SSYT(alpha, N) -> np.ndarray:
         sys.exit('Problem: alpha has more rows than N.')
     alphap = np.zeros((N,), dtype=int)
     alphap[0:nl] = alpha[0:nl]
-    alpha = alphap
     
-    dimension = dim_irrep_sun(alpha, N)
+    dimension = dim_irrep_sun(alphap, N)
     
-    vec = np.zeros(shape=(dimension, N*(N+1)//2), dtype=int)
+    gtp = np.zeros(shape=(dimension, N*(N+1)//2), dtype=int)
     long_ligne = np.zeros((N,), dtype=int)
     long_ligne[0] = N
     long_ligne_offset = np.zeros((N,), dtype=int)
     acc = int(0)
     
-    for p in range(2, N+1):
-        long_ligne[p-1] = N - p + 1
-        acc += long_ligne[p-2]
-        long_ligne_offset[p-1] = acc
+    for p in range(1, N):
+        long_ligne[p] = N - p
+        acc += long_ligne[p-1]
+        long_ligne_offset[p] = acc
     
     # create max pattern
-    vec[0,0:N] = np.copy(alpha)
-    for p in range(1, N):
-        vec[0, p+long_ligne_offset[1:N-p+1]-1] = np.full(shape=(1, N-p), 
-                                                         fill_value=vec[0, p-1], 
+    gtp[0, :N] = np.copy(alphap)
+    for p in range(0, N-1):
+        gtp[0, p+long_ligne_offset[1:N-p]] = np.full(shape=(1, N-p-1), 
+                                                         fill_value=gtp[0, p], 
                                                          dtype=int)
     
     for s in range(1, dimension):
-        vectemp = np.copy(vec[s-1, :])
-        
+        vectemp = np.copy(gtp[s-1, :])
         # find pivoting index
         indice = N*(N+1)//2
-        j_indice = np.argwhere( (long_ligne_offset - indice*np.full(shape=(N,), fill_value=1, dtype=int))<0).flatten()[-1] +1
-        i_indice = indice - long_ligne_offset[j_indice-1]
-        indice_friend = i_indice +1 + long_ligne_offset[j_indice-2]
+        j_indice = np.argwhere( (long_ligne_offset - indice*np.full(shape=(N,), fill_value=1, dtype=int))<0).flatten()[-1]
+        i_indice = indice - long_ligne_offset[j_indice]
+        indice_friend = i_indice + long_ligne_offset[j_indice-1]
         
-        while (vectemp[indice-1]==vectemp[indice_friend-1]):
+        while (vectemp[indice-1]==vectemp[indice_friend]):
             indice -= 1
-            j_indice = np.argwhere( (long_ligne_offset - indice*np.full(shape=(N,), fill_value=1, dtype=int))<0).flatten()[-1] +1
-            i_indice = indice - long_ligne_offset[j_indice-1]
-            indice_friend = i_indice + 1 + long_ligne_offset[j_indice-2]
+            j_indice = np.argwhere( (long_ligne_offset - indice*np.full(shape=(N,), fill_value=1, dtype=int))<0).flatten()[-1]
+            i_indice = indice - long_ligne_offset[j_indice]
+            indice_friend = i_indice + long_ligne_offset[j_indice-1]
         
         # apply (C9) from Alex' article
         vectemp[indice-1] -= 1
         for k in range(indice+1, N*(N+1)//2+1):
-            j_k = np.argwhere( (long_ligne_offset-k*np.full(shape=(N,), fill_value=1, dtype=int))<0 )[-1] +1
-            i_k = k - long_ligne_offset[j_k-1]
-            vectemp[k-1] = vectemp[i_k+long_ligne_offset[j_k-2]-1]
+            j_k = np.argwhere( (long_ligne_offset-k*np.full(shape=(N,), fill_value=1, dtype=int))<0 ).flatten()[-1]
+            i_k = k - long_ligne_offset[j_k]
+            vectemp[k-1] = vectemp[i_k-1+long_ligne_offset[j_k-1]]
         
-        vec[s,:] = vectemp
+        gtp[s, :] = vectemp
     
-    return vec
+    return gtp
 
 
 def tensor_product_irrep(alpha1, alpha2, N) -> np.ndarray:
@@ -2457,7 +2466,7 @@ def reduce_shape(alpha):
 
 
 def merge_shapes(alpha1, multi1, alpha2, multi2):
-    """
+    r"""
     Add two decompositions of irreps
     
     Parameters
@@ -2480,10 +2489,8 @@ def merge_shapes(alpha1, multi1, alpha2, multi2):
     
     Remarks
     -------
-    \left( \oplus_{j=0}^{N_1} \mu^{(1)}_j \alpha^{(1)}_j \right) 
-        \oplus \left( \oplus_{j=0}^{N_2} \mu^{(2)}_j \alpha^{(2)}_j \right)
-        ------
-    This operation
+    :math:
+        \left( \oplus_{j=0}^{N_1} \mu^{(1)}_j \alpha^{(1)}_j \right) \oplus \left( \oplus_{j=0}^{N_2} \mu^{(2)}_j \alpha^{(2)}_j \right)
     """
     
     n1 = len(multi1)
@@ -3217,13 +3224,13 @@ def reduce_adjacent_transpositions(at):
 
 
 def permutation_to_transpositions(sigma):
-    """
-    Transform a permutation of S_n into a product of transpositions (2-cycles)
+    r"""
+    Transform a permutation of :math:`\mathcal{S}_n` into a product of transpositions (2-cycles)
     
     Parameters
     ----------
     sigma : numpy array
-        permutation of S_n, as a permutation of [0, 1, ..., n-1]
+        permutation of :math:`\mathcal{S}_n`, as a permutation of [0, 1, ..., n-1]
     
     Returns
     -------
@@ -3232,13 +3239,13 @@ def permutation_to_transpositions(sigma):
     
     Description
     -----------
-    Decompose a permutation of S_n (such as (3, 2, 0, 5, 4, 1) \in S_6) as a 
+    Decompose a permutation of :math:`\mathcal{S}_n` (such as :math:`(3, 2, 0, 5, 4, 1) \in \mathcal{S}_6`) as a 
     product of 2-cycles (transpositions).
     
     Example
     -------
-    sigma = (3, 2, 5, 0, 1, 4, 6, 8, 7) \in S_9
-    ---> sigma = (0, 3)(1, 2)(2, 5)(4, 5)(7, 8)
+    :math:`\sigma = (3, 2, 5, 0, 1, 4, 6, 8, 7) \in \mathcal{S}_9`
+    ---> :math:`sigma = (0, 3)(1, 2)(2, 5)(4, 5)(7, 8)`
     """
     
     n = len(sigma)
@@ -3467,15 +3474,27 @@ def fullsimplify_development(ydev, cydev, coeff):
         coeff1 = np.copy(coeff)
     else:
         Ny = ydev.shape[0] # number of SYTs in the development
-        ydev1, ia, ic = np.unique(ydev, axis=0, return_index=True, return_inverse=True)
-        cydev1 = np.copy(cydev[ia,:])
-        M = scipy.sparse.csr_matrix( (np.full(fill_value=1, shape=(Ny,), dtype=int), (ic, np.arange(0, Ny))), shape=(len(ia), Ny) )
+        ydev1, ia, ic = np.unique(ydev, return_index=True, return_inverse=True, axis=0)
+        cydev1 = np.copy(cydev[ia, :])
         
+        # the following line (ic = ic.flatten())
+        # is necessary to bypass a breaking change introduced in numpy 2.0.0, 
+        # which was later fixed in numpy 2.0.1 with pull request #26961
+        # https://github.com/numpy/numpy/pull/26961
+        # Without this bypass, when using numpy 2.0.0, using ic as the "x-coordinates" 
+        # to build the scipy.sparse.csr_matrix throws a ValueError, because 
+        # (idx.ndim!=1) evaluated to True
+        ic = ic.flatten()
+        
+        data = np.full(shape=(Ny,), fill_value=1, dtype=int)
+        idx = ic
+        idy = np.arange(Ny)
+        M = scipy.sparse.csr_matrix( (data, (idx, idy)), shape=(len(ia), Ny) )
         coeff1 = M @ coeff
     
     ind = np.argwhere(abs(coeff1)>1.0e-12).flatten()
-    ydev1 = ydev1[ind,:]
-    cydev1 = cydev1[ind,:]
+    ydev1 = ydev1[ind, :]
+    cydev1 = cydev1[ind, :]
     coeff1 = coeff1[ind]
     
     return ydev1, cydev1, coeff1
@@ -4313,7 +4332,7 @@ def developp_antisymmetric(alpha, y, cy, m, n1, n2):
 
 
 def print_to_latex(y, **kwargs):
-    """
+    r"""
     Print a SYT to text in LaTeX format, using \ytableau
     
     Parameters
@@ -4385,7 +4404,7 @@ def print_to_latex(y, **kwargs):
 
 
 def print_subSYT_to_latex(y, alpha, **kwargs):
-    """
+    r"""
     Print a sub-SYT to text in LaTeX format, using \ytableau
     
     Parameters

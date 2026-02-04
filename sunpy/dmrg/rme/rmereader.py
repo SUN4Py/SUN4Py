@@ -78,13 +78,13 @@ class RMEReader:
         self._num_states = self._states.shape[0]
     
     
-    def __get_index_irrep(self, nu) -> int:
+    def __get_index_irrep(self, nu):
         index = sunpy.common.math.find_row(self._irreps, nu)
         assert(len(index)==1)
         return index[0]
     
     
-    def __get_index_state(self, state) -> int:
+    def __get_index_state(self, state):
         index = sunpy.common.math.find_row(self._states, state)
         assert(len(index)==1)
         return index[0]

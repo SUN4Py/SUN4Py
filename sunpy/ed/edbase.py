@@ -69,12 +69,7 @@ class EDSolver(ABC):
         if not self._lattice.Ns==self._Ns:
             sys.exit('ERROR : EDEngine : __init__ : lattice object does not have the correct number of sites.')
         
-        self._Y = None
-        self._CY = None
-        self._NY = None
         self._basis_computed = False
-        
-        self._H = None
         self._H_computed = False
         
         self._threshold_eigfull = int(1000)
@@ -131,8 +126,9 @@ class EDSolver(ABC):
         elif ((self._H_computed) & (self._NY<=self._threshold_eigsh)):
                 
             eigvals, eigvecs = scipy.sparse.linalg.eigsh(self._H, k=self._lanczos_params['num_eigenvalues'], which='SA')
+            eigvals = np.asarray(eigvals)
             eigvecs = np.asarray(eigvecs)
-                
+            
         else:
             # use custom Lanczos algorithm
             rng = np.random.default_rng(seed=42)
