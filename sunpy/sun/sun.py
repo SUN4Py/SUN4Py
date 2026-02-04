@@ -1748,12 +1748,15 @@ def multiplicity_symm(alpha, m) -> int:
         # implement the equivalent of Matlab's sortrows
         A = np.asarray(Forme[s:index_sum,:])
         if A.shape[0]>1:
+            '''
             tmp = []
             for i in range(A.shape[1]-1,-1,-1):
                 tmp.append(tuple(A[:,i]))
             ix = np.lexsort(tmp)
             B = np.copy(A)
             B = B[ix,:]
+            '''
+            B, _ = sunpy.common.math.sortrows(A)
             Forme[s:index_sum,:] = B
         
         FormePrec = np.zeros((index_sum, N), dtype=int)
@@ -1793,10 +1796,9 @@ def multiplicity_symm(alpha, m) -> int:
     elif lM==1:
         vecindex = np.argwhere(Mattest==0).flatten() + 1
     
+    kostka: int = int(0)
     if len(vecindex)>0:
-        kostka: int = Forme[vecindex[0]-1, N]
-    else:
-        kostka: int = int(0)
+        kostka = Forme[vecindex[0]-1, N]
     
     return kostka
 
