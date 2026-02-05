@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Feb  4 12:22:39 2026
-
-@author: Samuel
-"""
-
 """
 SUNPy A Python Library for solving SU(N) Heisenberg models
 Copyright (C) 2026  Samuel Gozel, GNU GPLv3
@@ -28,7 +21,7 @@ import numpy as np
 
 from sunpy.ed import edfund
 from sunpy.ed import lattice
-from sunpy.dmrg import dmrg
+from sunpy.dmrg.dmrgfund import DMRGSolverFund
 from sunpy import ROOT_PATH
 
 prec = 1.0e-13
@@ -66,13 +59,13 @@ def test_dmrg_su3():
         expected[L] = energy_from_ed(N, 2*L)
     
     # act
-    dmrg_engine = dmrg.DMRG(N=N, 
-                            Ns=Ns, 
-                            num_irreps=num_irreps, 
-                            max_num_states=max_num_states, 
-                            Ns_min=Ns_min, 
-                            target=target,
-                            rme_filename=rme_filename)
+    dmrg_engine = DMRGSolverFund(N=N, 
+                                 Ns=Ns, 
+                                 num_irreps=num_irreps, 
+                                 max_num_states=max_num_states, 
+                                 target=target,
+                                 Ns_min=Ns_min, 
+                                 rme_filename=rme_filename)
     dmrg_engine.idmrg()
     
     # assert

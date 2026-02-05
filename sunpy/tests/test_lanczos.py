@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Feb  4 12:22:39 2026
-
-@author: Samuel
-"""
-
 """
 SUNPy A Python Library for solving SU(N) Heisenberg models
 Copyright (C) 2026  Samuel Gozel, GNU GPLv3
