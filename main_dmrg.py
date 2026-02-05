@@ -20,7 +20,7 @@ import numpy as np
 import scipy.special
 import matplotlib.pyplot as plt
 
-from sunpy.dmrg import dmrg
+from sunpy.dmrg.dmrgfund import DMRGSolverFund
 from sunpy.ed import edfund
 from sunpy.ed import lattice
 
@@ -49,12 +49,12 @@ target = 'GS'
 # RUN DMRG
 ###############################################################################
 
-dmrg_engine = dmrg.DMRG(N=N, 
-                        Ns=Ns, 
-                        num_irreps=num_irreps, 
-                        max_num_states=max_num_states, 
-                        Ns_min=Ns_min, 
-                        target=target)
+dmrg_engine = DMRGSolverFund(N=N, 
+                             Ns=Ns, 
+                             num_irreps=num_irreps, 
+                             max_num_states=max_num_states, 
+                             target=target, 
+                             Ns_min=Ns_min)
 dmrg_engine.idmrg()
 
 ###############################################################################

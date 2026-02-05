@@ -21,23 +21,22 @@ import time
 import numpy as np
 import scipy.linalg
 
+from sunpy.dmrg.dmrgbase import DMRGSolver
+from sunpy.dmrg.rme.rmereader import RMEReader
+from sunpy.ed.edfund import EDSolverFund
+from sunpy.ed.lattice import chainLattice
 from sunpy.sun import sun
 import sunpy.common.math
-import sunpy.dmrg.rme.rmefund
-import sunpy.dmrg.rme.rmereader
-from sunpy.lanczos import lanczos
-import sunpy.ed.edfund
-import sunpy.ed.lattice
 
 
 
-class DMRG:
+class DMRGSolverFund(DMRGSolver):
     """
-    Class to perform Density Matrix Renormalization Group calculation on a chain
-    with local fundamental irrep of SU(N) at each site
+    Class to perform Density Matrix Renormalization Group calculation on a 
+    Heisenberg chain with local fundamental irrep of SU(N) at each site
     """
     
-    def __init__(self, N, Ns, num_irreps, max_num_states, **kwargs):
+    def __init__(self, N, Ns, num_irreps, max_num_states, target, **kwargs):
         """
         Constructor
         
@@ -51,10 +50,10 @@ class DMRG:
             number of irreps
         max_num_states : int
             max number of states to keep
-        Ns_min : int [optional] [default: 4]
-            initial half-chain length
-        target : str [optional] [default: 'GS']
+        target : str
             target irrep
+        Ns_min : int [optional][default: 4]
+            initial half-chain length
         rme_filename : str [optional]
             path to filename of list of RME
         lanczos_max_iter : int [optional][default: 200]
@@ -74,54 +73,23 @@ class DMRG:
           RMEs must have been computed accordingly
         - To target other sectors, proceed as follows:
             - define a str describing the new target rule    
-            - update dmrg.__target_irrep to define the Young diagrams associated to
+            - update _target_irrep to define the Young diagrams associated to
               the newly defined target irrep
             - Perform similarly with dmrg.rme.rmefund to compute the relevant reduced
               matrix elements of the interaction
         """
         
-        self._N = int(N)
-        assert(int(Ns)%2==0)
-        self._Ns = int(Ns)
-        self._num_irreps = num_irreps
-        self._max_num_states = max_num_states
-        self._truncated = False
-        self._target = kwargs.get('target', 'GS')
-        
-        self._do_check = False # set to True for checking versus ED on first iterations of iDMRG
-        self._test_Ns_threshold = int(6) # tests will be performed up to this length (half-chain)
-        
-        if (num_irreps<=int(300)):
-            irreps_filename = f'SU{self._N}_irreps_300.npy'
-        else:
-            irreps_filename = f'SU{self._N}_irreps_{num_irreps}.npy'
-        
-        user_dir = os.getcwd()
-        irreps_dir = os.path.join(user_dir, 'sunpy_irreps')
-        irreps_filename = os.path.join(irreps_dir, irreps_filename)
-        
-        if not os.path.exists(irreps_filename):
-            if not os.path.isdir(irreps_dir):
-                os.makedirs(irreps_dir)
-            # generate list of 300 (or num_irreps if 300<num_irreps) first irreps of SU(N)
-            print(f'Generating list of {max(int(300), num_irreps)} first irreps of SU({self._N})')
-            self._irreps_all = sun.get_irreps_by_casimir(self._N, max(int(300), num_irreps))
-            print('Done. Dumping to:', irreps_filename)
-            np.save(irreps_filename, self._irreps_all)
-        else:
-            print(f'Loading list of {max(int(300), num_irreps)} first irreps of SU({self._N})')
-            self._irreps_all = np.load(irreps_filename).astype(int)
-        
-        self._irreps0 = self._irreps_all[:self._num_irreps] # does not have a column with N boxes
+        super().__init__(N, Ns, num_irreps, max_num_states, target, **kwargs)
+        self._m = int(1)
+        self._local_dimension = self._N
         
         # add a column of N boxes to each irrep (to easily identify a bottom corner in last row)
         self._irreps = self._irreps0 + np.full(shape=(self._num_irreps, self._N), fill_value=1, dtype=int)
         
-        self._Ns_min = int(kwargs.get('Ns_min', 4))
-        
         if 'rme_filename' in kwargs:
             self._rme_filename = kwargs['rme_filename']
         else:
+            user_dir = os.getcwd()
             rme_dir = os.path.join(user_dir, 'sunpy_rmes')
             self._rme_filename = ''
             temp_f = f'RME_fund_SU{self._N}_{self._target}_numirreps{num_irreps}_'
@@ -132,40 +100,26 @@ class DMRG:
                     self._rme_filename = file
                     break
             if self._rme_filename=='':
-                print('WARNING : DMRG : __init__ : RMEs not found. Computing RMEs now ...')
-                from sunpy.dmrg.rme import rmefund
+                print('WARNING : DMRGSolverFund : __init__ : RMEs not found. Computing RMEs now ...')
+                from sunpy.dmrg.rme import RMEEngineFund
                 tech = 'shortcut_cols'
-                rmefund_engine = rmefund.RMEEngineFund(self._N, 
-                                                       self._num_irreps, 
-                                                       target=self._target, 
-                                                       tech=tech, 
-                                                       restarting=True, 
-                                                       checkpointing=False)
+                rmefund_engine = RMEEngineFund(self._N, 
+                                               self._num_irreps, 
+                                               target=self._target, 
+                                               tech=tech, 
+                                               restarting=True, 
+                                               checkpointing=False)
 
                 rmefund_engine.run()
                 self._rme_filename = f'RME_fund_SU{self._N}_{self._target}_numirreps{num_irreps}_{tech}.pickle'
                 self._rme_filename = os.path.join(rme_dir, self._rme_filename)
                 if not os.path.isfile(self._rme_filename):
-                    raise FileNotFoundError('DMRG: __init__ : RMEs not found after computation.')
+                    raise FileNotFoundError('DMRGSolverFund: __init__ : RMEs not found after computation.')
         
-        self._lanczos_max_iter = int(kwargs.get('lanczos_max_iter', 200))
-        self._lanczos_tol_ritz = kwargs.get('lanczos_tol_ritz', 1.0e-13)
-        self._lanczos_tol_residual = kwargs.get('lanczos_tol_residual', 1.0e-13)
+        self._rme_reader = RMEReader(self._N, self._num_irreps, self._rme_filename, m=int(1))
         
-        self._rme_reader = sunpy.dmrg.rme.rmereader.RMEReader(self._N, self._num_irreps, self._rme_filename, m=int(1))
-        
-        self.idmrg_discarded_weight = np.zeros(self._Ns//2+1)
-        self.idmrg_kept_weight = np.zeros(self._Ns//2+1)
-        self.idmrg_entropy = np.zeros(self._Ns//2+1)
-        self.idmrg_energy = np.zeros(self._Ns//2+1)
-        
-        self._num_states = {}
-        self._Genealogy = {}
-        self._Genealogy_acc = {}
-        self._irreps_n = {}
-        self._H = {}
-        self._rho_eigvals = {}
-        self._rho_eigvecs = {}
+        self._do_check = False # set to True for checking versus ED on first iterations of iDMRG
+        self._test_Ns_threshold = int(6) # tests will be performed up to this length (half-chain)
         
         print('DMRG Engine is now ready for iDMRG')
         
@@ -179,7 +133,7 @@ class DMRG:
         """
         print('Start iDMRG')
         
-        self.__idmrg_init()
+        self._idmrg_init()
         
         for n in range(self._Ns_min+1, self._Ns//2+1):
             print('--------------------------------------------------------------')
@@ -187,49 +141,49 @@ class DMRG:
             print('iDMRG: n = ', n, ', Ns/2 = ', self._Ns//2)
             print('--------------------------------------------------------------')
                         
-            TAB2 = self.__valid_irreps(n)
+            TAB2 = self._valid_irreps(n)
             self._irreps_n[n] = TAB2
             
             # Perform states selection and DMRG truncation
-            self.__select_states_step1(n)
-            Keep_val, ind_alpha_ascs = self.__select_states_step2(n)
+            self._select_states_step1(n)
+            Keep_val, ind_alpha_ascs = self._select_states_step2(n)
             
             # Measure total discarded weight
-            self.__get_discarded_weight(n, Keep_val)
+            self._get_discarded_weight(n, Keep_val)
             
             # Compute Hamiltonian on half-chain
-            self.__get_left_block_hamiltonians(n, ind_alpha_ascs)
+            self._get_left_block_hamiltonians(n, ind_alpha_ascs)
             
             # Target irreps for the two blocks
-            alphaGS = self.__target_irrep(n)
+            alphaGS = self._target_irrep(n)
             
-            tensor_bool = self.__get_tensor_bool(alphaGS, TAB2)
+            tensor_bool = self._get_tensor_bool(alphaGS, TAB2)
             
-            ind_relevant_irreps, ind_irrelevant_irreps = self.__analyze_tensor_bool(tensor_bool, self._num_states[n])
+            ind_relevant_irreps, ind_irrelevant_irreps = self._analyze_tensor_bool(tensor_bool, self._num_states[n])
             
-            bool_tensor_vec = self.__get_bool_tensor_vec(tensor_bool, self._num_states[n])
+            bool_tensor_vec = self._get_bool_tensor_vec(tensor_bool, self._num_states[n])
             
             # build block-diagonal Hamiltonian on half-chain for relevant irreps
-            Ai = self.__get_block_left_H(n, ind_relevant_irreps)
+            Ai = self._get_block_left_H(n, ind_relevant_irreps)
             
             # build HLR
-            HLR = self.__get_HLR(n, tensor_bool, ind_relevant_irreps)
+            HLR = self._get_HLR(n, tensor_bool, ind_relevant_irreps)
             
             # Perform Lanczos
             
-            idmrg_energy, GS = self.__diagonalize(n, HLR, Ai, bool_tensor_vec)
+            idmrg_energy, GS = self._diagonalize(n, HLR, Ai, bool_tensor_vec)
 
             #::::::::::::::::::
             # Sanity checks
             #::::::::::::::::::
-            # idmrg_energy_v0, GS_v0 = self.__lanczos_dmrg_full_form(n, HLR, Ai)
+            # idmrg_energy_v0, GS_v0 = self._lanczos_dmrg_full_form(n, HLR, Ai)
             #if (GS_v0[0]*GS[0]<0):
             #    GS_v0 *= -1
             
             #assert(abs(idmrg_energy - idmrg_energy_v0)<1.0e-12)
             #print('Error on 2 wrt base: ', np.sum(abs(GS_v0 - GS)))
             
-            #lanczos_multiply = lambda v : self.__multiply(HLR, Ai, bool_tensor_vec, v)
+            #lanczos_multiply = lambda v : self._multiply(HLR, Ai, bool_tensor_vec, v)
             #print('On base: np.sum(abs(H*GS - E*GS)) = ', np.sum(abs(lanczos_multiply(GS_v0) - idmrg_energy_v0*GS_v0)))
             #print('np.sum(abs(H*GS - E*GS)) = ', np.sum(abs(lanczos_multiply(GS) - idmrg_energy*GS)))
             #print('Difference on GS: ', np.sum(abs(GS - GS_v0)))
@@ -246,14 +200,14 @@ class DMRG:
             
             # Compute density matrices
             # for relevant irreps
-            self.__density_matrices_and_Hrotate_relevant_irreps(n, GS, TAB2, ind_relevant_irreps)            
+            self._density_matrices_and_Hrotate_relevant_irreps(n, GS, TAB2, ind_relevant_irreps)            
             # for non-relevant irreps
-            self.__density_matrices_and_Hrotate_irrelevant_irreps(n, ind_irrelevant_irreps)
+            self._density_matrices_and_Hrotate_irrelevant_irreps(n, ind_irrelevant_irreps)
         
         return
     
     
-    def __idmrg_init(self):
+    def _idmrg_init(self):
         """
         Initialization step in iDMRG, namely construction of the chain with 
         2*self._Ns_min sites
@@ -261,11 +215,11 @@ class DMRG:
         
         print('::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::')
         print('iDMRG initialization ...')
-        tstart = time.time()
+        tstart = time.perf_counter()
         
-        TAB0 = self.__valid_irreps(self._Ns_min-1)
+        TAB0 = self._valid_irreps(self._Ns_min-1)
         i_TAB0 = TAB0.shape[0]
-        TAB1 = self.__valid_irreps(self._Ns_min)
+        TAB1 = self._valid_irreps(self._Ns_min)
         i_TAB1 = TAB1.shape[0]
         
         self._irreps_n[self._Ns_min-1] = TAB0
@@ -283,18 +237,18 @@ class DMRG:
         
         num_states_init = np.zeros(shape=(i_TAB1,), dtype=int)
         
-        lattice = sunpy.ed.lattice.chainLattice(Ns=self._Ns_min, isPBC=False)
+        lattice = chainLattice(Ns=self._Ns_min, isPBC=False)
         
         for q in range(0, i_TAB1):
             alpha = np.copy(TAB1[q])
             num_states_init[q] = sun.multiplicity(alpha)            
             # compute Hamiltonian for target irrep alpha
-            Engine = sunpy.ed.edfund.EDSolverFund(self._N, 
-                                                  self._Ns_min, 
-                                                  alpha, 
-                                                  lattice, 
-                                                  basisOrder='iLLOS')
-            self._H[self._Ns_min].append(Engine.sun_hamiltonian())
+            ed_engine = EDSolverFund(self._N, 
+                                     self._Ns_min, 
+                                     alpha, 
+                                     lattice, 
+                                     basisOrder='iLLOS')
+            self._H[self._Ns_min].append(ed_engine.sun_hamiltonian())
             
             bcs = sun.get_bottom_corner(alpha)
             Y = sun.get_SYT(alpha, order='iLLOS')
@@ -316,39 +270,39 @@ class DMRG:
         self._Genealogy_acc[self._Ns_min] = Genealogy_init_acc
         
         # build irrep of target with 2*Ns_min sites
-        alphaGS = self.__target_irrep(self._Ns_min)
+        alphaGS = self._target_irrep(self._Ns_min)
         
         # search which irreps of TAB1 combine into the target alphaGS
-        tensor_bool_min = self.__get_tensor_bool(alphaGS, TAB1)
+        tensor_bool_min = self._get_tensor_bool(alphaGS, TAB1)
         
-        ind_relevant_irreps_init, ind_irrelevant_irreps_init = self.__analyze_tensor_bool(tensor_bool_min, self._num_states[self._Ns_min])
+        ind_relevant_irreps_init, ind_irrelevant_irreps_init = self._analyze_tensor_bool(tensor_bool_min, self._num_states[self._Ns_min])
         
-        Ai_init = self.__get_block_left_H(self._Ns_min, ind_relevant_irreps_init)
+        Ai_init = self._get_block_left_H(self._Ns_min, ind_relevant_irreps_init)
         
         # Compute HLR using the reduced matrix elements of the interaction, by used of SDCs
-        HLR_init = self.__get_HLR(self._Ns_min, tensor_bool_min, ind_relevant_irreps_init)
+        HLR_init = self._get_HLR(self._Ns_min, tensor_bool_min, ind_relevant_irreps_init)
         
         # Diagonalize Hamiltonian on full chain
-        energy_init, GS = self.__lanczos_dmrg_full_form(self._Ns_min, HLR_init, Ai_init)
+        energy_init, GS = self._lanczos_dmrg_full_form(self._Ns_min, HLR_init, Ai_init)
         
         print('DMRG: GS energy of chain with ', 2*self._Ns_min, ' sites: ', energy_init)
         self.idmrg_init_energy = energy_init
         self.idmrg_energy[self._Ns_min] = energy_init
         
         # density matrices for relevant irreps
-        self.__density_matrices_and_Hrotate_relevant_irreps(self._Ns_min, GS, TAB1, ind_relevant_irreps_init)
+        self._density_matrices_and_Hrotate_relevant_irreps(self._Ns_min, GS, TAB1, ind_relevant_irreps_init)
         
         # density matrices for irrelevant irreps
-        self.__density_matrices_and_Hrotate_irrelevant_irreps(self._Ns_min, ind_irrelevant_irreps_init)
+        self._density_matrices_and_Hrotate_irrelevant_irreps(self._Ns_min, ind_irrelevant_irreps_init)
         
-        tend = time.time()
-        print('Time iDMRG init = ', (tend-tstart), 's')
+        tend = time.perf_counter()
+        print('Time iDMRG init = {}s'.format(tend-tstart))
         print('done.')
         
         return
     
     
-    def __valid_irreps(self, Ns):
+    def _valid_irreps(self, Ns):
         """
         Find all relevant irreps with Ns boxes
         """        
@@ -365,14 +319,14 @@ class DMRG:
         return irreps
         
     
-    def __target_irrep(self, Ns):
+    def _target_irrep(self, L):
         """
-        Return the irrep of the target sector, for a chain with 2*Ns sites
+        Return the irrep of the target sector, for a chain with 2*L sites
         """
         if self._target=='GS':
-            nc = 2*Ns // self._N
+            nc = 2*L // self._N
             alpha = np.full(shape=(self._N,), fill_value=nc, dtype=int)
-            r = 2*Ns - self._N*nc
+            r = 2*L - self._N*nc
             ind = np.argwhere(np.sum(self._irreps_all, axis=1)==r).flatten()
             casimir = np.zeros(shape=ind.shape)
             for i in range(0, len(ind)):
@@ -380,15 +334,13 @@ class DMRG:
             indc = np.argmin(casimir)
             alpha += self._irreps_all[ind[indc]]
         else:
-            raise ValueError('DMRG : __target_irrep : Target undefined.')
-        
+            raise ValueError('DMRGSolverFund : _target_irrep : Target undefined.')        
         print('::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::')
         print('Target irrep: ', alpha)
-        
         return alpha
     
     
-    def __get_ascendants_indices(self, alpha, TAB1):
+    def _get_ascendants_indices(self, alpha, TAB1):
         """
         Find the indices in TAB1 of all the ascendants of input irrep alpha
         
@@ -423,14 +375,14 @@ class DMRG:
         return ind_alpha_ascs, bcs
     
     
-    def __select_states_step1(self, n):
+    def _select_states_step1(self, n):
         """
         DMRG truncation step 1: Determine how many states to keep in each 
         symmetry sector
         """
         print('::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::')
         print('Start states selection')
-        tstart = time.time()
+        tstart = time.perf_counter()
         
         TAB1 = self._irreps_n[n-1]
         TAB2 = self._irreps_n[n]
@@ -445,7 +397,7 @@ class DMRG:
         # build the common final rho_eigvals_all, ind_rho_eigvals_all
         for p in range(0, i_TAB2):
             # get the indices
-            ind_alpha_ascs, _ = self.__get_ascendants_indices(TAB2[p], TAB1)
+            ind_alpha_ascs, _ = self._get_ascendants_indices(TAB2[p], TAB1)
             # accumulate the eigenvalues of the density matrix of each ascendant shape
             for s in range(0, len(ind_alpha_ascs)):
                 ltemp = self._num_states[n-1][ind_alpha_ascs[s]]
@@ -475,16 +427,16 @@ class DMRG:
         for p in range(0, i_TAB2):
             self._num_states[n][p] = len(np.argwhere(ind_rho_eigvals_kept==p).flatten())
         
-        tend = time.time()
-        print('Time = ', (tend-tstart), 's')
+        tend = time.perf_counter()
+        print('Time = {}s'.format(tend-tstart))
         print('done.')
         
-        self.__print_distribution(TAB2, self._num_states[n])
+        self._print_distribution(TAB2, self._num_states[n])
         
         return
     
     
-    def __select_states_step2(self, n):
+    def _select_states_step2(self, n):
         """
         DMRG truncation step 2: Truncate states in each symmetry sector, keeping
         the ones with the largest eigenvalues of the density matrices
@@ -503,7 +455,7 @@ class DMRG:
         for p in range(0, i_TAB2):
             
             # get indices of ascendant shapes, and position of selected bottom corner
-            ind_alpha_ascs[p], bcs = self.__get_ascendants_indices(TAB2[p], TAB1)
+            ind_alpha_ascs[p], bcs = self._get_ascendants_indices(TAB2[p], TAB1)
             
             # accumulate the eigenvalues of the density matrix for sector p 
             # from each ascendant shape
@@ -543,7 +495,7 @@ class DMRG:
         return Keep_val, ind_alpha_ascs
                 
     
-    def __get_left_block_hamiltonians(self, n, ind_alpha_ascs):
+    def _get_left_block_hamiltonians(self, n, ind_alpha_ascs):
         """
         Compute the Hamiltonian of the left (or right) block in each sector
         """
@@ -692,11 +644,11 @@ class DMRG:
                 print('Perform check of Hamiltonian of left block in irrep: ', TAB2[p])
                 test_dmrg_energy, _ = np.linalg.eigh(self._H[n][p].todense())
                 #----------------------------
-                test_lattice = sunpy.ed.lattice.chainLattice(Ns=np.sum(TAB2[p]), isPBC=False)
-                test_edengine = sunpy.ed.edfund.EDSolverFund(N=self._N, 
-                                                             Ns=np.sum(TAB2[p]), 
-                                                             alpha=TAB2[p], 
-                                                             lattice=test_lattice)
+                test_lattice = chainLattice(Ns=np.sum(TAB2[p]), isPBC=False)
+                test_edengine = EDSolverFund(N=self._N, 
+                                             Ns=np.sum(TAB2[p]), 
+                                             alpha=TAB2[p], 
+                                             lattice=test_lattice)
                 test_H = test_edengine.sun_hamiltonian().todense()
                 test_ed_energy, _ = np.linalg.eigh(test_H)
                 if (np.sum(abs(test_ed_energy-test_dmrg_energy))>1.0e-13):
@@ -713,394 +665,7 @@ class DMRG:
         return
     
     
-    def __get_discarded_weight(self, n, Keep_val):
-        """
-        Measure the total discarded weight, taking into account the irreps' 
-        dimensions
-        """
-        TAB2 = self._irreps_n[n]
-        i_TAB2 = TAB2.shape[0]
-        
-        dim_irrep = np.zeros(i_TAB2)
-        for p in range(0, i_TAB2):
-            dim_irrep[p] = sun.dim_irrep_sun(TAB2[p], self._N)
-        
-        self.idmrg_kept_weight[n] = np.sum(np.multiply(Keep_val, dim_irrep))/self._N
-        self.idmrg_discarded_weight[n] = 1. - self.idmrg_kept_weight[n]
-        
-        print('--------------------------')
-        print('Discarded weight = ', self.idmrg_discarded_weight[n])
-        print('--------------------------')
-        
-        return
-    
-    
-    def __diagonalize(self, n, HLR, Ai, bool_tensor_vec):
-        """
-        Diagonalize the Hamiltonian on the entire chain
-        """
-        
-        dimension = HLR.shape[0] # full Hilbert space dimension
-        
-        dimension_threshold_fullform = int(16000)
-        
-        if (dimension<=dimension_threshold_fullform):
-            # use a full-form representation of the Hamiltonian
-            # diagonalize with numpy.linalg.eigh or scipy.sparse.linalg.eigsh
-            energy, GS = self.__lanczos_dmrg_full_form(n, HLR, Ai)
-        else:
-            # use a custom, light-weight, implementation of the Lanczos algorithm
-            
-            # random starting vector
-            rng = np.random.default_rng(seed=(42+n))
-            v_init = rng.uniform(low=-1.0, high=1.0, size=dimension)
-            #v_init = np.random.rand(dimension)
-            v_init = v_init/np.linalg.norm(v_init)
-            
-            # for n a multiple of N, we increase the maximum number of iterations
-            max_iter = self._lanczos_max_iter + (n%self._N==0) * self._lanczos_max_iter//2
-            
-            lanczos_multiply = lambda v : self.__multiply(HLR, Ai, bool_tensor_vec, v)
-            
-            energy, GS = lanczos.lanczos(lanczos_multiply, 
-                                         v_init, 
-                                         max_iter=max_iter, 
-                                         tol_residual=self._lanczos_tol_residual, 
-                                         tol_ritz=self._lanczos_tol_ritz)
-        
-        return energy, GS
-    
-    
-    def __lanczos_dmrg_full_form(self, n, HLR, Ai):
-        """
-        Perform Lanczos using a full-form representation of the matrix, and 
-        calling numpy.linalg.eigh or scipy.sparse.eigsh.
-        This is the privileged diagonalization routine for small size 
-        Hamiltonian.
-        """
-        print('::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::')
-        print('Start Lanczos full form ...')
-        tstart = time.time()
-        
-        dim_superbloc = HLR.shape[0]
-        num_valid_states = int(np.sqrt(dim_superbloc))
-        
-        Bi = scipy.sparse.eye(m=num_valid_states, n=num_valid_states, k=0)
-        
-        HLi = scipy.sparse.kron(Ai, Bi, format='csr')
-        HRi = scipy.sparse.kron(Bi, Ai, format='csr')
-        
-        H = HLR + HLi + HRi
-        
-        print('Hamiltonian dimensions: ', dim_superbloc, 'x', dim_superbloc)
-        
-        dimension_numpy_eigh_threshold = int(200)
-        
-        if (dim_superbloc==1):
-            energy = H[0, 0]
-            GS = np.array([1.0])
-        elif (dim_superbloc<dimension_numpy_eigh_threshold):
-            H_eigvals, GS = np.linalg.eigh(H.todense())
-            energy = H_eigvals[0]
-            GS = np.asarray(GS)
-            GS = GS[:, 0].flatten()
-        else:
-            H_eigvals, GS = scipy.sparse.linalg.eigsh(H, k=1, which='SA')
-            energy = H_eigvals[0]
-            GS = np.asarray(GS)
-            GS = GS[:, 0].flatten()
-        
-        tend = time.time()
-        print('Time = ', (tend-tstart), 's')
-        print('done.')
-        
-        return energy, GS
-    
-    
-    def __multiply(self, HLR, Ai, bool_tensor_vec, V):
-        """
-        Compute W = Hamiltonian @ V without building a full representation of
-        the Hamiltonian
-        """
-        
-        tstart = time.time()
-        
-        dim_superblock = V.shape[0]
-        num_states = Ai.shape[0]
-        assert(num_states**2==dim_superblock)
-        assert(HLR.shape[0]==dim_superblock)
-        assert(len(bool_tensor_vec)==dim_superblock)
-        
-        # V is an array of dimension n_superblock and has indices (i,j), 
-        
-        W = np.reshape(V, (num_states, num_states)) # (i, j)
-        W = Ai @ W # (k, i) x (i, j) --> (k, j)
-        W = np.reshape(W, (dim_superblock,)) # (k, j), 
-        W = np.multiply(bool_tensor_vec, W)
-        
-        WL = np.multiply(bool_tensor_vec, V)
-        WL = np.reshape(WL, (num_states, num_states))
-        WL = WL @ Ai.transpose()
-        WL = np.reshape(WL, (dim_superblock,))
-        
-        W += WL
-        del WL
-        
-        W += HLR @ V
-        
-        tend = time.time()
-        telapsed = tend-tstart
-        if (telapsed>10):
-            print('multiply: Time = ', telapsed, 's')
-        
-        return W    
-    
-    
-    def __print_distribution(self, irreps, num_states):
-        """
-        Print the distribution of states
-        """
-        print('::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::')
-        print('Distribution of states:')
-        for j, irrep in enumerate(irreps):
-            print(irrep, ': ', num_states[j])
-        print('--------------------------')
-        print('Total: ', np.sum(num_states))
-        return
-    
-    
-    def __get_tensor_bool(self, alphaTarget, irreps):
-        """
-        Compute the matrix which summarizes which pairs of irreps of TAB can 
-        lead to the target irrep
-        
-        Parameters
-        ----------
-        alphaTarget : numpy array
-            target irrep
-        irreps : numpy array
-            collection of irreps (stored in the rows)
-        
-        Returns
-        -------
-        out : numpy array (dimension irreps.shape[0] x irreps.shape[0])
-            out[i, j] == 1 if irreps[i]irreps[j] --> alphaTarget
-                         0 otherwise
-        """
-        num_irreps = irreps.shape[0]
-        out = np.zeros(shape=(num_irreps, num_irreps), dtype=int)
-        for i in range(0, num_irreps):
-            out[i, i] = (sun.multiplicity_irrep_mixed(alphaTarget, np.array([irreps[i], irreps[i]]), self._N)>0)
-            for j in range(i+1, num_irreps):
-                out[i, j] = (sun.multiplicity_irrep_mixed(alphaTarget, np.array([irreps[i], irreps[j]]), self._N)>0)
-                out[j, i] = out[i, j]
-        return out
-        
-    
-    
-    def __analyze_tensor_bool(self, tensor_bool, num_states):
-        """
-        
-        """
-        
-        ind_relevant_irreps = np.argwhere(np.sum(tensor_bool, axis=1)).flatten()
-        ind_irrelevant_irreps = np.setdiff1d(np.arange(0, tensor_bool.shape[0]), ind_relevant_irreps)
-        
-        return ind_relevant_irreps, ind_irrelevant_irreps
-    
-    
-    
-    def __get_bool_tensor_vec(self, tensor_bool, num_states):
-        """
-        
-        """
-        
-        ind_relevant_irreps, _ = self.__analyze_tensor_bool(tensor_bool, num_states)
-        num_relevant_irreps = len(ind_relevant_irreps)
-        num_relevant_states = np.sum(num_states[ind_relevant_irreps])
-        
-        n_superbloc = num_relevant_states**2
-        
-        bool_tensor_vec = np.zeros(shape=(n_superbloc,), dtype=int)
-        
-        for t in range(0, num_relevant_irreps):
-            for s in range(0, num_relevant_irreps):
-                if (tensor_bool[ind_relevant_irreps[t], ind_relevant_irreps[s]]==1):
-                    for q in range(0, num_states[ind_relevant_irreps[t]]):
-                        ist = num_relevant_states * ( np.sum(num_states[ind_relevant_irreps[:t]]) + q ) + np.sum( num_states[ind_relevant_irreps[:s]] )
-                        ied = num_relevant_states * ( np.sum(num_states[ind_relevant_irreps[:t]]) + q ) + np.sum( num_states[ind_relevant_irreps[:s+1]] )
-                        bool_tensor_vec[ist:ied] = 1
-        return bool_tensor_vec
-    
-    
-    def __get_block_left_H(self, n, ind_relevant_irreps):
-        """
-        Build a block-diagonal matrix with Hamiltonians of the relevant irrep
-        on a half-chain in each block
-        """
-        num_relevant_irreps = len(ind_relevant_irreps)
-        Hblock = self._H[n][ind_relevant_irreps[0]]
-        for i in range(1, num_relevant_irreps):
-            Hblock = scipy.sparse.block_diag((Hblock, self._H[n][ind_relevant_irreps[i]]), format='csr' )
-        return Hblock
-    
-    
-    def __get_density_matrix(self, q, GS, num_states, ind_relevant_irreps):
-        """
-        
-        Parameters
-        ----------
-        q : int
-            index of relevant irrep for which the density matrix is computed
-        GS : numpy array
-            ground-state vector
-        num_states : numpy array
-            number of states kept for each irrep
-        ind_relevant_irreps : numpy array
-            indices of relevant irreps
-        """
-        
-        dim_rho = num_states[ind_relevant_irreps[q]]
-        rho = np.zeros(shape=(dim_rho, dim_rho), dtype=float)
-        
-        num_relevant_states = np.sum(num_states[ind_relevant_irreps])
-        index_offset = num_relevant_states * np.sum(num_states[ind_relevant_irreps[:q]])
-        
-        for i in range(0, dim_rho):                
-            
-            index_vec_i = index_offset + np.arange(num_relevant_states*i, num_relevant_states*(i+1))
-            rho[i, i] = np.dot(GS[index_vec_i], GS[index_vec_i])
-            
-            for j in range(i+1, dim_rho):
-                index_vec_j = index_offset + np.arange(num_relevant_states*j, num_relevant_states*(j+1))
-                rho[i, j] = np.dot(GS[index_vec_i], GS[index_vec_j])
-                rho[j, i] = rho[i, j]
-        
-        return rho
-    
-    
-    def __density_matrices_and_Hrotate_relevant_irreps(self, n, GS, TAB, ind_relevant_irreps):
-        """
-        Compute density matrices, digaonalize them and rotate Hamiltonian 
-        according to the eigenvectors of the density matrices
-        
-        Parameters
-        ----------
-        GS : numpy array
-            |GS>
-        HLn : list
-            Hamiltonian matrices for each irrep
-        TAB : numpy array
-            collection of irreps (stored in the rows)
-        ind_relevant_irreps : numpy array
-            indices of the relevant irreps
-        
-        Returns
-        -------
-        all_rho_eigvals : list
-            eigenvalues of the density matrices of the relevant irreps
-        all_rho_eigvecs : list
-            eigenvectors of the density matrices of the relevant irreps
-        HLn : list
-            rotated Hamiltonians
-        """
-        print('::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::')
-        print('Compute density matrices and diagonalize them ...')
-        tstart = time.time()
-        
-        i_TAB = TAB.shape[0]
-        self._rho_eigvals[n] = [None] * i_TAB
-        self._rho_eigvecs[n] = [None] * i_TAB
-        
-        num_relevant_irreps = len(ind_relevant_irreps)
-        num_states = self._num_states[n]
-        
-        entropy = 0.0
-        
-        # TO DO : This loop should be parallel, with a critical construct (or 
-        # atomics) when incrementing entropy
-        for q in range(0, num_relevant_irreps):
-            
-            # compute density matrix
-            rho = self.__get_density_matrix(q, GS, num_states, ind_relevant_irreps)
-            
-            # diagonalize density matrix
-            rho_eigvals, rho_eigvecs = np.linalg.eigh(rho)
-            rho_eigvecs = np.asarray(rho_eigvecs)
-            
-            # sort eigenvalues and eigenvectors according to decreasing eigenvalues
-            rho_eigvals = rho_eigvals[::-1]
-            rho_eigvecs = rho_eigvecs[:, ::-1]
-            
-            # renormalize according to irrep dimension
-            dimq = sun.dim_irrep_sun(TAB[ind_relevant_irreps[q]], self._N)
-            rho_eigvals = rho_eigvals / dimq
-            
-            # measure entanglement entropy
-            ind_nv = np.argwhere(rho_eigvals<=0.0).flatten()
-            if not all(abs(rho_eigvals[ind_nv])<1.0e-14):
-                raise ValueError('ERROR : DMRG : density matrix has large negative eigenvalues')
-            ind_pv = np.setdiff1d(np.arange(len(rho_eigvals)), ind_nv).flatten()
-            entropy -= dimq * np.sum( np.multiply(rho_eigvals[ind_pv], np.log(rho_eigvals[ind_pv])) )
-            
-            # rotate Hamiltonian
-            self._H[n][ind_relevant_irreps[q]] = rho_eigvecs.transpose() @ (self._H[n][ind_relevant_irreps[q]] @ rho_eigvecs)
-            
-            self._rho_eigvals[n][ind_relevant_irreps[q]] = rho_eigvals
-            self._rho_eigvecs[n][ind_relevant_irreps[q]] = rho_eigvecs
-        
-        self.idmrg_entropy[n] = entropy
-        
-        tend = time.time()
-        print('Time = ', (tend-tstart), 's')
-        print('done.')
-        
-        return
-    
-    
-    def __density_matrices_and_Hrotate_irrelevant_irreps(self, n, ind_irrelevant_irreps):
-        """
-        Density matrices for non-relevant irreps
-        """
-        print('Deal with irrelevant irreps ...')
-        tstart = time.time()
-        
-        if len(ind_irrelevant_irreps)==0:
-            print('There is no irrelevant irrep.')
-        
-        num_states = self._num_states[n]
-        
-        # TO DO : this is a parallel loop
-        for q in range(0, len(ind_irrelevant_irreps)):
-            
-            dim_rho = num_states[ind_irrelevant_irreps[q]]
-            Hq = self._H[n][ind_irrelevant_irreps[q]]
-            assert(Hq.shape[0]==dim_rho)
-            
-            # diagonalize associated Hamiltonian
-            if Hq.shape[0]==1:
-                Hq_eigvecs = np.array([[1.0]], dtype=float)
-            else:
-                _, Hq_eigvecs = np.linalg.eigh(Hq.todense())
-            
-            # eigenvalues of density matrix are all 0
-            self._rho_eigvals[n][ind_irrelevant_irreps[q]] = np.zeros(shape=(dim_rho,), dtype=float)
-            
-            # for eigenvectors, we take the eigenvectors of the Hamiltonian Hq
-            self._rho_eigvecs[n][ind_irrelevant_irreps[q]] = np.asarray(Hq_eigvecs)
-            
-            # rotate Hamiltonian
-            self._H[n][ind_irrelevant_irreps[q]] = Hq_eigvecs.transpose() @ Hq @ Hq_eigvecs
-        
-        tend = time.time()
-        print('Time = ', (tend-tstart), 's')
-        print('done.')
-        
-        return 
-    
-    
-    
-    def __get_HLR(self, n, tensor_bool, ind_relevant_irreps):
+    def _get_HLR(self, n, tensor_bool, ind_relevant_irreps):
         """
         Compute the matrix HLR, which couples the left block to the right block,
         using the Reduced Matrix Elements of the interaction previously obtained
@@ -1109,7 +674,7 @@ class DMRG:
         
         print('::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::')
         print('Computing HLR ...')
-        tstart = time.time()
+        tstart = time.perf_counter()
         
         num_states = self._num_states[n]
         TAB = self._irreps_n[n]
@@ -1307,8 +872,8 @@ class DMRG:
         HLR = scipy.sparse.csr_matrix( (vecHLRvalues, (vecHLRx, vecHLRy)), 
                                       shape=(dim_superblock, dim_superblock) )
         
-        tend = time.time()
-        print('Time = ', (tend-tstart), 's')
+        tend = time.perf_counter()
+        print('Time = {}s'.format(tend-tstart))
         print('done.')
         
-        return HLR    
+        return HLR
