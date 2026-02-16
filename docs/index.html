@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SU(N)4Py Documentation</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: "Lato", "Helvetica Neue", Arial, sans-serif;
+      font-size: 15px;
+      color: #404040;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* ── Top bar ── */
+    .topbar {
+      background: #2c3e50;
+      color: #fff;
+      padding: 10px 24px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .topbar a {
+      color: #a0b0c0;
+      text-decoration: none;
+    }
+    .topbar a:hover { color: #fff; }
+
+    /* ── Layout ── */
+    .layout {
+      display: flex;
+      flex: 1;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 240px;
+      min-width: 240px;
+      background: #343131;
+      color: #d9d9d9;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .sidebar-logo {
+      background: #272424;
+      padding: 18px 20px;
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: #fff;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid #444;
+    }
+    .sidebar-logo span {
+      font-size: 0.75rem;
+      color: #aaa;
+      display: block;
+      font-weight: normal;
+      margin-top: 2px;
+    }
+    .sidebar-section {
+      padding: 16px 20px 8px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #888;
+    }
+    .sidebar nav ul {
+      list-style: none;
+      padding: 0 0 16px 0;
+    }
+    .sidebar nav ul li a {
+      display: block;
+      padding: 6px 20px;
+      color: #d9d9d9;
+      text-decoration: none;
+      font-size: 14px;
+    }
+    .sidebar nav ul li a:hover {
+      background: #444;
+      color: #fff;
+    }
+    .sidebar nav ul li a.active {
+      background: #4a4a4a;
+      color: #fff;
+      border-left: 3px solid #e74c3c;
+      padding-left: 17px;
+    }
+    .sidebar-search {
+      padding: 12px 16px;
+      border-bottom: 1px solid #444;
+    }
+    .sidebar-search input {
+      width: 100%;
+      padding: 6px 10px;
+      background: #272424;
+      border: 1px solid #555;
+      border-radius: 4px;
+      color: #d9d9d9;
+      font-size: 13px;
+      outline: none;
+    }
+    .sidebar-search input::placeholder { color: #888; }
+
+    /* ── Main content ── */
+    .content {
+      flex: 1;
+      padding: 40px 60px;
+      max-width: 900px;
+    }
+
+    .content h1 {
+      font-size: 2rem;
+      color: #2c3e50;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 12px;
+      margin-bottom: 20px;
+    }
+    .content h2 {
+      font-size: 1.3rem;
+      color: #2c3e50;
+      margin: 36px 0 12px;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 6px;
+    }
+    .content p {
+      line-height: 1.7;
+      margin-bottom: 14px;
+      color: #555;
+    }
+
+    .under-construction {
+      background: #fff8e1;
+      border-left: 4px solid #f0ad4e;
+      padding: 16px 20px;
+      border-radius: 0 4px 4px 0;
+      margin: 24px 0;
+      color: #7a5c00;
+      font-size: 14px;
+    }
+    .under-construction strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 15px;
+    }
+
+    /* ── Footer ── */
+    footer {
+      background: #f0f0f0;
+      border-top: 1px solid #ddd;
+      padding: 14px 60px;
+      font-size: 12px;
+      color: #888;
+      display: flex;
+      justify-content: space-between;
+    }
+    footer a { color: #888; text-decoration: none; }
+    footer a:hover { color: #333; }
+  </style>
+</head>
+<body>
+
+  <!-- Top navigation bar -->
+  <div class="topbar">
+    <a href="#">SUN4Py</a>
+    <span style="color:#555">»</span>
+    <span>Documentation</span>
+  </div>
+
+  <div class="layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        SUN4Py
+        <span>v0.1.0</span>
+      </div>
+      <div class="sidebar-search">
+        <input type="text" placeholder="Search docs..." disabled />
+      </div>
+      <div class="sidebar-section">Contents</div>
+      <nav>
+        <ul>
+          <li><a href="#" class="active">Home</a></li>
+          <li><a href="#">Installation</a></li>
+          <li><a href="#">Getting Started</a></li>
+          <li><a href="#">API Reference</a></li>
+          <li><a href="#">Examples</a></li>
+          <li><a href="#">Changelog</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main content -->
+    <main class="content">
+      <h1>SU(N)4Py</h1>
+
+      <div class="under-construction">
+        <strong>🚧 Documentation is under construction ...</strong>
+        Full documentation will be available soon. Thank you for your patience.
+      </div>
+
+      <h2>Overview</h2>
+      <p>
+        SU(N)4Py is a Python library for solving SU(N) Heisenberg models. More details about its features,
+        installation, and usage will be documented here shortly.
+        
+        In the meantime, you can find installation instructions in the main page of the <a href="https://github.com/sgozel/SUN4Py">Github repository</a>.
+      </p>
+    </main>
+
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <span>© 2026, SUN4Py contributors.</span>
+    <span>Built with <a href="https://www.sphinx-doc.org/">Sphinx</a>.</span>
+  </footer>
+
+</body>
+</html>
