@@ -22,7 +22,7 @@ import numpy as np
 from sun4py.ed import edfund
 from sun4py.ed import lattice
 from sun4py.dmrg.dmrgfund import DMRGSolverFund
-from sun4py import ROOT_PATH
+from . import TESTS_PATH
 
 prec = 1.0e-13
 
@@ -52,7 +52,7 @@ def test_dmrg_su3():
     target = 'GS'
     tech = 'shortcut_cols'
     rme_filename = f'testdata_rmefund_SU{N}_numirreps{num_irreps}_{target}_{tech}.pickle'
-    rme_filename = os.path.join(ROOT_PATH, 'tests', 'testdata', rme_filename)
+    rme_filename = os.path.join(TESTS_PATH, 'testdata', rme_filename)
     
     expected = np.zeros(shape=(Ns//2+1,), dtype=float)
     for L in range(Ns_min, Ns//2+1):

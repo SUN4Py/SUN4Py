@@ -15,3 +15,9 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+import os
+
+from sun4py import REPOSITORY_PATH
+
+TESTS_PATH = os.path.join(REPOSITORY_PATH, 'tests')

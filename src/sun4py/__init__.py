@@ -19,3 +19,4 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import os
 
 ROOT_PATH = os.path.dirname(os.path.abspath(__file__))
+REPOSITORY_PATH = os.path.dirname(os.path.dirname(ROOT_PATH))
