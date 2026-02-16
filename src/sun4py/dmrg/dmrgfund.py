@@ -101,7 +101,7 @@ class DMRGSolverFund(DMRGSolver):
                     break
             if self._rme_filename=='':
                 print('WARNING : DMRGSolverFund : __init__ : RMEs not found. Computing RMEs now ...')
-                from sun4py.dmrg.rme import RMEEngineFund
+                from sun4py.dmrg.rme.rmefund import RMEEngineFund
                 tech = 'shortcut_cols'
                 rmefund_engine = RMEEngineFund(self._N, 
                                                self._num_irreps, 
