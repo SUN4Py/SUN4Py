@@ -1,0 +1,147 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sun4py"
+version = "0.1.0"
+description = "A Python Library for solving SU(N) Heisenberg models"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Samuel Gozel", email = "sun4py@protonmail.com"}
+]
+maintainers = [
+    {name = "Samuel Gozel", email = "sun4py@protonmail.com"}
+]
+keywords = ["SU(N)", "Standard Young Tableaux", "Exact Diagonalization", "Density Matrix Renormalization Group", "condensed matter", "scientific computing"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+
+# Core dependencies required to use sun4py
+dependencies = [
+    "numpy>=1.26.1",
+    "scipy>=1.11.3",
+    "matplotlib>=3.8.1",
+    "networkx>=3.3",
+]
+
+[project.optional-dependencies]
+# Development dependencies
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0.0",
+    "ruff>=0.8.0",
+    "mypy>=1.11",
+]
+
+# Documentation dependencies
+docs = [
+    "sphinx>=7.0",
+    "sphinx-rtd-theme>=2.0",
+    "numpydoc>=1.8.0",
+]
+
+# All optional dependencies combined
+all = [
+    "sun4py[dev,docs]",
+]
+
+[project.urls]
+Homepage = "https://SUN4Py.readthedocs.io"
+Repository = "https://github.com/sgozel/SUN4Py"
+Documentation = "https://SUN4Py.readthedocs.io" # Read the Doc
+"Documentation (GitHub Pages)" = "https://sgozel.github.io/SUN4Py/"  # GitHub pages
+"Bug Tracker" = "https://github.com/sgozel/SUN4Py/issues"
+
+# Package discovery for src layout
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["sun4py*"]
+exclude = ["tests*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--verbose",
+    "--cov=sun4py",
+    "--cov-report=html",
+    "--cov-report=term-missing",
+]
+
+[tool.ruff]
+# Ruff configuration
+line-length = 88
+target-version = "py38"
+
+# Source directory for src layout
+src = ["src"]
+
+# Enable linting and formatting
+lint.select = [
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # pyflakes
+    "I",     # isort (import sorting)
+    "N",     # pep8-naming
+    "UP",    # pyupgrade
+    "B",     # flake8-bugbear
+    "C4",    # flake8-comprehensions
+    "SIM",   # flake8-simplify
+]
+
+lint.ignore = [
+    "E501",  # line too long (handled by formatter)
+]
+
+# Exclude directories
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    ".eggs",
+    "*.egg-info",
+]
+
+# Allow autofix for all enabled rules
+lint.fixable = ["ALL"]
+lint.unfixable = []
+
+# Format configuration (like Black)
+format.quote-style = "double"
+format.indent-style = "space"
+format.line-ending = "auto"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false  # set to true for strict type checking
+ignore_missing_imports = true  # useful when dependencies don't have type stubs
+
+# Specify where to find source code
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = [
+    "numpy.*",
+    "scipy.*",
+    "matplotlib.*",
+    "networkx.*",
+]
+ignore_missing_imports = true

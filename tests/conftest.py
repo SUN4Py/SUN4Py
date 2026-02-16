@@ -39,8 +39,7 @@ def run_tests():
         shutil.rmtree(temp_dirname)
     return
 
-'''
-# currently not running on my old system
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
     """
@@ -49,31 +48,27 @@ def pytest_runtest_makereport(item, call):
     """
     outcome = yield
     report = outcome.get_result()
-    
-    # Only capture the actual test execution time (not setup/teardown)
     if report.when == 'call':
         test_name = item.nodeid
         duration = call.duration
         test_durations[test_name] = duration
+    return
 
 
 def pytest_sessionfinish(session, exitstatus):
     """
-    Hook called after all tests finish.
-    Print a summary of all test execution times.
+    Print a summary of all test execution times
     """
     print("\n" + "="*70)
     print("TEST EXECUTION TIME REPORT")
     print("="*70)
     
     if test_durations:
-        # Sort tests by duration (slowest first)
         sorted_tests = sorted(test_durations.items(), key=lambda x: x[1], reverse=True)
         
         for test_name, duration in sorted_tests:
             print(f"{duration:>8.4f}s - {test_name}")
         
-        # Calculate and display statistics
         total_time = sum(test_durations.values())
         avg_time = total_time / len(test_durations)
         slowest = max(test_durations.values())
@@ -89,4 +84,4 @@ def pytest_sessionfinish(session, exitstatus):
     else:
         print("No tests were executed.")
         print("="*70)
-'''
+    return

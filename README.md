@@ -1,5 +1,7 @@
 # SU(_N_)4Py
 
+[![Tests](https://github.com/sgozel/SUN4Py/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/sgozel/SUN4Py/actions/workflows/test.yml)
+
 SU(_N_)4Py is a Python library implementing the SU(_N_) symmetry, exploiting the Schur-Weyl duality between the SU(_N_) group and the symmetric group $S_n$. The library implements the symmetry through Standard Young Tableaux.
 
 It allows solving the SU(_N_) Heisenberg model (or any other SU(_N_)-symmetric model) on a lattice making full use of the SU(_N_) symmetry.
@@ -18,24 +20,39 @@ SU(_N_)4Py is by no means expected to execute on the largest systems. SU(_N_)4Py
 
 ## Prerequisites
 
-SU(_N_)4Py is a Python 3 implementation requiring:
+SU(_N_)4Py is a Python implementation requiring:
 
 - numpy
 - scipy
 - matplotlib
-- pytest
+- networkx
+
+## Installation
+
+Currently, the recommended way to use SU(_N_)4Py is to clone the repository, and install it, for instance in a dedicated conda environment:
+```
+git clone https://github.com/sgozel/SUN4Py.git
+cd ./SUN4Py/
+pip install -e .
+```
 
 ## Running tests
 
-Running tests might be a good way to start:
+If you want to run tests on your own machine, you need to install SU(_N_)4Py with its optional development dependencies:
 ```
-import pytest
-pytest.main()
+git clone https://github.com/sgozel/SUN4Py.git
+cd ./SUN4Py/
+pip install -e ".[dev]"
 ```
 
-## Running main file
+Then, from the root directory `/path/to/SUN4Py/`, run:
+```
+pytest
+```
 
-Three example main files are provided: `main_ed.py` shows how to perform ED calculations, `main_rme.py` how to compute the lists of reduced matrix elements of the interaction necessary for DMRG, and `main_dmrg.py` illustrates a simple DMRG calculation.
+## Example codes
+
+Several illustrative examples are provided in [SUN4Py Examples](./examples) to guide the user through different use-cases of SU(_N_)4Py.
 
 ## Significant others
 
@@ -57,7 +74,7 @@ Depending on your application, you are also invited to cite one/several of the r
 
 ## Author
 
-Samuel Gozel
+Samuel Gozel, [sun4py@protonmail.com](mailto:sun4py@protonmail.com)
 
 ## References
 
