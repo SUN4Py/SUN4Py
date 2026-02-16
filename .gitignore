@@ -1,5 +1,5 @@
 work*.py
-sunpy/rme_coefficients/*
+sun4py/rme_coefficients/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

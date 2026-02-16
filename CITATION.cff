@@ -4,8 +4,8 @@ authors:
 - family-names: "Gozel"
   given-names: "Samuel"
   orcid: "https://orcid.org/0000-0003-4759-4881"
-title: "SUNPy"
-version: 1.0
+title: "SU(N)4Py"
+version: 0.1
 doi: 
 date-released: 
-url: "https://github.com/sgozel/SUNPy"
+url: "https://github.com/sgozel/SUN4Py"
