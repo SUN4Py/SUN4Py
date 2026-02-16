@@ -1,5 +1,5 @@
 """
-SUNPy A Python Library for solving SU(N) Heisenberg models
+SUN4Py A Python Library for solving SU(N) Heisenberg models
 Copyright (C) 2026  Samuel Gozel, GNU GPLv3
 
 This program is free software: you can redistribute it and/or modify
@@ -18,11 +18,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import numpy as np
 
-#from sunpy.sun import sun
-from sunpy.ed import edfund
-from sunpy.ed import edsymm
-from sunpy.ed import edgeneral
-import sunpy.ed.lattice
+#from sun4py.sun import sun
+from sun4py.ed import edfund
+from sun4py.ed import edsymm
+from sun4py.ed import edgeneral
+import sun4py.ed.lattice
 
 ###############################################################################
 # Example for ED with fundamental irrep at each site
@@ -35,7 +35,7 @@ print(':::::::::::::::::::::::::::::::')
 N = int(3) # SU(N)
 alpha = np.array([4, 4, 2], dtype=int) # global target irrep
 Ns = np.sum(alpha) # number of sites
-latt0 = sunpy.ed.lattice.chainLattice(Ns=Ns, isPBC=True)
+latt0 = sun4py.ed.lattice.chainLattice(Ns=Ns, isPBC=True)
 latt0.plot()
 
 engine = edfund.EDSolverFund(N, Ns, alpha, latt0) # light initialization
@@ -58,7 +58,7 @@ m = int(3) # number of particles per site
 alpha = np.array([4, 4, 4], dtype=int) # global target irrep
 Ns = np.sum(alpha)//m # number of sites
 isPBC = False
-latt1 = sunpy.ed.lattice.chainLattice(Ns=Ns, isPBC=isPBC)
+latt1 = sun4py.ed.lattice.chainLattice(Ns=Ns, isPBC=isPBC)
 
 # Let's add the biquadratic couplings which make it the AKLT model of 
 # Greiter & Rachel, expressed in the language of permutations
@@ -109,7 +109,7 @@ beta[0] = beta_loc_edge
 beta[-1] = beta_loc_edge
 '''
 
-latt2 = sunpy.ed.lattice.chainLattice(Ns=Ns, isPBC=False)
+latt2 = sun4py.ed.lattice.chainLattice(Ns=Ns, isPBC=False)
 latt2.plot()
 
 engine = edgeneral.EDSolverGeneral(N, Ns, alpha, beta, latt2)

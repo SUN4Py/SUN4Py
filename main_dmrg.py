@@ -1,5 +1,5 @@
 """
-SUNPy A Python Library for solving SU(N) Heisenberg models
+SUN4Py A Python Library for solving SU(N) Heisenberg models
 Copyright (C) 2026  Samuel Gozel, GNU GPLv3
 
 This program is free software: you can redistribute it and/or modify
@@ -20,9 +20,9 @@ import numpy as np
 import scipy.special
 import matplotlib.pyplot as plt
 
-from sunpy.dmrg.dmrgfund import DMRGSolverFund
-from sunpy.ed import edfund
-from sunpy.ed import lattice
+from sun4py.dmrg.dmrgfund import DMRGSolverFund
+from sun4py.ed import edfund
+from sun4py.ed import lattice
 
 
 def bethe_infinite(N):

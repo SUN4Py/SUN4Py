@@ -1,0 +1,4609 @@
+"""
+SUN4Py A Python Library for solving SU(N) Heisenberg models
+Copyright (C) 2026  Samuel Gozel, GNU GPLv3
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
+import sys
+import math
+import numpy as np
+import scipy.sparse
+
+import sun4py.common.math
+import sun4py.common.partitions
+
+
+
+def get_column(Y) -> np.ndarray:
+    """
+    Extract column positions in SYTs
+    
+    Parameters
+    ----------
+    Y : numpy array
+        collection of SYTs
+    
+    Returns
+    -------
+    CY : numpy array
+        collection of column positions
+    
+    Remark
+    ------
+    get_column is an involution
+    
+    Example
+    -------
+    Y = get_SYT(np.array([3, 3, 3], dtype=int))
+    CY = get_column(Y)
+    Yp = get_column(CY)
+    assert(np.linalg.norm(Y-Yp))
+    """
+    
+    singleSYT = False
+    if len(Y.shape)==1:
+        # only 1 SYT
+        NY = int(1)
+        n = Y.shape[0]
+        Y = np.reshape(Y, (NY, n))
+        singleSYT = True
+    else:
+        # 1 or several SYTs
+        NY = Y.shape[0]
+        n = Y.shape[1]
+    
+    CY = np.zeros((NY, n), dtype=int)
+    for k in range(1, n):
+        CY[:,k] = np.sum( ( np.ones((k+1, 1), dtype=int)*Y[:,k] == np.transpose(Y[:,0:k+1]) ), axis=0 ) - 1
+    
+    if singleSYT==True:
+        CY = CY.flatten()
+    
+    return CY
+
+
+def transpose_shape(alpha) -> np.ndarray:
+    """
+    Transpose an irrep (map rows to columns)
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    
+    Returns
+    -------
+    alphaT : numpy array
+        transposed shape
+    """
+    
+    if np.sum(alpha)==0:
+        # singlet irrep
+        return np.array([0], dtype=int)
+    
+    alphaT = np.zeros(alpha[0], dtype=int)
+    for i in range(0, len(alpha)):
+        for j in range(0, alpha[i]):
+            alphaT[j] += 1
+    return alphaT
+
+
+def casimir_quadratic(alpha) -> float:
+    """
+    Compute the permutational quadratic Casimir of an irrep
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    
+    Returns
+    -------
+    c : float
+        permutational quadratic casimir
+    
+    References
+    ----------
+    - Eq. (31) of PRB 97, 134420 (2018)
+    - Eq. (4-25) [for a different formulation] of Group Representation Theory
+      for Physicists, Jian-Quan Chen, Jialun Ping and Fan Wang 
+    - K. Pilch and A. N. Schellekens, J. of Mathematical Physics 25, 3455 (1984)
+    """
+    
+    k = len(np.argwhere(alpha>0).flatten())
+    s = transpose_shape(alpha[0:k])
+    
+    B = np.sum(alpha**2)
+    A = np.sum(s**2)
+    
+    c: float = 0.5 * (B - A)
+    
+    # other formula
+    lvec = np.arange(1, k+1)
+    cprime: float = 0.5 * ( np.sum(alpha[0:k]*(alpha[0:k] - 2*lvec + 1)) )
+    
+    assert cprime==c
+    
+    return c
+
+
+def casimir_quadratic_TT(alpha, N) -> float:
+    r"""
+    Compute the quadratic Casimir operator in the usual T*T convention of SU(N)
+    
+    .. math::
+        C = ( n (N - n/N) + \sum_i \alpha_i^2 - \sum_j (alpha^T_j)^2 ) / 2
+    
+    where :math:`n=\sum_i \alpha_i` is the total number of boxes in :math:`\alpha`
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep of SU(N)
+    N : int
+        SU(N)
+    
+    Returns
+    -------
+    casimir : float
+        quadratic Casimir
+    
+    Remark
+    ------
+    As expected, the result is invariant under adding columns of N boxes to alpha
+    """
+    assert(len(alpha)<=N)
+    n = np.sum(alpha)
+    alphaT = transpose_shape(alpha)
+    casimir: float = 0.5 * ( n * (N - n/N) + np.sum(alpha**2) - np.sum(alphaT**2) )
+    
+    return casimir
+
+
+def multiplicity(alpha) -> int:
+    """
+    Compute the total number of SYTs associated to the irrep alpha
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    
+    Returns
+    -------
+    falpha : int
+        number of SYTs
+    """
+    
+    n = np.sum(alpha)
+    nl = len(np.argwhere(alpha>0))
+    m = alpha[0]
+    alphafull = np.zeros((nl, m), dtype=int)
+    for i in range(0, nl):
+        for j in range(0, alpha[i]):
+            alphafull[i,j] = 1
+    
+    arnum = np.arange(1, n+1) # sequence for n! (numerator)
+    
+    denom = np.full(shape=(n,), fill_value=1, dtype=int) # --> denominator
+    cpt = int(0)
+    for i in range(0, nl):
+        for j in range(0, alpha[i]):
+            sumi = np.sum(alphafull[i:nl,j]) + np.sum(alphafull[i,j+1:m])
+            if not sumi==0:
+                ind = np.argwhere(arnum==sumi).flatten()
+                if len(ind)==1:
+                    arnum[ind[0]] = 1
+                else:
+                    denom[cpt] = sumi
+                    cpt += 1
+    
+    arnum, denom = sun4py.common.math.reduce_by_divide(arnum, denom)
+    assert(np.prod(denom)==1)
+    falpha: int = np.prod(arnum)
+    
+    return falpha
+
+
+def get_SYT(alpha, order='LLOS') -> np.ndarray:
+    """
+    Get all SYTs for the irrep alpha
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    order : str
+        optional ['LLOS']/'iLLOS' order according to the Last Letter Order Sequence
+    
+    Returns
+    -------
+    Y : numpy array
+        collection of SYTs (stored in the rows of Y)
+    
+    Remark
+    ------
+    - Y[i][0] = 0, namely the top left box is row=0, column=0 (Python convention)
+    - By default, in the resulting array, the SYTs are sorted in the ascending
+      order of the Last Letter Order Sequence, namely:
+          Y[0] < Y[1] < Y[2] < ... < Y[-1] (order='LLOS')
+    - increasing order of LLOS (order='LLOS'):
+        1st  SYT: numbers filled row-wise
+        last SYT: numbers filled column-wise
+        (the opposite for 'iLLOS')
+    
+    References
+    ----------
+    See algorithm NEXYTB in Chapter 14 of:
+        Combinatorial Algorithms
+        A. Nijenhuis and H. S. Wilf 
+        Academic Press, New York (1978)
+    """
+    
+    n = np.sum(alpha)
+    falpha = multiplicity(alpha)
+    
+    Y = np.zeros((falpha, n), dtype=int)
+    nl = len(np.argwhere(alpha>0).flatten())
+    alpha = alpha[0:nl]
+    alphaT = transpose_shape(alpha)
+    
+    # construct first SYT
+    y1 = np.zeros((n,), dtype=int)
+    cptel = int(0)
+    for j in range(0, len(alphaT)):
+        for row in range(0, alphaT[j]):
+            y1[cptel] = row
+            cptel += 1
+    
+    Y[0] = y1
+    
+    # construct all remaining SYT's sequentially
+    s = int(1)
+    while s<falpha:
+        
+        y = np.copy(Y[s-1])
+        
+        lbd = np.zeros((nl+1,), dtype=int)
+        lbd[0] = 1
+        
+        j = int(1)
+        while ((j<n) & (y[j]>=y[j-1])):
+            lbd[y[j]] += 1
+            j += 1
+        lbd[y[j]] += 1
+        
+        t = lbd[y[j]+1]
+        i = nl
+        while not lbd[i-1]==t:
+            i -= 1
+        y[j] = i - 1
+        lbd[i-1] -= 1
+        
+        t = j
+        k = int(0)
+        while k<t:
+            r = int(1)
+            while lbd[r-1]>0:
+                y[k] = r-1
+                lbd[r-1] -= 1
+                k += 1
+                r += 1
+        
+        Y[s] = y
+        s += 1
+    
+    if order=='LLOS':
+        Y = np.flipud(Y)
+    
+    if not Y.shape[0]==multiplicity(alpha):
+        sys.exit('Problem: number of SYTs is not correct')
+    
+    return Y
+
+
+def get_subSYT(alpha, alphaB, order='iLLOS') -> np.ndarray:
+    """
+    Build all SYTs associated to the subshape alpha-alpha0
+    
+    where alphaB is the base top-left irrep
+    
+    Inputs
+    ------
+    alpha : numpy array
+        irrep
+    alphaB : numpy array
+        base top-left irrep
+    order : str
+        [default] 'iLLOS' or 'LLOS'
+    
+    Returns
+    -------
+    Y : numpy array
+        SYTs associated to alpha-alphaB
+    
+    Example
+    -------
+    alpha = [3, 1]
+    alphaB = [2, 0]
+    The two SYTs are:
+      |x|x|3|     |x|x|2|
+      |2|      &  |3|
+     y=[1, 0]    y=[0, 1]
+    output: Y=[[1, 0], [0, 1]] (order='iLLOS')
+    """
+    
+    n = np.sum(alpha)
+    nB = np.sum(alphaB)
+    
+    nl = len(np.argwhere(alpha>0).flatten())
+    nlB = len(np.argwhere(alphaB>0).flatten())
+    
+    if (nl<nlB):
+        sys.exit('Problem: irreps alpha and alpha0 do not match')
+    
+    if not len(alpha)==len(alphaB):
+        sys.exit('Problem: alpha and alphaB do not have the same number of elements.')
+    
+    if len(np.argwhere(alpha<alphaB).flatten())>0:
+        sys.exit('Problem: alphaB is not contained in alpha.')
+    
+    alphap = np.copy(alpha)
+    alphaBp = np.copy(alphaB)
+    alphap = np.hstack([alpha, 0])
+    alphaBp = np.hstack([alphaB, 0])
+    
+    #if len(np.argwhere(alphap<alphaBp).flatten())>0:
+    #    sys.exit('Problem: alphaB is not contained in alpha.')
+    
+    nP = n - nB
+    Y = np.zeros(shape=(1, nP), dtype=int)
+    
+    NY = int(1)
+    
+    for j in range(nP-1, -1, -1):
+        
+        cpt = int(0)
+        Ynew = np.zeros(shape=(0, nP), dtype=int)
+        
+        for q in range(0, NY):
+            # generate the remaining shape
+            alphap_q = np.copy(alphap)
+            for t in range(nP-1, j, -1):
+                alphap_q[Y[q][t]] -= 1
+            
+            alphap_r = alphap_q - alphaBp
+            
+            ind = np.argwhere(alphap_r>0).flatten()
+            
+            for t in range(0, len(ind)):
+                if alphap_q[ind[t]]>alphap_q[ind[t]+1]:
+                    # row ind[t] has a bottom corner
+                    ytmp = np.copy(Y[q])
+                    ytmp[j] = ind[t]
+                    Ynew = np.vstack([Ynew, ytmp])
+                    cpt += 1
+        NY = cpt
+        Y = np.copy(Ynew)
+    
+    if order=='LLOS':
+        Y = np.flipud(Y)
+    
+    return Y
+
+
+def fill_subSYT(Y, alpha, **kwargs):
+    """
+    Fill all remaining boxes of a collection of sub-SYTs in order to be a 
+    collection of valid SYTs for a given irrep
+    
+    Inputs
+    ------
+    Y : numpy array
+        collection of SYTs
+    alpha : numpy array
+        irrep
+    fill_type : str
+        [default] 'largest' or 'smallest'
+        order of the base filling in LLOS
+    
+    Returns
+    -------
+    Y : numpy array
+        collection of SYTs
+    
+    Example
+    -------
+    Y = np.array([[0, 1, 2], [1, 0, 2]], dtype=int)
+    alpha = np.array([3, 2, 1], dtype=int)
+    
+    The input sub-SYTs are:
+    x x 3         x x 4
+    x 4     and   x 3
+    5             5
+    
+    For fill_type='largest', we have:
+                0 2                 0 2 3     0 2 4
+     filling =  1      --> output = 1 4   and 1 3
+                                    5         5
+    For fill_type='smallest', we have:
+                0 1                 0 1 3     0 1 4
+     filling =  2      --> output = 2 4   and 2 3
+                                    5         5
+    """
+    
+    if not 'fill_type' in kwargs:
+        kwargs['fill_type'] = 'largest'
+    
+    if not kwargs['fill_type'] in ['largest', 'smallest']:
+        sys.exit('Problem: undefined fill_type.')
+    
+    n = np.sum(alpha)
+    NY = Y.shape[0]
+    n1 = Y.shape[1]
+    n0 = n - n1 # number of particles to place
+    
+    alpha1 = np.zeros(shape=alpha.shape, dtype=int)
+    
+    for i in range(0, n1):
+        alpha1[Y[0][i]] += 1
+    
+    alpha0 = alpha - alpha1
+    
+    y1 = np.zeros((n0,), dtype=int)
+    cpt = int(0)
+    
+    if kwargs['fill_type']=='largest':
+        alpha0T = transpose_shape(alpha0)
+        for ic in range(0, len(alpha0T)):
+            for il in range(0, alpha0T[ic]):
+                y1[cpt] = il
+                cpt += 1
+    else:
+        for il in range(0, len(alpha0)):
+            for ic in range(0, alpha0[il]):    
+                y1[cpt] = il
+                cpt += 1
+    
+    Y = np.hstack([np.tile(y1, [NY, 1]), Y])
+    
+    return Y
+
+
+def index_to_SYT(i, alpha, order) -> np.ndarray:
+    """
+    Build the SYT corresponding to its index among the collection of all SYTs
+    
+    Parameters
+    ----------
+    i : int
+        index
+    alpha : numpy array
+        irrep
+    order : str
+        'LLOS' or 'iLLOS' order according to the Last Letter Order Sequence
+    
+    Returns
+    -------
+    y : numpy array
+        SYT
+    """
+    
+    if order=='LLOS':
+        y = index_to_SYT_LLOS(i, alpha, order)
+    elif order=='iLLOS':
+        y = index_to_SYT_iLLOS(i, alpha, order)
+    else:
+        sys.exit('Problem: undefined order.')
+    
+    return y
+
+
+def index_to_SYT_LLOS(i, alpha, order='LLOS') -> np.ndarray:
+    """
+    Build the SYT corresponding to its index among the collection of all SYTs
+    
+    Parameters
+    ----------
+    i : int
+        index
+    alpha : numpy array
+        irrep
+    order : str
+        optional [default: 'LLOS'] or 'iLLOS' order according to the Last Letter Order Sequence
+    
+    Returns
+    -------
+    y : numpy array
+        SYT
+    
+    Remarks
+    -------
+    For order='iLLOS', the algorithm needs to compute the multiplicity of the 
+    input irrep. It is thus better to use index_to_SYT_iLLOS(i, alpha) to save
+    execution time
+    """
+    
+    alphap = np.copy(alpha)
+    n = np.sum(alphap)
+    
+    if order=='iLLOS':
+        # need to reverse the order
+        falpha = multiplicity(alpha)
+        i = falpha - 1 - i
+    
+    nl = len(np.argwhere(alphap>0).flatten())
+    alphap = alphap[0:nl]
+    
+    y = np.full(shape=(n,), fill_value=-1, dtype=int)
+    y[0] = 0 # first particle is always in the first row
+    
+    borne_inf = int(0)
+    
+    k = n-1 # number to place
+    
+    while k>0: # we will place number k
+        bc = get_bottom_corner(alphap)
+        nbc = len(bc)
+        b = nbc
+        while ( (b>0) and (i>=borne_inf) ):
+            b -= 1
+            alphapp = np.copy(alphap)
+            alphapp[bc[b]] -= 1
+            tmp = multiplicity(alphapp)
+            borne_inf += tmp
+        y[k] = bc[b]
+        alphap[bc[b]] -= 1
+        borne_inf -= tmp
+        k -= 1
+    
+    return y
+
+
+def index_to_SYT_iLLOS(i, alpha, order='iLLOS') -> np.ndarray:
+    """
+    Build the SYT corresponding to its index among the collection of all SYTs
+    
+    Parameters
+    ----------
+    i : int
+        index
+    alpha : numpy array
+        irrep
+    order : str
+        optional [default: 'iLLOS'] or 'LLOS' order according to the Last Letter Order Sequence
+    
+    Returns
+    -------
+    y : numpy array
+        SYT
+    
+    Remarks
+    -------
+    For order='LLOS', the algorithm needs to compute the multiplicity of the 
+    input irrep. It is thus better to use index_to_SYT_LLOS(i, alpha) to save
+    execution time
+    """
+    
+    alphap = np.copy(alpha)
+    n = np.sum(alphap)
+    
+    if order=='LLOS':
+        # need to reverse the order
+        falpha = multiplicity(alpha)
+        i = falpha - 1 - i
+    
+    nl = len(np.argwhere(alphap>0).flatten())
+    alphap = alphap[0:nl]
+    
+    y = np.full(shape=(n,), fill_value=-1, dtype=int)
+    y[0] = 0 # first particle is always in the first row
+    
+    borne_inf = int(0)
+    
+    k = n-1 # number to place
+    
+    while k>0: # we will place number k
+        bc = get_bottom_corner(alphap)
+        nbc = len(bc)
+        b = int(-1)
+        while ((b<nbc-1) and (i>=borne_inf)):
+            b += 1
+            alphapp = np.copy(alphap)
+            alphapp[bc[b]] -= 1
+            tmp = multiplicity(alphapp)
+            borne_inf += tmp
+        y[k] = bc[b]
+        alphap[bc[b]] -= 1
+        borne_inf -= tmp
+        k -= 1
+    
+    return y
+
+
+def index_to_SYT_symm(i, alpha, m, order='LLOS') -> np.ndarray:
+    # Build the SYT corresponding to index <i> for the irrep alpha, in the case
+    # of local symmetric irrep with <m> boxes (local constraints).
+    # 
+    # By default, the index <i> is considered in the ascending order of the 
+    # Last Letter Order Sequence, namely:
+    #   i=0 --> lowest SYT in LLOS
+    #   i=multiplicity_symm(alpha, m)-1 ---> highest SYT in LLOS
+    # 
+    # This can be changed by setting order='iLLOS', in which case the 
+    # decreasing order of the LLOS is used.
+    # 
+    
+    alpha0 = np.copy(alpha)
+    n = np.sum(alpha0)
+    
+    if order=='LLOS':
+        falpha = multiplicity_symm(alpha, m)
+        i = falpha - 1 - i
+    
+    nl = len(np.argwhere(alpha0>0).flatten())
+    alpha0 = alpha0[0:nl]
+    alpha0 = np.hstack([alpha0, 0])
+    
+    y = np.full(shape=(n,), fill_value=-1, dtype=int)
+    
+    Ns = n//m
+    
+    borne_inf = int(0)
+    
+    s = int(Ns-1)
+    
+    if m==2:
+        
+        # the 2 first particles are necessarily in the first row
+        y[0] = 0
+        y[1] = 0
+        
+        while s>0:
+            # we will place numbers s*m, s*m+1, ..., (s+1)*m-1
+            
+            # the two particles of site s are:
+            p0 = s*m
+            p1 = s*m + 1
+            
+            bc = get_bottom_corner(alpha0)
+            cbc = alpha0[bc] - 1 # columns of bottom corners
+            nbc = len(bc)
+            b = nbc
+            while ((b>0) and (i>=borne_inf)):
+                # place particle p1 in bottom corner bc[b]
+                b -= 1
+                alpha1 = np.copy(alpha0)
+                alpha1[bc[b]] -= 1
+                w0 = bc[b]
+                while ((w0>=0) and (i>= borne_inf)):
+                    alpha2 = np.copy(alpha1)
+                    # trying to place p0 in row w0
+                    if ((alpha2[w0]>alpha2[w0+1]) and (not (alpha2[w0]-1==cbc[b]))):
+                        # we are in a legal configuration for placing p0 at row w0
+                        alpha2[w0] -= 1
+                        tmp = multiplicity_symm(alpha2, m)
+                        borne_inf += tmp
+                    # end if
+                    w0 -= 1
+                # end while w2
+            # end while b
+            y[p1] = bc[b]
+            y[p0] = w0 + 1
+            borne_inf -= tmp
+            alpha0[bc[b]] -= 1
+            alpha0[w0+1] -= 1
+            s -= 1
+        # end while s
+        
+    elif m==3:
+        
+        # the 2 first particles are necessarily in the first row
+        y[0] = 0
+        y[1] = 0
+        
+        while s>0:
+            # we will place numbers s*m, s*m+1, ..., (s+1)*m-1
+            
+            # the three particles of site s are:
+            p0 = s*m
+            p1 = s*m + 1
+            p2 = s*m + 2
+            
+            bc = get_bottom_corner(alpha0)
+            cbc = alpha0[bc] - 1 # columns of bottom corners
+            nbc = len(bc)
+            b = nbc
+            
+            while ( (b>0) and (i>=borne_inf) ):
+                # place particle p3 of site <s> in bottom corner bc[b]
+                b -= 1
+                alpha1 = np.copy(alpha0)
+                alpha1[bc[b]] -= 1
+                w1 = bc[b]
+                while ((w1>=0) and (i>=borne_inf)):
+                    alpha2 = np.copy(alpha1)
+                    # trying to place p1 in row w1
+                    if ((alpha2[w1]>alpha2[w1+1]) and (not (alpha2[w1]-1==cbc[b]))):
+                        # we are in a legal configuration for placing p1 at row w1
+                        alpha2[w1] -= 1
+                        w0 = w1
+                        while ((w0>=0) and (i>=borne_inf)):
+                            alpha3 = np.copy(alpha2)
+                            # trying to place p0 in row w0
+                            if ((alpha3[w0]>alpha3[w0+1]) and (not (alpha3[w0]-1==cbc[b])) and (not (alpha3[w0]-1==alpha2[w1]))):
+                                # we are in a legal configuration for placing p0 at row w0
+                                alpha3[w0] -= 1
+                                tmp = multiplicity_symm(alpha3, m)
+                                borne_inf += tmp
+                            # end if
+                            w0 -= 1
+                        # end while w0
+                    # end if
+                    w1 -= 1
+                # end while w1
+            # end while b
+            
+            y[p2] = bc[b]
+            y[p1] = w1 + 1
+            y[p0] = w0 + 1
+            
+            borne_inf -= tmp
+            alpha0[bc[b]] -= 1
+            alpha0[w1+1] -= 1
+            alpha0[w0+1] -= 1
+            s -= 1
+        # end while s
+        
+        # now place the 3rd particle of site 0 in the lowest remaining bottom corner
+        y[2] = np.argwhere(alpha0>0).flatten()[-1]
+        
+    else:
+        sys.exit('Problem: m>3 not yet implemented')
+    
+    return y
+
+
+def SYT_to_index(y, alpha, order) -> int:
+    # Map a SYT to its index in <order> in the list of all SYTs.
+    # 
+    # Inputs:
+    #   y       SYT
+    #   alpha   irrep
+    #   order   'LLOS' or 'iLLOS', to specify in which order the index is taken
+    # 
+    
+    if order=='LLOS':
+        i = SYT_to_index_LLOS(y, alpha, order)
+    elif order=='iLLOS':
+        i = SYT_to_index_iLLOS(y, alpha, order)
+    else:
+        sys.exit('Problem: order undefined.')
+    
+    return i
+
+
+def SYT_to_index_LLOS(y, alpha, order='LLOS') -> int:
+    # Map a SYT to its index in the list of all SYTs.
+    # 
+    # The default order is inceasing order of Last Letter Order Sequence, 
+    # unless the user specifies order='iLLOS' for the reverse order
+    # 
+    
+    alphap = np.copy(alpha)
+    n = np.sum(alphap)
+    
+    nl = len(np.argwhere(alphap>0).flatten())
+    alphap = alphap[0:nl]
+
+    k = n-1
+    
+    i = int(0)
+    
+    while k>0:
+        bc = get_bottom_corner(alphap)
+        nbc = len(bc)
+        b = nbc-1
+        while bc[b]>y[k]:
+            alphapp = np.copy(alphap)    
+            alphapp[bc[b]] -= 1
+            i += multiplicity(alphapp)
+            b -= 1
+        alphap[bc[b]] -= 1
+        k -= 1
+    
+    if order=='iLLOS':
+        # reverse order
+        falpha = multiplicity(alpha)
+        i = falpha - 1 - i
+    
+    return i
+
+
+def SYT_to_index_iLLOS(y, alpha, order='iLLOS') -> int:
+    # Map a SYT to its index in the list of all SYTs.
+    # 
+    # The default order is decreasing order of Last Letter Order Sequence, 
+    # unless the user specifies order='LLOS' for the reverse order
+    # 
+    
+    alphap = np.copy(alpha)
+    n = np.sum(alphap)
+    
+    nl = len(np.argwhere(alphap>0).flatten())
+    alphap = alphap[0:nl]
+
+    k = n-1
+    
+    i = int(0)
+    
+    while k>0:
+        bc = get_bottom_corner(alphap)
+        b = int(0)
+        while (bc[b]<y[k]):
+            alphapp = np.copy(alphap)    
+            alphapp[bc[b]] -= 1
+            i += multiplicity(alphapp)
+            b += 1
+        alphap[bc[b]] -= 1
+        k -= 1
+    
+    if order=='LLOS':
+        # reverse order
+        falpha = multiplicity(alpha)
+        i = falpha - 1 - i
+    
+    return i
+
+
+def SYT_to_index_symm(y, alpha, m, order='LLOS') -> int:
+    # Map a SYT to its index in the list of all SYTs.
+    # 
+    # The default order is inceasing order of Last Letter Order Sequence, 
+    # unless the user specifies order='iLLOS' for the reverse order
+    # 
+    
+    alpha0 = np.copy(alpha)
+    n = np.sum(alpha0)
+    
+    nl = len(np.argwhere(alpha0>0).flatten())
+    alpha0 = alpha0[0:nl]
+    alpha0 = np.hstack([alpha0, 0])
+    
+    Ns = n//m # number of sites
+    
+    i = int(0)
+    
+    s = int(Ns-1)
+    
+    if m==2:
+        
+        while s>0:
+            
+            # particles of site s are:
+            p0 = s*m
+            p1 = s*m + 1
+            
+            bc = get_bottom_corner(alpha0)
+            nbc = len(bc)
+            cbc = alpha0[bc] - 1 # columns of bottom corners
+            b = nbc - 1
+            
+            while ((b>=0) and (bc[b]>=y[p1])):
+                
+                alpha1 = np.copy(alpha0)
+                alpha1[bc[b]] -= 1
+                
+                if bc[b]==y[p1]:
+                    limit = y[p0]
+                else:
+                    limit = int(-1)
+                
+                w0 = bc[b]
+                
+                while w0>limit:
+                    alpha2 = np.copy(alpha1)
+                    if ((alpha2[w0]>alpha2[w0+1]) and (not (alpha2[w0]-1==cbc[b]))):
+                        # it is a legal configuration: p1 at bc[b] and p0 at w0
+                        alpha2[w0] -= 1
+                        i += multiplicity_symm(alpha2, m)
+                    # end if
+                    w0 -= 1
+                # end while w0
+                b -= 1
+            # end while b
+            
+            alpha0[bc[b+1]] -= 1
+            alpha0[w0] -= 1
+            s -= 1            
+    
+    elif m==3:
+        
+        while s>0:
+            
+            # particles of site s are:
+            p0 = s*m
+            p1 = s*m + 1
+            p2 = s*m + 2
+            
+            bc = get_bottom_corner(alpha0)
+            nbc = len(bc)
+            cbc = alpha0[bc] - 1 # columns of bottom corners
+            b = nbc - 1
+            
+            while ((b>=0) and (bc[b]>=y[p2])):
+                
+                alpha1 = np.copy(alpha0)
+                alpha1[bc[b]] -= 1
+                
+                if bc[b]==y[p2]:
+                    limit2 = y[p1]
+                else:
+                    limit2 = int(-1)
+                
+                w1 = bc[b]
+                
+                while w1>=limit2:
+                    alpha2 = np.copy(alpha1)
+                    if ((alpha2[w1]>alpha2[w1+1]) and (not (alpha2[w1]-1==cbc[b]))):
+                        
+                        alpha2[w1] -= 1
+                        
+                        if ((bc[b]==y[p2]) and (w1==y[p1])):
+                            limit3 = y[p0]
+                        else:
+                            limit3 = int(-1)
+                        
+                        w0 = w1
+                        
+                        while w0>limit3:
+                            alpha3 = np.copy(alpha2)
+                            if ((alpha3[w0]>alpha3[w0+1]) and (not (alpha3[w0]-1==cbc[b])) and (not (alpha3[w0]-1==alpha2[w1]))):
+                                # it is a legal configuration: p2 at bc[b], p1 at w1 and p0 at w0
+                                alpha3[w0] -= 1
+                                i += multiplicity_symm(alpha3, m)
+                            # end if
+                            w0 -= 1
+                        # end while w0
+                    # end if
+                    w1 -= 1
+                # end while w1
+                b -= 1
+            # end while b
+            alpha0[bc[b+1]] -= 1
+            alpha0[w1+1] -= 1
+            alpha0[w0] -= 1
+            s -= 1
+        # en while s
+    
+    else:
+        sys.exit('Problem: case m>3 not yet implemented.')
+    
+    if order=='LLOS':
+        falpha = multiplicity_symm(alpha, m)
+        i = falpha - 1 - i
+    
+    return i
+
+
+def binary_search_SYT(y, Y) -> int:
+    """
+    Search the index of a SYT in a collection of SYTs using binary search
+    
+    Parameters
+    ----------
+    y : numpy array
+        SYT
+    Y : numpy array
+        collection of SYTs
+    
+    Returns
+    -------
+    m : int
+        index of y in Y
+    """
+    
+    NY = Y.shape[0]
+    n = Y.shape[1]
+    
+    l = int(0)
+    u = NY - 1
+    m = int(0)
+    
+    while (l<=u):
+        m = (l+u)//2
+        t = n - 1
+        while (t>0):
+            if (Y[m][t]<y[t]):
+                l = m + 1
+                break
+            elif (Y[m][t]>y[t]):
+                u = m - 1
+                break
+            else:
+                # box t is correctly placed
+                t -= 1
+        if (t==0):
+            l = u+1
+    
+    return m
+
+
+def SYT_to_target(y, ytarget):
+    """
+    Find the sequence of operations which brings an SYT to a target SYT
+    
+    Parameters
+    ----------
+    y : numpy array
+        SYT to transfrom
+    ytarget : numpy array
+        target SYT
+    
+    Returns
+    -------
+    sigma : numpy array
+        sequence of transpositions
+    rho : numpy array
+        array of inverses of axial distances
+    
+    Remark
+    ------
+    - The sequence of operations needs to be read from first to last element:
+        y --------> y' --------> y'' ... --------> ytarget
+          sigma[0]    sigma[1]           sigma[-1]
+    - The operations necessary to obtain y from ytarget are obtained by flipping 
+      the two output arrays and changing the sign of all elements of rho:
+        sigma = np.flip(sigma)
+        rho = np.flip(-rho)
+    
+    Details
+    -------
+    In terms of SYTs, we have:
+        
+        ytarget = sigma[-1] sigma[-2] ... sigma[1] sigma[0] y
+    
+    In terms of states:
+        
+        |ytarget> = (sigma[-1]+rho[-1])/sqrt(1-rho[-1])**2  ... (sigma[0]+rho[r0])/sqrt(1-rho[0]**2) |y>
+    
+    Examples
+    --------
+    Example 1:
+              0 2       0 1                   0 2            0 1
+    ytarget = 1     y = 2       --> ytarget = 1     = (1, 2) 2    = (1, 2) y
+              3         3                     3              3
+    
+    and |ytarget> = (P_{(1,2)} + 1/2)/(sqrt(3)/2) |y>
+    
+    thus sigma = np.array([1]) and rho = np.array([1/2])
+    
+    Example 2:
+              0 1       0 3                   0 1            0 2                 0 3
+    ytarget = 2     y = 1       --> ytarget = 2     = (1, 2) 1   = (1, 2) (2, 3) 1    = (1, 2) (2, 3) y
+              3         2                     3              3                   2
+    
+    thus sigma = [2, 1] and rho = [-1/3, -1/2]
+    """
+    
+    assert len(y) == len(ytarget)
+    n = len(y)
+    cy = get_column(y)
+    cytarget = get_column(ytarget)
+    
+    yp = np.copy(y)
+    cyp = np.copy(cy)
+    
+    sigma = np.zeros(shape=(n*n,), dtype=int) # list of adjacent transpositions
+    rho = np.zeros(shape=(n*n,), dtype=float) # list of inverse of axial distances
+    
+    cpt = int(0)
+    
+    for k in range(0, n):
+        if yp[k]==ytarget[k]:
+            # k is at good location
+            pass
+        else:
+            row_target = ytarget[k] # row that k should occupy
+            col_taret = cytarget[k] # column that k should occupy
+            
+            # find index of particle that occupies the location that k SHOULD occupy
+            yx = np.stack((yp, cyp), axis=1)
+            yf = np.array([row_target, col_taret])
+            kprime = np.argwhere( np.sum( abs( yx - yf ), axis=1 )==0 ).flatten()
+            assert len(kprime)==1
+            kprime = kprime[0]
+            
+            for ll in range(kprime-1, k-1, -1):
+                sigma[cpt] = ll
+                axtemp = get_axial_distance(yp, cyp, ll, ll+1)
+                rho[cpt] = 1.0/axtemp
+                
+                y_new = np.copy(yp)
+                cy_new = np.copy(cyp)
+                
+                y_new[ll] = yp[ll+1]
+                y_new[ll+1] = yp[ll]
+                cy_new[ll] = cyp[ll+1]
+                cy_new[ll+1] = cyp[ll]
+                
+                yp = y_new
+                cyp = cy_new
+                
+                cpt += 1
+    
+    sigma = sigma[:cpt]
+    rho = rho[:cpt]
+    assert np.sum(abs(yp-ytarget))==0
+    assert np.sum(abs(cyp-cytarget))==0
+    
+    return sigma, rho
+
+
+def get_direct_descendants(alpha, N):
+    """
+    Get all descendant shapes
+    """
+    assert(len(alpha)<=N)
+    # make sure alpha is an array of length N
+    alpha = np.hstack((alpha, np.zeros(shape=(N-len(alpha)), dtype=int)))
+    
+    alpha_desc = np.zeros(shape=(N+1, N), dtype=int)
+    box_pos = np.zeros(shape=(N+1,), dtype=int)
+
+    # first descendant is obtained by adding a box in the first row
+    alpha_desc[0] = alpha
+    alpha_desc[0][0] += 1
+    box_pos[0] = 0
+    
+    # all others descendants are obtained by putting a box in a bottom corner
+    bc_vec = get_bottom_corner(alpha)
+    bc_vec = bc_vec[bc_vec!=N-1]
+    
+    cpt = int(1)
+    for bc in bc_vec:
+        alpha_desc[cpt] = alpha
+        alpha_desc[cpt][bc+1] += 1
+        box_pos[cpt] = bc+1
+        cpt += 1
+    
+    alpha_desc = alpha_desc[0:cpt]
+    box_pos = box_pos[0:cpt]
+    
+    return alpha_desc, box_pos
+
+
+def get_descendants(alpha, N, m=1, **kwargs):
+    """
+    Get all descendant shapes wrt m-box symmetric/antisymmetric irrep
+    """
+    assert(len(alpha)<=N)
+    
+    if m==1:
+        alpha_desc, box_pos = get_direct_descendants(alpha, N)
+        return alpha_desc, box_pos
+    
+    if not 'symmetry' in kwargs:
+        sys.exit('For finding ascendants with m>1, need to specify symmetry.')
+    else:
+        if kwargs['symmetry'] in ['symm', 'symmetric', 'row', 'rows']:
+            symmetric = True
+        elif kwargs['symmetry'] in ['antisymm', 'antisymmetric', 'col', 'cols', 'column', 'columns']:
+            symmetric = False
+    
+    # make sure alpha is an array of length N
+    alpha = np.hstack((alpha, np.zeros(shape=(N-len(alpha)), dtype=int)))
+    
+    alpha_desc = np.zeros(shape=(1, N), dtype=int)
+    alpha_desc[0] = np.copy(alpha)
+    row_pos = np.full(shape=(1, m), fill_value=-1, dtype=int)
+    col_pos = np.full(shape=(1, m), fill_value=-1, dtype=int)
+    num_desc = int(1)
+    
+    for q in range(0, m):
+        
+        alpha_desc_temp = np.zeros(shape=((N+1)*num_desc, N), dtype=int)
+        row_pos_temp = np.zeros(shape=((N+1)*num_desc, m), dtype=int)
+        col_pos_temp = np.zeros(shape=((N+1)*num_desc, m), dtype=int)
+        cpt = int(0)
+        
+        for i in range(0, num_desc):
+            
+            alpha_i = np.copy(alpha_desc[i])
+            alpha_desc_i, bcs_i = get_descendants(alpha_i, N, m=1)
+            
+            for j, bc in enumerate(bcs_i):
+                col_j = alpha_i[bc] # col position of the newly added box
+                ind = np.array([])
+                if not q==0:
+                    if symmetric==True:
+                        # make sure we did not place a particle at that column
+                        ind = np.argwhere(col_pos[i]==col_j).flatten()
+                    else:
+                        # make sure we did not place a particle at that row
+                        ind = np.argwhere(row_pos[i]==bc).flatten()
+                if len(ind)==0:
+                    alpha_desc_temp[cpt] = np.copy(alpha_desc_i[j])
+                    if not q==0:
+                        row_pos_temp[cpt, :q] = row_pos[i, :q]
+                        col_pos_temp[cpt, :q] = col_pos[i, :q]
+                    row_pos_temp[cpt, q] = bc
+                    col_pos_temp[cpt, q] = col_j
+                    cpt += 1
+        
+        alpha_desc = np.copy(alpha_desc_temp[:cpt])
+        row_pos = np.copy(row_pos_temp[:cpt])
+        col_pos = np.copy(col_pos_temp[:cpt])
+        num_desc = cpt
+    
+    # remove duplicates
+    alpha_desc_u, ia = np.unique(alpha_desc, axis=0, return_index=True, return_inverse=False)
+    assert(np.sum(abs(alpha_desc_u - alpha_desc[ia]))==0)
+    row_pos_u = np.copy(row_pos[ia])
+    row_pos_u = np.sort(row_pos_u, axis=1)
+    row_pos_u, ind = sun4py.common.math.sortrows(row_pos_u)
+    alpha_desc_u = alpha_desc_u[ind]
+    
+    return alpha_desc_u, row_pos_u
+
+
+def get_direct_ascendants(alpha, N):
+    """
+    Get all direct ascendant shapes, namely all shapes with 1 box removed at a
+    bottom corner
+    """
+    assert(len(alpha)<=N)
+    # make sure alpha is an array of length N
+    alpha = np.hstack((alpha, np.zeros(shape=(N-len(alpha)), dtype=int)))
+    
+    bcs = get_bottom_corner(alpha)
+    nbcs = len(bcs)
+    alpha_asc = np.zeros(shape=(nbcs, N), dtype=int)
+    for i, bc in enumerate(bcs):
+        alpha_asc[i] = np.copy(alpha)
+        alpha_asc[i][bc] -= 1
+    return alpha_asc, bcs
+
+
+def get_ascendants(alpha, N, m=1, **kwargs):
+    """
+    Get all ascendant shapes wrt m-box symmetric/antisymmetric irrep
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    N : int
+        SU(N)
+    m : int
+        number of boxes to remove in alpha
+    symmetry : str [required when m>1]
+        'symmetric' or 'antisymmetric'
+    
+    Returns
+    -------
+    alpha_asc_u : numpy array
+        ascendants of alpha (stored in the rows of alpha_asc_u)
+    row_pos_u : numpy array
+        positions of removed boxes from alpha to alpha_asc_u[i]
+    
+    Examples
+    --------
+    Example 1:
+    alpha_asc_u, row_pos_u = sun.get_ascendants(np.array([4, 2, 0], dtype=int), int(3), m=int(1))
+    alpha_asc_u --> [3, 2, 0], [4, 1, 0], row_pos_u --> [0], [1]
+    because [4, 2, 0] can be obtained : 
+        - from [3, 2, 0] by adding a box in row 0 (tensor product [3, 2, 0] x [1, 0, 0])
+        - from [4, 1, 0] by adding a box in row 1 (tensor product [4, 1, 0] x [1, 0, 0])
+    
+    Example 2:
+    alpha_asc_u, row_pos_u = sun.get_ascendants(np.array([4, 2, 0], dtype=int), int(3), m=int(3), symmetry='symmetric')
+    alpha_asc_u --> [2, 1, 0], [3, 0, 0], row_pos_u --> [0, 0, 1], [0, 1, 1]
+    because [4, 2, 0] can be obtained : 
+        - from [2, 1, 0] by adding 3 boxes in row 0, 0, 1 (tensor product [2, 1, 0] x [3, 0, 0])
+        - from [3, 0, 0] by adding 3 boxes in row 0, 1, 1 (tensor product [3, 0, 0] x [3, 0, 0])
+    
+    """
+    assert(len(alpha)<=N)
+    
+    if m==1:
+        alpha_asc, bcs = get_direct_ascendants(alpha, N)
+        return alpha_asc, bcs
+    
+    if not 'symmetry' in kwargs:
+        sys.exit('For finding ascendants with m>1, need to specify symmetry.')
+    else:
+        if kwargs['symmetry'] in ['symm', 'symmetric', 'row', 'rows']:
+            symmetric = True
+        elif kwargs['symmetry'] in ['antisymm', 'antisymmetric', 'col', 'cols', 'column', 'columns']:
+            symmetric = False
+    
+    # make sure alpha is an array of length N
+    alpha = np.hstack((alpha, np.zeros(shape=(N-len(alpha)), dtype=int)))
+    
+    alpha_asc = np.zeros(shape=(1, N), dtype=int)
+    alpha_asc[0] = np.copy(alpha)
+    row_pos = np.full(shape=(1, m), fill_value=-1, dtype=int)
+    col_pos = np.full(shape=(1, m), fill_value=-1, dtype=int)
+    num_asc = int(1)
+    
+    for q in range(m-1, -1, -1):
+        
+        alpha_asc_temp = np.zeros(shape=(N*num_asc, N), dtype=int)
+        row_pos_temp = np.zeros(shape=(N*num_asc, m), dtype=int)
+        col_pos_temp = np.zeros(shape=(N*num_asc, m), dtype=int)
+        cpt = int(0)
+        
+        for i in range(0, num_asc):
+            
+            alpha_i = np.copy(alpha_asc[i])
+            alpha_asc_i, bcs_i = get_ascendants(alpha_i, N, m=1)
+            
+            for j, bc in enumerate(bcs_i):
+                col_j = alpha_i[bc]
+                ind = np.array([])
+                if not q==m:
+                    if symmetric==True:
+                        # make sure we did not place a particle at that column
+                        ind = np.argwhere(col_pos[i]==col_j).flatten()
+                    else:
+                        # make sure we did not place a particle at that row
+                        ind = np.argwhere(row_pos[i]==bc).flatten()
+                if len(ind)==0:
+                    alpha_asc_temp[cpt] = np.copy(alpha_asc_i[j])
+                    if not q==m:
+                        row_pos_temp[cpt, q+1:] = row_pos[i, q+1:]
+                        col_pos_temp[cpt, q+1:] = col_pos[i, q+1:]
+                    row_pos_temp[cpt, q] = bc
+                    col_pos_temp[cpt, q] = col_j
+                    cpt += 1
+        
+        alpha_asc = np.copy(alpha_asc_temp[:cpt])
+        row_pos = np.copy(row_pos_temp[:cpt])
+        col_pos = np.copy(col_pos_temp[:cpt])
+        num_asc = cpt
+    
+    if num_asc==0:
+        return np.zeros(shape=(0, N), dtype=int), np.zeros(shape=(0, m), dtype=int)
+    
+    # remove duplicates
+    alpha_asc_u, ia = np.unique(alpha_asc, axis=0, return_index=True, return_inverse=False)
+    assert(np.sum(abs(alpha_asc_u - alpha_asc[ia]))==0)
+    
+    row_pos_u = np.copy(row_pos[ia])
+    row_pos_u = np.flip(row_pos_u, axis=1)
+    
+    row_pos_u, ind = sun4py.common.math.sortrows(row_pos_u)
+    alpha_asc_u = alpha_asc_u[ind]
+    
+    return alpha_asc_u, row_pos_u
+
+
+def apply_transpositions(nu, sigma, rho, ydev, cydev, coeffdev, sort=False):
+    """
+    Apply a sequence of transposition operators defined by (sigma, rho) to a 
+    development and return a newly alloacted development
+    
+    Let T[i] = (P_{sigma[i], sigma[i]+1} + rho[i])/sqrt(1-rho[i]**2) for i=0, ..., len(sigma)-1
+    
+    Then we compute
+        |output development> = T[-1] ... T[1] T[0] |input development>
+    
+    where
+    
+        |input development> = coeffdev[0] |ydev[0]> + ... + coeffdev[-1] |ydev[-1]>
+    
+    Parameters
+    ----------
+    nu : numpy array
+        irrep
+    sigma : numpy array
+        sequence of adjacent transpositions
+    rho : numpy array
+        inverses of axial distances
+    ydev : numpy array
+        SYTs (stored in the rows)
+    cydev : numpy array
+        associated column positions
+    coeffdev : numpy array
+        coefficients
+    sort : bool [optional][default: False]
+        if True, sort the output SYTs in ascending order of LLOS
+    
+    Returns
+    -------
+    ydev_out, cydev_out, coeffdev_out : output development
+    """
+    
+    ydev_out = np.copy(ydev)
+    cydev_out = np.copy(cydev)
+    coeffdev_out = np.copy(coeffdev)
+    
+    for i in range(0, len(sigma)):
+        ydev_temp, cydev_temp, coeffdev_temp = develop_consecutive_number(
+                                        nu, 
+                                        ydev_out, 
+                                        cydev_out, 
+                                        coeffdev_out, 
+                                        k=sigma[i])        
+        ydev_out, cydev_out, coeffdev_out = sum_develop(ydev_out, cydev_out, rho[i]*coeffdev_out, 
+                                                        ydev_temp, cydev_temp, coeffdev_temp)        
+        coeffdev_out = coeffdev_out/np.sqrt(1.0-rho[i]**2)
+    
+    if sort==True:
+         ydev_out, ind = sort_SYT(ydev_out, order='LLOS')
+         cydev_out = cydev_out[ind, :]
+         coeffdev_out = coeffdev_out[ind]
+    
+    return ydev_out, cydev_out, coeffdev_out
+
+
+def apply_transpositions_v2(nu, sigma, rho, ydev, cydev, coeffdev, sort=False):
+    """
+    Apply a sequence of transposition operators defined by (sigma, rho) to a 
+    development and return a newly alloacted development
+    
+    Let T[i] = (P_{sigma[i], sigma[i]+1} + rho[i])/sqrt(1-rho[i]**2) for i=0, ..., len(sigma)-1
+    
+    Then we compute
+        |output development> = T[-1] ... T[1] T[0] |input development>
+    
+    where
+    
+        |input development> = coeffdev[0] |ydev[0]> + ... + coeffdev[-1] |ydev[-1]>
+    
+    Parameters
+    ----------
+    nu : numpy array
+        irrep
+    sigma : numpy array
+        sequence of adjacent transpositions
+    rho : numpy array
+        inverses of axial distances
+    ydev : numpy array
+        SYTs (stored in the rows)
+    cydev : numpy array
+        associated column positions
+    coeffdev : numpy array
+        coefficients
+    sort : bool [optional][default: False]
+        if True, sort the output SYTs in ascending order of LLOS
+    
+    Returns
+    -------
+    ydev_out, cydev_out, coeffdev_out : output development
+    """
+    
+    ydev_out = np.copy(ydev)
+    cydev_out = np.copy(cydev)
+    coeffdev_out = np.copy(coeffdev)
+    
+    for i in range(0, len(sigma)):
+        ydev_out, cydev_out, coeffdev_out = t_operator(ydev_out, 
+                                                       cydev_out, 
+                                                       coeffdev_out, 
+                                                       k=sigma[i], 
+                                                       rho=rho[i])
+    
+    if sort==True:
+         ydev_out, ind = sort_SYT(ydev_out, order='LLOS')
+         cydev_out = cydev_out[ind, :]
+         coeffdev_out = coeffdev_out[ind]
+    
+    return ydev_out, cydev_out, coeffdev_out
+
+
+def apply_transpositions_v3(nu, sigma, rho, ydev, cydev, coeffdev, ifd, sort=False):
+    """
+    Apply a sequence of transposition operators defined by (sigma, rho) to a 
+    development
+    
+    Let T[i] = (P_{sigma[i], sigma[i]+1} + rho[i])/sqrt(1-rho[i]**2) for i=0, ..., len(sigma)-1
+    
+    Then we compute
+        |output development> = T[-1] ... T[1] T[0] |input development>
+    
+    where
+    
+        |input development> = coeffdev1[0] |ydev1[0]> + ... + coeffdev1[-1] |ydev1[-1]>
+    
+    Parameters
+    ----------
+    nu : numpy array
+        irrep
+    sigma : numpy array
+        sequence of adjacent transpositions
+    rho : numpy array
+        inverses of axial distances
+    ydev : numpy array
+        SYT development
+    cydev : numpy array
+        associated column positions
+    coeffdev : numpy array
+        associated coefficients
+    
+    Returns
+    -------
+    ydev1, cydev1, coeffdev1 : updated development
+    """
+    print('CAUTION: apply_transpositions_v3 is EXPERIMENTAL. Currently, it is \n' 
+          + 'most of the time better to use apply_transpositions_v2.')
+    
+    n = ydev.shape[1]
+    
+    # find the number of different patterns in the last ifd particles
+    _, ia, ic = np.unique(ydev[:, n-ifd:], 
+                          return_index=True, 
+                          return_inverse=True, 
+                          axis=0)
+    N_disjoint_groups = len(ia)
+    
+    max_N_groups = int(40)
+        
+    # define the actual number of groups to deal with
+    N_groups = min(N_disjoint_groups, max_N_groups)
+    
+    q_groups = N_disjoint_groups // N_groups # number of true groups into an effective group
+    r_groups = N_disjoint_groups % N_groups #  remaining groups
+    
+    ind_groups = []
+    for p in range(0, N_groups):
+        ind_groups.append( np.argwhere(( ic >= p*q_groups ) & ( ic < (p+1)*q_groups )).flatten() )
+    
+    # we distribute the <r_groups> remaining groups among the first
+    # <r_groups> formed above
+    for p in range(0, r_groups):
+        icp = np.argwhere(ic==(p+q_groups*N_groups)).flatten()
+        ind_groups[p] = np.hstack((ind_groups[p], icp))
+    
+    # apply transpositions on each  group
+    ydev_groups = []
+    cydev_groups = []
+    coeffdev_groups = []
+    
+    for p in range(0, N_groups):
+        ydev_p = np.copy(ydev[ind_groups[p]])
+        cydev_p = np.copy(cydev[ind_groups[p]])
+        coeffdev_p = np.copy(coeffdev[ind_groups[p]])
+        
+        ydev_p, cydev_p, coeffdev_p = apply_transpositions_v2(
+                                nu, 
+                                sigma, 
+                                rho, 
+                                ydev_p, 
+                                cydev_p, 
+                                coeffdev_p,
+                                sort=sort)
+        
+        ydev_groups.append(ydev_p)
+        cydev_groups.append(cydev_p)
+        coeffdev_groups.append(coeffdev_p)
+    
+    # merge all groups
+    ydev_out = ydev_groups[0]
+    cydev_out = cydev_groups[0]
+    coeffdev_out = coeffdev_groups[0]
+    for p in range(1, N_groups):
+        ydev_out = np.vstack((ydev_out, ydev_groups[p]))
+        cydev_out = np.vstack((cydev_out, cydev_groups[p]))
+        coeffdev_out = np.hstack((coeffdev_out, coeffdev_groups[p]))
+    
+    if sort==True:
+         ydev_out, ind = sort_SYT(ydev_out, order='LLOS')
+         cydev_out = cydev_out[ind, :]
+         coeffdev_out = coeffdev_out[ind]
+    
+    return ydev_out, cydev_out, coeffdev_out
+
+
+def multiplicity_symm(alpha, m) -> int:
+    """
+    Compute the total number of SYTs associated to the irrep alpha for local 
+    m-box symmetric constraints
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    m : int
+        number of boxes in local symmetric irrep
+    
+    Returns
+    -------
+    kostka : int
+        number of SYTs
+    """
+    
+    if not np.sum(alpha)%m==0:
+        sys.exit('Problem: number of boxes in alpha must be a multiple of m')
+    
+    n = np.sum(alpha)//int(m)
+    
+    nmax = int(2*10**5)
+    nk = int(m)
+    N = len(np.argwhere(alpha>0))
+    alpha = alpha[0:N]
+    
+    local_dimension = int(1)
+    for w in range(0, nk):
+        local_dimension = local_dimension * (N+w)
+    local_dimension = local_dimension//math.factorial(nk)
+    
+    Forme = np.zeros((nmax, N+1), dtype=int)
+    Forme[0,0] = nk
+    Forme[0,N] = 1
+    
+    s = 0
+    PI = np.pi**np.arange(0,N)
+    PI = np.reshape(PI, [N, 1])
+    
+    p = np.zeros((n,), dtype=int)
+    p[0] = 1
+    
+    for tt in range(2, n+1):
+        
+        index_sum = np.sum(p[0:tt-1])
+        
+        for pp in range(s+1, s+p[tt-2]+1): # Matlab: for pp=s+1:s+p(tt-1)
+            W_k = np.argwhere(Forme[pp-1,0:N]).flatten()+1
+            N_W = len(W_k)
+            
+            nombre_max_de_filles_sur_toutes_les_generations = 2 + (N_W+1)**nk
+            
+            Forme_temp_pp = np.zeros((nombre_max_de_filles_sur_toutes_les_generations, N+1), dtype=int)
+            
+            Forme_temp_pp[0,:] = Forme[pp-1,:]
+            lignes_added_pp = np.zeros((nombre_max_de_filles_sur_toutes_les_generations, nk+1), dtype=int)
+            colonnes_added_pp = 100 * np.full((nombre_max_de_filles_sur_toutes_les_generations,nk+1), fill_value=1, dtype=int)
+            
+            index_courant_fille = 2
+            start_mere = 0
+            end_mere = 0
+            
+            for k in range(1, nk+1):
+                start_mere = end_mere + 1
+                end_mere = index_courant_fille - 1
+                
+                for index_courant_mere in range(start_mere, end_mere+1):
+                
+                    tmp = Forme_temp_pp[index_courant_mere-1, (max(lignes_added_pp[index_courant_mere-1,k-1]-1, 1)-1):N-1]
+                    W_k = np.argwhere(tmp).flatten() + 1
+                    N_W = len(W_k)
+                    
+                    W_k = max(lignes_added_pp[index_courant_mere-1, k-1]-1, 1) + W_k - 1
+                    
+                    ligne_bottom = int(1)
+                    colonne_bottom = int(1) + np.sum(Forme_temp_pp[index_courant_mere-1, 0:N])
+                    
+                    if lignes_added_pp[index_courant_mere-1, k-1]<=1:
+                        
+                        Forme_temp_pp[index_courant_fille-1,:] = np.copy(Forme_temp_pp[index_courant_mere-1,:])
+                        Forme_temp_pp[index_courant_fille-1,0] = Forme_temp_pp[index_courant_fille-1,0] + 1
+                        lignes_added_pp[index_courant_fille-1,k] = ligne_bottom
+                        colonnes_added_pp[index_courant_fille-1,k] = colonne_bottom
+                        colonnes_added_pp[index_courant_fille-1,0:k] = np.copy(colonnes_added_pp[index_courant_mere-1,0:k])
+                        index_courant_fille = index_courant_fille + 1
+                    
+                    for hh in range(1, N_W+1):
+                        
+                        # lignehh = hh
+                        ligne_bottom = W_k[hh-1] + 1
+                        colonne_bottom = 1 + np.sum(Forme_temp_pp[index_courant_mere-1, ligne_bottom-1:N])
+                        
+                        if lignes_added_pp[index_courant_mere-1,k-1]==ligne_bottom:
+                            
+                            prod_bool_col = int(1)
+                            
+                            for z in range(1, k+1):
+                                prod_bool_col = prod_bool_col * ( colonne_bottom - colonnes_added_pp[index_courant_mere-1,z-1] )
+                            
+                            if prod_bool_col:
+                                
+                                Forme_temp_pp[index_courant_fille-1,:] = np.copy(Forme_temp_pp[index_courant_mere-1, :])
+                                
+                                Forme_temp_pp[index_courant_fille-1,W_k[hh-1]-1] = Forme_temp_pp[index_courant_fille-1,W_k[hh-1]-1] - 1
+                                Forme_temp_pp[index_courant_fille-1,W_k[hh-1]] = Forme_temp_pp[index_courant_fille-1,W_k[hh-1]] + 1
+
+                                lignes_added_pp[index_courant_fille-1,k] = ligne_bottom
+                                colonnes_added_pp[index_courant_fille-1,k] = colonne_bottom
+                                colonnes_added_pp[index_courant_fille-1,0:k] = np.copy(colonnes_added_pp[index_courant_mere-1,0:k])
+                                index_courant_fille = index_courant_fille + 1
+                            
+                        elif lignes_added_pp[index_courant_mere-1,k-1]<ligne_bottom:
+                            
+                            if colonne_bottom<min(colonnes_added_pp[index_courant_mere-1,0:k]):
+                                
+                                Forme_temp_pp[index_courant_fille-1,:] = np.copy(Forme_temp_pp[index_courant_mere-1,:])
+                                Forme_temp_pp[index_courant_fille-1,W_k[hh-1]-1] = Forme_temp_pp[index_courant_fille-1,W_k[hh-1]-1] - 1
+                                Forme_temp_pp[index_courant_fille-1,W_k[hh-1]] = Forme_temp_pp[index_courant_fille-1,W_k[hh-1]] + 1
+                                
+                                lignes_added_pp[index_courant_fille-1,k] = ligne_bottom
+                                colonnes_added_pp[index_courant_fille-1,k] = colonne_bottom
+                                colonnes_added_pp[index_courant_fille-1,0:k] = np.copy(colonnes_added_pp[index_courant_mere-1,0:k])
+                                index_courant_fille = index_courant_fille + 1
+                            
+                    # end for hh
+                # end for index_courant_mere
+            # end for k
+            
+            Forme[index_sum:index_sum+index_courant_fille-1-end_mere,:] = np.copy(Forme_temp_pp[end_mere:index_courant_fille-1,:])
+            index_sum = index_sum + index_courant_fille - 1 - end_mere
+            
+        # end for pp
+        
+        s = s + p[tt-2]
+        
+        # implement the equivalent of Matlab's sortrows
+        A = np.asarray(Forme[s:index_sum,:])
+        if A.shape[0]>1:
+            '''
+            tmp = []
+            for i in range(A.shape[1]-1,-1,-1):
+                tmp.append(tuple(A[:,i]))
+            ix = np.lexsort(tmp)
+            B = np.copy(A)
+            B = B[ix,:]
+            '''
+            B, _ = sun4py.common.math.sortrows(A)
+            Forme[s:index_sum,:] = B
+        
+        FormePrec = np.zeros((index_sum, N), dtype=int)
+        FormePrec[s+1:index_sum,0:N] = np.copy(Forme[s:index_sum-1,0:N])
+        
+        Fdiff = np.argwhere( ((Forme[s:index_sum,0:N] - FormePrec[s:index_sum,0:N]) @ PI).flatten() ).flatten() + 1
+        
+        N_temp_ordre = np.copy(Forme[s:index_sum,N])
+        
+        N_Fdiff = Fdiff.shape[0]
+        p[tt-1] = N_Fdiff
+        if N_Fdiff>0:
+            Forme[s:s+N_Fdiff,:] = Forme[s+Fdiff-1,:]
+        else:
+            sys.exit('toto')
+        
+        Fdiffsup = np.zeros((N_Fdiff,), dtype=int)
+        Fdiffsup[0:N_Fdiff-1] = np.copy(Fdiff[1:N_Fdiff]) - 1
+        Fdiffsup[N_Fdiff-1] = index_sum - s
+        
+        for aa in range(1, N_Fdiff+1):
+            Forme[s+aa-1,N] = np.sum(N_temp_ordre[Fdiff[aa-1]-1:Fdiffsup[aa-1]])
+        
+        if (index_sum>s+N_Fdiff):
+            Forme[s+N_Fdiff:index_sum,:] = np.zeros(shape=(index_sum-(s+N_Fdiff),N+1), dtype=int)
+        
+    # end for tt
+    
+    Forme_par_lignes = np.copy(Forme[0:np.sum(p[0:n]), 0:N]) @ np.transpose(np.triu(np.full(shape=(N,N), fill_value=1)))
+    
+    Mattest = np.transpose(np.abs(Forme_par_lignes - np.full(shape=(np.sum(p[0:n]), 1), fill_value=1, dtype=int) @ np.reshape(alpha[0:N], [1, N])))
+    lM = Mattest.shape[0]
+    
+    if lM>1:
+        vectest = np.sum(abs(Mattest), axis=0)
+        vecindex = np.argwhere(vectest==0).flatten() + 1
+    elif lM==1:
+        vecindex = np.argwhere(Mattest==0).flatten() + 1
+    
+    kostka: int = int(0)
+    if len(vecindex)>0:
+        kostka = Forme[vecindex[0]-1, N]
+    
+    return kostka
+
+
+def multiplicity_antisymm(alpha, m) -> int:
+    """
+    Compute the total number of SYTs associated to the irrep alpha for local 
+    m-box antisymmetric constraints
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    m : int
+        number of boxes in local antisymmetric irrep
+    
+    Returns
+    -------
+    kostka : int
+        number of SYTs
+    """
+    kostka: int = multiplicity_symm(transpose_shape(alpha), m)
+    return kostka
+
+
+def get_bottom_corner(alpha) -> np.ndarray:
+    """
+    Extract the bottom corners of an irrep
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    
+    Returns
+    -------
+    bc : numpy array
+        rows of bottom corners
+    """
+    
+    alphap = np.hstack([alpha, 0])
+    delta = alpha - alphap[1:]
+    bc = np.argwhere(delta!=0).flatten()
+    
+    return bc
+
+
+def get_transpositions(links):
+    """
+    Transform a sequence of transpositions into a sequence of adjacent transpositions
+    
+    Parameters
+    ----------
+    links : numpy array
+        collection of transpositions (stored in the rows)
+    
+    Returns
+    -------
+    listtranspositions : list
+        collection of adjacent transpositions
+    nbtranspositions : numpy array
+        number of adjacent transpositions to represent each input transposition
+    
+    Examples
+    --------
+    links = np.array([[0, 2], [1, 4]], dtype=int) # --> 2 transpositions: (0, 2) and (1, 3)
+    lt, nbt = get_transpositions(links)
+    # --> lt = [np.array([0, 1, 0], dtype=int), np.array([1, 2, 3, 2, 1], dtype=int)]
+    # --> nb = np.array([3, 5], dtype=int)
+    # the transposition (0, 2) is rewritten as a product of 3 adjacent transpositions:
+    #      (0, 2) = (0, 1) (1, 2) (0, 1)
+    # the transposition (1, 4) is rewritten as a product of 5 adjacent transpositions:
+    #      (1, 4) = (1, 2) (2, 3) (3, 4) (2, 3) (1, 2)
+    """
+    
+    nlinks = len(links)
+    nbtranspositions = np.zeros((nlinks,), dtype=int)
+    
+    listtranspositions = [None] * nlinks
+    
+    for i in range(0, nlinks):
+        listtranspositions[i] = transposition_to_adjacent_transpositions(links[i])
+        nbtranspositions[i] = len(listtranspositions[i])
+    
+    return listtranspositions, nbtranspositions
+
+
+def get_axial_distance(y, cy, i, j) -> int:
+    """
+    Compute axial distance from i to j in SYT y (and columns cy)
+    """
+    
+    ad: int = cy[i] - y[i] - cy[j] + y[j]
+    
+    return ad
+
+
+def get_new_shape(alpha, y) -> np.ndarray:
+    """
+    Extract remaining irrep from a subSYT associated to an irrep
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    y : numpy array
+        partially-filled SYT
+    
+    Returns
+    -------
+    alphap : numpy array
+        irrep of free boxes
+        
+    Example
+    -------
+    alpha = [3, 2, 1], y = [-1, -1, -1, -1, 2, 0]
+                  x x 5               x x
+    partial SYT = x x   ---> alphap = x x = [2, 2]
+                  4
+    """
+    
+    n = len(y)
+    idst = np.argwhere(y>=0).flatten()
+    alphap = np.copy(alpha)
+    if len(idst)>0:
+        idst = idst[0]
+        for p in range(n-1,idst-1,-1):
+            alphap[y[p]] -= 1
+    
+    return alphap
+
+
+def dim_irrep_sun(alpha, N) -> int:
+    """
+    Dimension of irrep of SU(N)
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    N : int
+        SU(N)
+    
+    Returns
+    -------
+    dimension : int
+        dimension of irrep
+    
+    Notes
+    -----------
+    - Compute the dimension of the irrep of SU(N) using the Hook-length formula
+    - Alternatively, the dimension corresponds to the number of semi-standard 
+      Young tableaux (or, equivalently, of Gelfand-Tsetlin patterns) associated 
+      to the irrep
+    """
+    
+    nl = len(np.argwhere(alpha>0).flatten())
+    if nl>N:
+        sys.exit('Problem: alpha has more rows than N.')
+    alphap = np.zeros((N,), dtype=int)
+    alphap[0:nl] = alpha[0:nl]
+    alpha = alphap
+    alpha = alpha - np.full(shape=(N,), fill_value=alpha[N-1], dtype=int) # remove columns with N boxes
+    n = np.sum(alpha)
+    
+    # Numerator
+    numvec = np.zeros(shape=n, dtype=int)
+    cpt = int(0)
+    for i in range(0, nl):
+        for j in range(0, alpha[i]):
+            numvec[cpt] = N-i+j
+            cpt += 1
+    
+    # Denominator: product of Hook lengths
+    m = alpha[0]
+    alphafull = np.zeros((nl, m), dtype=int)
+    for i in range(0, nl):
+        for j in range(0, alpha[i]):
+            alphafull[i,j] = 1
+    
+    denomvec = np.zeros(shape=n, dtype=int)
+    cpt = int(0)
+    for i in range(0, nl):
+        for j in range(0, alpha[i]):
+            sumi = np.sum(alphafull[i:nl,j]) + np.sum(alphafull[i,j+1:m])
+            denomvec[cpt] = sumi
+            cpt += 1
+    
+    numvec, denomvec = sun4py.common.math.reduce_by_divide(numvec, denomvec)
+    
+    denom: int = np.prod(denomvec)
+    assert(denom==int(1))
+    dimension: int = np.prod(numvec)
+    
+    return dimension
+
+
+def get_SSYT(alpha, N) -> np.ndarray:
+    """
+    Get all semi-standard Young tableaux of an irrep, expressed as Gelfand-Tsetlin patterns
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    N : int
+        SU(N)
+    
+    Returns
+    -------
+    gtp : numpy array
+        collection of Gelfand-Tsetlin patterns (stored in the rows)
+    
+    Details
+    -------
+    - gtp[i] is the i-th Gelfand-Tsetlin pattern
+    - gtp[i][:N] is the irrep (alpha)
+    - gtp[i][j] is the j-th row of the Gelfand-Tsetlin pattern
+    """
+    
+    nl = len(np.argwhere(alpha>0).flatten())
+    if nl>N:
+        sys.exit('Problem: alpha has more rows than N.')
+    alphap = np.zeros((N,), dtype=int)
+    alphap[0:nl] = alpha[0:nl]
+    
+    dimension = dim_irrep_sun(alphap, N)
+    
+    gtp = np.zeros(shape=(dimension, N*(N+1)//2), dtype=int)
+    long_ligne = np.zeros((N,), dtype=int)
+    long_ligne[0] = N
+    long_ligne_offset = np.zeros((N,), dtype=int)
+    acc = int(0)
+    
+    for p in range(1, N):
+        long_ligne[p] = N - p
+        acc += long_ligne[p-1]
+        long_ligne_offset[p] = acc
+    
+    # create max pattern
+    gtp[0, :N] = np.copy(alphap)
+    for p in range(0, N-1):
+        gtp[0, p+long_ligne_offset[1:N-p]] = np.full(shape=(1, N-p-1), 
+                                                         fill_value=gtp[0, p], 
+                                                         dtype=int)
+    
+    for s in range(1, dimension):
+        vectemp = np.copy(gtp[s-1, :])
+        # find pivoting index
+        indice = N*(N+1)//2
+        j_indice = np.argwhere( (long_ligne_offset - indice*np.full(shape=(N,), fill_value=1, dtype=int))<0).flatten()[-1]
+        i_indice = indice - long_ligne_offset[j_indice]
+        indice_friend = i_indice + long_ligne_offset[j_indice-1]
+        
+        while (vectemp[indice-1]==vectemp[indice_friend]):
+            indice -= 1
+            j_indice = np.argwhere( (long_ligne_offset - indice*np.full(shape=(N,), fill_value=1, dtype=int))<0).flatten()[-1]
+            i_indice = indice - long_ligne_offset[j_indice]
+            indice_friend = i_indice + long_ligne_offset[j_indice-1]
+        
+        # apply (C9) from Alex' article
+        vectemp[indice-1] -= 1
+        for k in range(indice+1, N*(N+1)//2+1):
+            j_k = np.argwhere( (long_ligne_offset-k*np.full(shape=(N,), fill_value=1, dtype=int))<0 ).flatten()[-1]
+            i_k = k - long_ligne_offset[j_k]
+            vectemp[k-1] = vectemp[i_k-1+long_ligne_offset[j_k-1]]
+        
+        gtp[s, :] = vectemp
+    
+    return gtp
+
+
+def tensor_product_irrep(alpha1, alpha2, N) -> np.ndarray:
+    """
+    Tensor product of two irreps
+    
+    Parameters
+    ----------
+    alpha1 : numpy array
+        irrep
+    alpha2 : numpy array
+        irrep
+    N : int
+        SU(N)
+    
+    Returns
+    -------
+    alpha : numpy array
+        collection of irreps
+    
+    Remarks
+    -------
+    - Number of boxes is preserved (columns with N boxes are not removed)
+    - Irreps with non-trivial multiplicities appear as many times in alpha
+    
+    Example
+    -------
+    SU(3), alpha1 = alpha2 = adjoint = [2, 1, 0]
+        [2, 1, 0] x [2, 1, 0] = singlet + 2xadjoint + [3, 0, 0] + [3, 3, 0] + [4, 2, 0]
+        out: alpha = [[4, 2, 0], [3, 3, 0], [4, 1, 1], [3, 2, 1], [3, 2, 1], [2, 2, 2]]
+    """
+    
+    nl1 = len(np.argwhere(alpha1>0).flatten())
+    nl2 = len(np.argwhere(alpha2>0).flatten())
+    
+    if ( (nl1>N) or (nl2>N) ):
+        sys.exit('Problem in the shapes of the irreps.')
+    
+    alpha1p = np.zeros((N,), dtype=int)
+    alpha1p[0:nl1] = alpha1[0:nl1]
+    alpha1 = np.copy(alpha1p)
+    alpha2p = np.zeros((N,), dtype=int)
+    alpha2p[0:nl2] = alpha2[0:nl2]
+    alpha2 = np.copy(alpha2p)
+    
+    vec = get_SSYT(alpha1, N)
+    if len(vec.shape)==1:
+        lvec = 1
+    else:
+        lvec = vec.shape[0] # number of SSYT
+    
+    dim1 = dim_irrep_sun(alpha1, N)
+    
+    if not lvec==dim1:
+        sys.exit('Problem: dimension of irrep alpha1 does not match number of Gelfand patters.')
+    
+    long_ligne = np.zeros((N,), dtype=int)
+    long_ligne[0] = N
+    long_ligne_offset = np.zeros((N,), dtype=int)
+    acc = int(0)
+    for p in range(2, N+1):
+        long_ligne[p-1] = N - p + 1
+        acc += long_ligne[p-2]
+        long_ligne_offset[p-1] = acc
+    
+    bool_beca = np.zeros(shape=(N*(N+1)//2,), dtype=int)
+    bool_beca[-1] = 1
+    
+    index_ligne_diagonal = np.zeros(shape=(N*(N+1)//2,), dtype=int)
+    
+    ist = int(0)
+    
+    for i in range(1, N+1):
+        ist += 1
+        ied = ist + N - i
+        index_ligne_diagonal[ist-1:ied] = i + long_ligne_offset[0:N-i+1]
+        bool_beca[ied-1] = 1
+        ist = ied
+    
+    k = int(1)
+    cpt = int(0)
+    alpha = np.zeros((1000, N), dtype=int)
+    
+    while (k<(dim1+1)):
+        tvec = np.copy(alpha2)
+        gel = np.copy(vec[k-1, :])
+        becal = np.zeros((N*(N+1)//2,), dtype=int)
+        
+        for j in range(1, N*(N+1)//2+1):
+            if bool_beca[j-1]>0:
+                becal[j-1] = gel[index_ligne_diagonal[j-1]-1]
+            else:
+                becal[j-1] = gel[index_ligne_diagonal[j-1]-1] - gel[index_ligne_diagonal[j]-1]
+        # end for j
+        
+        jj = int(0)
+        
+        while (jj<N*(N+1)//2):
+            
+            jj += 1
+            
+            toto = long_ligne_offset - index_ligne_diagonal[jj-1]*np.full(shape=(N,), fill_value=1, dtype=int)
+            l = N - (np.argwhere(toto<0).flatten()[-1]+1) + 1
+            
+            tvec[l-1] += becal[jj-1]
+            
+            if (l>1):
+                if (tvec[l-1]>tvec[l-2]):
+                    break # go out of loop on jj
+        # end while
+        
+        if (jj==N*(N+1)//2):
+            cpt += 1
+            alpha[cpt-1,:] = np.copy(tvec)
+        
+        k += 1
+    # end while k
+    
+    alpha = alpha[0:cpt,:]
+    
+    return alpha
+
+
+def tensor_product_all(beta, N):
+    """
+    Tensor product of all irreps in beta
+    
+    Parameters
+    ----------
+    beta : numpy array
+        irrep (stored in rows)
+    N : int
+        SU(N)
+    
+    Returns
+    -------
+    alpha : numpy array
+        collection of irreps
+    mult : numpy array
+        multiplicities
+    
+    Remarks
+    -------
+    - Number of boxes is preserved (columns with N boxes are not removed)
+    """
+    
+    assert(beta.shape[1]>1)
+    
+    alpha = tensor_product_irrep(beta[0], beta[1], N)
+    alpha, mult = np.unique(alpha, axis=0, return_index=False, 
+                            return_inverse=False, return_counts=True)
+    
+    for k in range(2, beta.shape[0]):
+        gamma = np.copy(beta[k])
+        alpha_temp = np.zeros(shape=(0, N), dtype=int)
+        mult_temp = np.array([], dtype=int)
+        for i, alpha_i in enumerate(alpha):
+            alpha_prod = tensor_product_irrep(alpha_i, gamma, N)
+            alpha_prod_u, counts = np.unique(alpha_prod, axis=0, 
+                                             return_index=False, 
+                                             return_inverse=False, 
+                                             return_counts=True)
+            counts *= mult[i]
+            alpha_temp = np.vstack((alpha_temp, alpha_prod_u))
+            mult_temp = np.hstack((mult_temp, counts))
+        
+        alpha, ia, ic, counts = np.unique(alpha_temp, axis=0, 
+                                          return_index=True, 
+                                          return_inverse=True, 
+                                          return_counts=True)
+        # assert(np.sum(abs(alpha - alpha_temp[ia]))==0)
+        # assert(np.sum(abs(alpha_temp - alpha[ic]))==0)
+        mult = np.zeros(shape=(len(ia),), dtype=int)
+        for i in range(0, len(ia)):
+            mult[i] = np.sum(mult_temp[ic==i])
+    
+    alpha, ind = sun4py.common.math.sortrows(alpha)
+    mult = mult[ind]
+    
+    return alpha, mult
+
+
+def get_all_irreps(N, n):
+    """
+    Get all irreps of SU(N) having at most n boxes
+    
+    Parameters
+    ----------
+    N : int
+        SU(N)
+    n : int
+        max number of boxes in irrep
+    
+    Returns
+    -------
+    irreps : numpy array
+        collection of irreps (stored in the rows)
+    
+    Remark
+    ------
+    Columns with N boxes are not counted, namely an irrep of SU(N) should be 
+    here understood as an array with N-1 non-negative row counts
+    """
+    assert(n>0)
+    
+    num_irreps = int(1) # count for the fundamental irrep
+    for p in range(1, n+1):
+        for q in range(1, N):
+            num_irreps += sun4py.common.partitions.pnm(p, q)
+    
+    if N==2:
+        assert(num_irreps==n+1)
+        irreps = np.zeros(shape=(n+1, N), dtype=int)
+        irreps[:, 0] = np.arange(0, n+1)
+    elif N==3:
+        irreps = np.zeros(shape=(num_irreps, N), dtype=int)
+        cpt = int(1)
+        for p in range(1, n+1):
+            # write p as p = k + (p-k)
+            # where k = number of boxes in the second row
+            for k in range(p, p//2-1, -1):
+                r = p - k
+                if ((r>=0) & (r<=k)):
+                    irreps[cpt, 0] = k
+                    irreps[cpt, 1] = r
+                    cpt += 1
+        assert(cpt==num_irreps)
+    else:
+        # this is a totally generic approach for SU(N), which would work for 
+        # N=2, 3 as well, but is slower
+        t = max(n, N)
+        irreps = np.zeros(shape=(n+1, t), dtype=int)
+        
+        # here, for convenience, we adopt a different convention 
+        # for labelling irreps:
+        # irreps[p] is the p-th irrep (as usual)
+        # BUT: 
+        #   irreps[p][k] is NOT the number of boxes in the k-th row of irreps[p]
+        # instead, here, 
+        #   irreps[p][k] is the number of columns with k+1 boxes in irreps[p]
+        # Going from this new description to the usual convention is simple
+        
+        irreps[0][0] = 1 # 1 column with 1 box
+        ntemp_prev = int(1)
+        
+        for p in range(2, n+1):
+            
+            # we will generate irreps with p boxes
+            cpt = int(0)
+            
+            for pp in range(0, ntemp_prev):
+                
+                irr = irreps[pp]
+                # first, we add the irrep where we add a box in the 1st row
+                # Recall the 1st row is labelled 0 (pythonic)
+                irreps[ntemp_prev+cpt] = np.copy(irr)
+                irreps[ntemp_prev+cpt][0] += 1
+                cpt += 1
+                
+                # now search for all possible other locations where we can add 
+                # a box
+                ind = np.argwhere(irr>0).flatten() + 1
+                # recall irr[k] = number of columns with k+1 boxes in irr
+                # ind tells us which irr[k] are >0
+                # example: if ind = [1, 2, 3, 5] -->
+                # irr has at least 1 column with 1 box 
+                #                  1 column with 2 boxes
+                #                  1 column with 3 boxes
+                #                  1 column with 5 boxes
+                # thus:
+                # we can add a box: 
+                # in row 1, 2, 3, 5 (== [ind])
+                # since we have already dealt with adding at row=0 above
+                for w in range(0, len(ind)):
+                    irreps[ntemp_prev+cpt] = np.copy(irr)
+                    irreps[ntemp_prev+cpt][ind[w]] += 1
+                    irreps[ntemp_prev+cpt][ind[w]-1] -= 1
+                    cpt += 1
+            
+            ntemp = ntemp_prev + cpt
+            
+            # remove duplicates            
+            irreps_u = np.unique(irreps[:ntemp], axis=0)
+            ntemp_new = irreps_u.shape[0]
+            irreps = np.zeros(shape=(ntemp_new*(n+1), t), dtype=int)
+            irreps[:ntemp_new] = np.copy(irreps_u)
+            ntemp_prev = ntemp_new
+            
+        # transform the collections of irreps to the usual convention where
+        # irreps[p][k] = number of boxes in the k-th row of irreps[p]
+        A = np.triu(np.full(shape=(t, t), fill_value=1, dtype=int))
+        irreps = A @ irreps.transpose() # (t x t) x (t x n+1) ---> t x (n+1)
+        
+        # irreps are now stored in the columns ...
+        
+        # keep only N rows
+        irreps = irreps[:N, :]
+        # remove all columns with N boxes
+        irreps = irreps - irreps[N-1, :]
+        
+        # keep irreps in the rows rather than columns
+        irreps = irreps.transpose()
+        
+        # remove duplicates
+        irreps = np.unique(irreps, axis=0)
+        
+        assert(irreps.shape[0]==num_irreps)
+    
+    # useful reorganisation of irreps which will have the same Casimir ...
+    irreps, _ = sun4py.common.math.sortrows(irreps)
+    
+    return irreps
+
+
+def get_irreps_by_casimir(N, num_irreps):
+    """
+    Get the first num_irreps irreps of SU(N) sorted in ascending order of quadratic
+    Casimir
+    
+    Parameters
+    ----------
+    N : int
+        SU(N)
+    num_irreps : int
+        number of irreps to find
+    
+    Returns
+    -------
+    irreps : numpy array
+        collection of irreps (stored in the rows), sorted in ascending order of
+        their quadratic Casimir
+    """
+    
+    if N==2:
+        irreps = get_all_irreps(N, num_irreps-1)
+    else:
+        n = int(40) # something much bigger than N
+        irreps = get_all_irreps(N, n)
+        
+        # sort in ascending order of Casimir
+        casimir = np.zeros(shape=(irreps.shape[0],))
+        for i in range(1, irreps.shape[0]):
+            casimir[i] = casimir_quadratic_TT(irreps[i], N)
+        ind = np.argsort(casimir, kind='mergesort').flatten()
+        # we use mergesort, because the default 'quicksort' is not stable
+        irreps = irreps[ind]
+        irreps = irreps[:num_irreps]
+    
+    return irreps
+
+
+def reduce_shape(alpha):
+    """
+    Count number of occurences of each irrep
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        collection of irreps, with potential repetitions
+    
+    Returns
+    -------
+    alpha1 : numpy array
+        collection of unique irreps
+    multi1 : numpy array
+        multiplicity of each irrep in alpha1
+    """
+    
+    if len(alpha.shape)==1:
+        # there is only one shape
+        return alpha, np.array([1], dtype=int)
+    
+    n = alpha.shape[0] # number of shapes
+    # nl = alpha.shape[1] # unused
+    
+    multi1 = np.zeros((n,), dtype=int)
+    multi1[0] = 1
+    alpha1 = np.zeros(alpha.shape, dtype=int)
+    alpha1[0,:] = np.copy(alpha[0,:])
+    cpt = 1
+    
+    for i in range(2, n+1):    
+        ind = np.argwhere( np.sum(abs(alpha1[0:cpt,:] - alpha[i-1,:]), axis=1) == 0 ).flatten()
+        if len(ind)==0:
+            cpt += 1
+            alpha1[cpt-1,:] = np.copy(alpha[i-1,:])
+            multi1[cpt-1] = 1
+        else:
+            multi1[ind[0]] += 1
+    
+    alpha1 = alpha1[0:cpt,:]
+    multi1 = multi1[0:cpt]
+    
+    return alpha1, multi1
+
+
+def merge_shapes(alpha1, multi1, alpha2, multi2):
+    r"""
+    Add two decompositions of irreps
+    
+    Parameters
+    ----------
+    alpha1 : numpy array
+        collection of irreps
+    multi1 : numpy array
+        multiplicities of irreps in alpha1
+    alpha2 : numpy array
+        collection of irreps
+    multi2 : numpy array
+        multiplicities of irreps in alpha2
+    
+    Returns
+    -------
+    alpha : numpy array
+        collection of irreps
+    multi : numpy array
+        multiplicities of irreps in alpha
+    
+    Remarks
+    -------
+    :math:
+        \left( \oplus_{j=0}^{N_1} \mu^{(1)}_j \alpha^{(1)}_j \right) \oplus \left( \oplus_{j=0}^{N_2} \mu^{(2)}_j \alpha^{(2)}_j \right)
+    """
+    
+    n1 = len(multi1)
+    n2 = len(multi2)
+    
+    if ( (n1==1) and (len(alpha1.shape)==1) ):
+        alpha1 = np.reshape(alpha1, (1, alpha1.shape[0]))
+    if ( (n2==1) and (len(alpha2.shape)==1) ):
+        alpha2 = np.reshape(alpha2, (1, alpha2.shape[0]))
+    
+    nl = alpha1.shape[1]
+    
+    alpha = np.zeros((n1+n2, nl), dtype=int)
+    alpha[0:n1,:] = np.copy(alpha1)
+    multi = np.zeros((n1+n2,), dtype=int)
+    multi[0:n1] = np.copy(multi1)
+    cpt = n1
+    
+    for j2 in range(0, n2):
+        ind = np.argwhere(np.sum(abs(alpha - alpha2[j2,:]), axis=1)==0).flatten()
+        if len(ind)==0:
+            alpha[cpt,:] = np.copy(alpha2[j2,:])
+            multi[cpt] = multi2[j2]
+            cpt += 1
+        else:
+            multi[ind[0]] += multi2[j2]
+    
+    alpha = alpha[0:cpt,:]
+    multi = multi[0:cpt]
+    
+    return alpha, multi
+
+
+def multiplicity_irrep_mixed(alpha, beta, N) -> int:
+    """
+    Compute the multiplicity of an irrep in the tensor product of several irreps
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        target irrep
+    beta : numpy array
+        collection of local irreps in the tensor product
+    N : int
+        SU(N)
+    
+    Returns
+    -------
+    fmixedalpha : int
+        multiplicity of alpha in the tensor product of all irreps in beta
+    """
+    
+    n = np.sum(alpha)
+    
+    if not n==np.sum(beta):
+        sys.exit('Problem: number of boxes in beta does not match alpha.')
+    
+    nl = len(np.argwhere(alpha>0).flatten())
+    if nl>N:
+        sys.exit('Problem: Shape alpha not legal for SU(N=' + N + ')')
+    
+    alphap = np.zeros((N,), dtype=int)
+    alphap[0:nl] = alpha[0:nl]
+    alpha = np.copy(alphap)
+    
+    if len(beta.shape)==1:
+        # there is only 1 irrep in beta
+        Ns = 1
+        beta = np.reshape(beta, (Ns, -1))
+    else:
+        # irreps are stored in the rows
+        Ns = beta.shape[0]
+    
+    if Ns==1:
+        if alpha==beta:
+            fmixedalpha = int(1)
+        else:
+            fmixedalpha = int(0)
+    else:
+        alpha1 = tensor_product_irrep(beta[0,:], beta[1,:], N)
+        alpha1, multi1 = reduce_shape(alpha1)
+    
+        for j in range(2, Ns):
+            alpha2 = tensor_product_irrep(alpha1[0,:], beta[j,:], N)
+            alpha2, multi2 = reduce_shape(alpha2)
+            multi2 *= multi1[0]
+            
+            for i in range(1, len(multi1)):
+                alpha2i = tensor_product_irrep(alpha1[i,:], beta[j,:], N)
+                alpha2i, multi2i = reduce_shape(alpha2i)
+                multi2i *= multi1[i]
+                alpha2, multi2 = merge_shapes(alpha2, multi2, alpha2i, multi2i)
+            
+            alpha1 = np.copy(alpha2)
+            multi1 = np.copy(multi2)
+        
+        ind = np.argwhere(np.sum(abs(alpha1 - alpha), axis=1)==0).flatten()
+        
+        if len(ind)==0:
+            fmixedalpha = int(0)
+        else:
+            fmixedalpha = multi1[ind[0]]
+    
+    return fmixedalpha
+
+
+def sort_SYT(Y, order='LLOS'):
+    """
+    Sort SYTs in the increasing order of the LLOS (or iLLOS)
+    
+    Parameters
+    ----------
+    Y : numpy array
+        collection of SYTs (stored in the rows)
+    order : str
+        (optional) [default: 'LLOS'] order in which to sort the SYTs
+    
+    Returns
+    -------
+    Y : numpy array
+        collection of sorted SYTs (stored in the rows)
+    """
+    assert(order in ['LLOS', 'iLLOS'])
+    Y, ind = sun4py.common.math.sortrows(Y[:, ::-1])
+    Y = Y[:, ::-1]
+    if order=='LLOS':
+        Y = Y[::-1, :]
+        ind = ind[::-1]
+    return Y, ind
+
+
+def get_SYT_symm(alpha, m, order='LLOS')  -> np.ndarray:
+    """
+    Compute all SYTs for an irrep alpha satisfying local constraints defined by
+    a symmetric irrep with m boxes
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        target irrep
+    m : int
+        number of particles per site (in the symmetric irrep)
+    order : str
+        optional [default: 'LLOS'] or 'iLLOS' order of output SYTs
+    """
+
+    n = np.sum(alpha)
+    Ns = n//m
+    
+    nly = len(np.argwhere(alpha>0).flatten())
+    alpha = np.hstack([alpha[0:nly], 0])
+    
+    NY = multiplicity_symm(alpha, m)
+    
+    Y = np.full(shape=(10*NY, n), fill_value=-1, dtype=int)
+    nbsyt = int(1)
+    
+    if m==2:
+        
+        for j in range(Ns-1, -1, -1):
+            
+            cpt = int(0)
+            Ynew = np.full(shape=(0, n), fill_value=-1, dtype=int)
+            
+            for q in range(0, nbsyt):
+                
+                alphap = get_new_shape(alpha, Y[q, :])
+                
+                bc = get_bottom_corner(alphap)
+                nbc = len(bc)
+                cbc = alphap[bc]-1 # columns of bottom corners
+                
+                for b in range(nbc-1, -1, -1):
+                    
+                    alphapp = np.copy(alphap)
+                    alphapp[bc[b]] -= 1
+                    
+                    for w2 in range(bc[b], -1, -1):
+                        
+                        if ((alphapp[w2]>alphapp[w2+1]) and (not (alphapp[w2]-1==cbc[b]))):
+                            ytmp = np.copy(Y[q,:])
+                            ytmp[m*j+1] = bc[b]
+                            ytmp[m*j] = w2
+                            Ynew = np.vstack([Ynew, ytmp])
+                            cpt += 1
+                        # end if
+                    # end for w2
+                # end for b
+            # end for q
+            
+            Y[0:cpt, :] = np.copy(Ynew)
+            nbsyt = cpt
+            
+        # end for j
+        
+    elif m==3:
+        
+        for j in range(Ns-1, -1, -1):
+            
+            cpt = int(0)
+            Ynew = np.full(shape=(0, n), fill_value=-1, dtype=int)
+            
+            for q in range(0, nbsyt):
+                
+                alphap = get_new_shape(alpha, Y[q, :])
+                
+                bc = get_bottom_corner(alphap)
+                nbc = len(bc)
+                cbc = alphap[bc]-1 # columns of bottom corners
+                
+                for b in range(nbc-1, -1, -1):
+                    
+                    alphapp = np.copy(alphap)
+                    alphapp[bc[b]] -= 1
+                    
+                    for w2 in range(bc[b], -1, -1):
+                        
+                        if ( (alphapp[w2]>alphapp[w2+1]) and (not alphapp[w2]-1==cbc[b]) ):
+                            alphappp = np.copy(alphapp)
+                            alphappp[w2] -= 1
+                            for w3 in range(w2, -1, -1):
+                                if ( (alphappp[w3]>alphappp[w3+1]) and (not (alphappp[w3]-1-cbc[b])*(alphappp[w3]-alphapp[w2])==0)):
+                                    ytmp = np.copy(Y[q, :])
+                                    ytmp[m*j+2] = bc[b]
+                                    ytmp[m*j+1] = w2
+                                    ytmp[m*j] = w3
+                                    Ynew = np.vstack([Ynew, ytmp])
+                                    cpt += 1
+                                # end if
+                            # end for w3
+                        # end if
+                    # end for w2
+                # end for b
+            # end for q
+            
+            Y[0:cpt, :] = np.copy(Ynew)
+            nbsyt = cpt
+            
+        # end for j
+        
+    else:
+        sys.exit('m>3 not implemented')
+    
+    if not nbsyt==NY:
+        sys.exit('Problem: we have not generated the correct number of SYTs.')
+    
+    Y = Y[0:nbsyt,:]
+    
+    if order=='LLOS':
+        Y = np.flipud(Y)
+    
+    return Y
+
+
+def get_SYT_antisymm(alpha, m, order='LLOS') -> np.ndarray:
+    """
+    Compute all SYTs for an irrep alpha satisfying local constraints defined by
+    an anti-symmetric irrep with m boxes
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        target irrep
+    m : int
+        number of particles per site (in the anti-symmetric irrep)
+    order : str
+        optional [default: 'LLOS'] or 'iLLOS' order of output SYTs
+    """
+    
+    n = np.sum(alpha)
+    Ns = n//m
+    
+    nly = len(np.argwhere(alpha>0).flatten())
+    alpha = np.hstack([alpha[0:nly], 0])
+    
+    NY = multiplicity_antisymm(alpha, m)
+    
+    Y = np.full(shape=(10*NY, n), fill_value=-1, dtype=int)
+    nbsyt = int(1)
+    
+    if m==2:
+        
+        for j in range(Ns-1, -1, -1):
+            
+            cpt = int(0)
+            Ynew = np.full(shape=(0, n), fill_value=-1, dtype=int)
+            
+            for q in range(0, nbsyt):
+                
+                alphap = get_new_shape(alpha, Y[q, :])
+                
+                bc = get_bottom_corner(alphap)
+                nbc = len(bc)
+                
+                for b in range(nbc-1, -1, -1):
+                    
+                    alphapp = np.copy(alphap)
+                    alphapp[bc[b]] -= 1
+                    
+                    for w2 in range(bc[b]-1, -1, -1):
+                        if (alphapp[w2]>alphapp[w2+1]):
+                            ytmp = np.copy(Y[q,:])
+                            ytmp[m*j+1] = bc[b]
+                            ytmp[m*j] = w2
+                            Ynew = np.vstack([Ynew, ytmp])
+                            cpt += 1
+                        # end if
+                    # end for w2
+                # end for b
+            # end for q
+            
+            Y[0:cpt, :] = np.copy(Ynew)
+            nbsyt = cpt
+        
+        # end for j
+        
+    elif m==3:
+        
+        for j in range(Ns-1, -1, -1):
+            
+            cpt = int(0)
+            Ynew = np.full(shape=(0, n), fill_value=-1, dtype=int)
+            
+            for q in range(0, nbsyt):
+                
+                alphap = get_new_shape(alpha, Y[q, :])
+                
+                bc = get_bottom_corner(alphap)
+                nbc = len(bc)
+                
+                for b in range(nbc-1, -1, -1):
+                    
+                    alphapp = np.copy(alphap)
+                    alphapp[bc[b]] -= 1
+                    
+                    for w2 in range(bc[b]-1, -1, -1):
+                        
+                        if (alphapp[w2]>alphapp[w2+1]):
+                            
+                            alphappp = np.copy(alphapp)
+                            alphappp[w2] -= 1
+                            
+                            for w3 in range(w2-1, -1, -1):
+                                
+                                if (alphappp[w3]>alphappp[w3+1]):
+                                    ytmp = np.copy(Y[q, :])
+                                    ytmp[m*j+2] = bc[b]
+                                    ytmp[m*j+1] = w2
+                                    ytmp[m*j] = w3
+                                    Ynew = np.vstack([Ynew, ytmp])
+                                    cpt += 1
+                                # end if
+                            # end for w3
+                        # end if
+                    # end for w2
+                # end for b
+            # end for q
+            
+            Y[0:cpt, :] = np.copy(Ynew)
+            nbsyt = cpt
+            
+        # end for j
+        
+    else:
+        sys.exit('m>3 not yet implemented')
+    
+    Y = Y[0:nbsyt,:]
+    
+    if order=='LLOS':
+        Y = np.flipud(Y)
+    
+    return Y
+
+
+def get_SYT_general(alpha, beta, order='LLOS'):
+    """
+    SYTs of equivalence classes for general local constraints
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        global irrep
+    beta : numpy array of numpy arrays
+        local irreps
+    order : str - [default] LLOS or iLLOS
+        order in which to arrange the SYTs
+    
+    Returns
+    -------
+    Y : numpy array
+        SYTs of equivalence classes
+    CY: numpy array
+        column positions of SYTs of equivalence classes
+    
+    Description
+    -----------
+    Generate all SYTs of equivalence classes associated to the global irrep 
+    alpha, satisfying the local constraints imposed by irreps in beta
+    """
+    
+    Ns = beta.shape[0]
+    n = np.sum(alpha)
+    
+    nly = len(np.argwhere(alpha>0).flatten())
+    alpha = np.hstack([alpha[0:nly], 0])
+    
+    Y = np.full(shape=(1, n), fill_value=-1, dtype=int)
+    CY = np.full(shape=(1, n), fill_value=-1, dtype=int)
+    nbsyt = int(1)
+    
+    for j in range(Ns-1, -1, -1):
+        
+        cpt = int(0)
+        Ynew = np.full(shape=(0, n), fill_value=-1, dtype=int)
+        CYnew = np.full(shape=(0, n), fill_value=-1, dtype=int)
+        
+        for q in range(0, nbsyt):
+            
+            alphap = get_new_shape(alpha, Y[q,:])
+            
+            bc = get_bottom_corner(alphap)
+            nbc = len(bc)
+            cbc = alphap[bc]-1 # columns of bottom corners
+            
+            for b in range(nbc-1, -1, -1):
+                
+                w1 = bc[b] # row position of bottom corner
+                cw1 = cbc[b] # column position of bottom corner
+                
+                if np.sum(beta[j])==1:
+                    cpt += 1
+                    pos = n - np.sum(np.sum(beta[j+1:,:])) - 1
+                    Ynew[cpt, :] = Y[q, :]
+                    Ynew[cpt, pos] = w1
+                    CYnew[cpt, :] = CY[q, :]
+                    CYnew[cpt, pos] = cw1
+                else:
+                    
+                    alphapp = np.copy(alphap)
+                    alphapp[w1] -= 1
+                    
+                    Ynew, CYnew, cpt = place_recursive(
+                                            int(1), 
+                                            beta[j], 
+                                            alphapp, 
+                                            np.array([w1], dtype=int), 
+                                            np.array([cw1], dtype=int), 
+                                            Y[q,:], 
+                                            CY[q,:], 
+                                            Ynew, 
+                                            CYnew, 
+                                            cpt)
+        
+        Y = np.copy(Ynew)
+        CY = np.copy(CYnew)
+        nbsyt = cpt
+    
+    if order=='LLOS':
+        Y = np.flipud(Y)
+        CY = np.flipud(CY)
+    
+    return Y, CY
+
+
+def place_recursive(k, beta_loc, alphap, wvec, cwvec, y, cy, Ynew, CYnew, cpt):
+    """
+    Recursive placement satisfying local constraints
+    
+    Parameters
+    ----------
+    k : int
+        step
+    beta_loc : numpy array
+        local irrep
+    alphap : numpy array
+        remaining global irrep
+    wvec : numpy array
+        rows of already placed particles
+    cwvec : numpy array
+        columns of already placed particles
+    y : numpy array
+        subSYT under consideration
+    cy : numpy array
+        columns positions associated to y
+    Ynew : numpy array
+        all SYTs generated so far
+    CYnew : numpy array
+        column positions associated with Ynew
+    cpt : counter
+    
+    Returns
+    -------
+    Ynew : numpy array
+        SYTs of equivalence classes generated so  far
+    CYnew : numpy array
+        column positions associated with Ynew
+    cpt : int
+        counter
+    
+    Description
+    -----------
+    Try to place the k-th particle of the local irrep beta_loc in the remaining
+    global irrep alphap in the (yet incomplete) SYTs in Ynew which satisfy the
+    pattern from (incomplete) SYT y
+    """
+    
+    m_loc = np.sum(beta_loc)
+    
+    nr = len(np.argwhere(beta_loc>0)) # number of rows in the shape
+    nc = beta_loc[0] # number of columns in the shape
+        
+    for w in range(wvec[0], -1, -1):
+        
+        if alphap[w]>alphap[w+1]:
+            # bottom corner in row w
+            cw = alphap[w] - 1
+            isOk = True
+            nw = len(np.argwhere(wvec==w)) # nb of part already placed in row w
+            if (nw+1>nc):
+                isOk = False
+            else:
+                cnw = len(np.argwhere(cwvec==cw)) # nb of part already placed in column cw
+                if (cnw+1>nr):
+                    isOk = False
+            
+            if isOk:
+                wvecp = np.concatenate(([w], wvec))
+                cwvecp = np.concatenate(([cw], cwvec))
+                
+                if k==m_loc-1:
+                    Ynew = np.vstack([Ynew, y])
+                    CYnew = np.vstack([CYnew, cy])
+                    pos = np.max(np.argwhere(y<0).flatten())                    
+                    for ll in range(m_loc-1, -1, -1):
+                        Ynew[cpt, pos] = wvecp[ll]
+                        CYnew[cpt, pos] = cwvecp[ll]
+                        pos -= 1
+                    cpt += 1
+                
+                else:
+                    alphapp = np.copy(alphap)
+                    alphapp[w] -= 1
+                    Ynew, CYnew, cpt = place_recursive(k+1, 
+                                                beta_loc, 
+                                                alphapp, 
+                                                wvecp, 
+                                                cwvecp, 
+                                                y, 
+                                                cy, 
+                                                Ynew, 
+                                                CYnew, 
+                                                cpt)
+    
+    return Ynew, CYnew, cpt
+
+
+def permutation_to_cycles(sigma):
+    """
+    Transform a permutation of S_n into a product of disjoint cycles
+    """
+    
+    n = len(sigma)
+    
+    cycles = []
+    used = []
+    
+    f = lambda v : min(set(np.arange(0, n)) - set(v))
+    
+    while not len(used)==n:
+        s = f(used)
+        if sigma[s]==s:
+            used.append(s)
+        else:
+            cycle = np.array([s, sigma[s]], dtype=int)
+            used.append(s)
+            used.append(sigma[s])
+            while not sigma[cycle[-1]]==cycle[0]:
+                cycle = np.append(cycle, sigma[cycle[-1]])
+                used.append(cycle[-1])
+            cycles.append(cycle)
+    return cycles
+
+
+def cycle_to_transpositions(cycle):
+    """
+    Transform a cycle into a product of 2-cycles (transpositions)
+    
+    Parameters
+    ----------
+    cycle : numpy array
+        cycle of S_n
+    
+    Returns
+    -------
+    t : list of numpy arrays
+        product of 2-cycles
+    """
+    
+    t = [None] * (len(cycle)-1)
+    
+    for i in range(0, len(cycle)-1):
+        a = cycle[i]
+        b = cycle[i+1]
+        t[i] = np.array([min(a, b), max(a, b)])
+    
+    return t
+
+
+def transposition_to_adjacent_transpositions(t):
+    """
+    Transform an arbitrary 2-cycle (transposition) into a product of adjacent 
+    2-cycles (transpositions)
+    
+    Parameters
+    ----------
+    t : numpy array
+        2-cycle of S_n
+    
+    Returns
+    -------
+    z : numpy array
+        product of adjacent 2-cycles (adjacent transpositions)
+    
+    Example
+    -------
+    t = (2, 5)
+    z = (2, 3)(3, 4)(4, 5)(3, 4)(2, 3) --> z=np.array([2, 3, 4, 3, 2], dtype=int)
+    """
+    
+    a = np.min(t)
+    b = np.max(t)
+    
+    n = 2*abs(b - a) - 1
+    
+    z = np.zeros(shape=(n, ), dtype=int)
+    z[0:((n-1)//2+1)] = np.arange(a, b)
+    z[((n-1)//2+1):] = np.arange(b-2, a-1, -1)
+    
+    return z
+
+
+def permutation_to_adjacent_transpositions_v1(sigma):
+    """
+    Transform a permutation into a product of adjacent 2-cycles (transpositions)
+    
+    Remark
+    ------
+    First method
+    """
+    
+    cycles = permutation_to_cycles(sigma)
+    
+    transpositions = []
+    for cycle in cycles:
+        transpositions += cycle_to_transpositions(cycle)
+    
+    at = np.zeros(shape=(0, ), dtype=int)
+    
+    for t in transpositions:
+        z = transposition_to_adjacent_transpositions(t)
+        at = np.append(at, z)
+    
+    # remove potential even number multiplying adjacent 2-cycles, such as (2 3)(2 3)=id
+    atr = reduce_adjacent_transpositions(at)
+    
+    return atr
+
+
+def permutation_to_adjacent_transpositions_v2(sigma):
+    """
+    Transform a permutation into a product of adjacent 2-cycles (transpositions)
+    
+    Remark
+    ------
+    Second method
+    """
+    
+    transpo = permutation_to_transpositions(sigma)
+    
+    at = np.zeros(shape=(0,), dtype=int)
+    
+    for t in transpo:
+        z = transposition_to_adjacent_transpositions(t)
+        at = np.append(at, z)
+    
+    atr = reduce_adjacent_transpositions(at)
+    
+    return atr
+
+
+def reduce_adjacent_transpositions(at):
+    """
+    Remove even numbers of following identical adjacent transposition in a 
+    product of adjacent transpositions
+    
+    Description
+    -----------
+    If a product of adjacent transpositions contains identical elements multiplying
+    each other, replace them by the identity
+    
+    Example
+    -------
+    sigma = {3, 2, 0, 1} (permutation) = (0, 3, 1, 2) = cycle = 
+                                       = (0, 3)(1, 3)(1, 2)
+                                       = (0,1)(1,2)(2,3)(1,2)(0,1)(1,2)(2,3)(1,2)(1,2)
+                                                                              |____|
+                                                                                =id
+                                       = (0,1)(1,2)(2,3)(1,2)(0,1)(1,2)(2,3)
+    at = [0 1 2 1 0 1 2 1 1] ---> atr = [0 1 2 1 0 1 2]
+    """
+    
+    atr = np.zeros(shape=(0,), dtype=int)
+    if len(at)<=1:
+        atr = at
+    else:
+        i = int(0)
+        while i<len(at):
+            cpt = int(1)
+            j = i+1
+            while (j<len(at)):
+                if at[j]==at[i]:
+                    j += 1
+                    cpt += 1
+                else:
+                    break
+            if cpt%2==1:
+                atr = np.append(atr, at[i])
+            i = j
+    
+    return atr
+
+
+def permutation_to_transpositions(sigma):
+    r"""
+    Transform a permutation of :math:`\mathcal{S}_n` into a product of transpositions (2-cycles)
+    
+    Parameters
+    ----------
+    sigma : numpy array
+        permutation of :math:`\mathcal{S}_n`, as a permutation of [0, 1, ..., n-1]
+    
+    Returns
+    -------
+    tau : numpy array
+        transpositions
+    
+    Description
+    -----------
+    Decompose a permutation of :math:`\mathcal{S}_n` (such as :math:`(3, 2, 0, 5, 4, 1) \in \mathcal{S}_6`) as a 
+    product of 2-cycles (transpositions).
+    
+    Example
+    -------
+    :math:`\sigma = (3, 2, 5, 0, 1, 4, 6, 8, 7) \in \mathcal{S}_9`
+    ---> :math:`sigma = (0, 3)(1, 2)(2, 5)(4, 5)(7, 8)`
+    """
+    
+    n = len(sigma)
+    cpt = 0
+    
+    tau = np.zeros(shape=(n, 2), dtype=int)
+    
+    for i in range(0, n):
+        if not sigma[i]==i:
+            tau[cpt] = [i, sigma[i]]
+            j = np.argwhere(sigma==i).flatten()[0]
+            sigma[j] = sigma[i]
+            sigma[i] = i
+            cpt += 1
+    
+    tau = tau[0:cpt,:]
+    
+    return tau
+
+
+def permutation_to_adjacent_transpositions(sigma):
+    """
+    Transform a permutation into a product of adjacent 2-cycles (transpositions)
+    
+    Remark
+    ------
+    Provides the best decomposition between the first and second method
+    """
+    at1 = permutation_to_adjacent_transpositions_v1(sigma)
+    at2 = permutation_to_adjacent_transpositions_v2(sigma)
+    
+    if len(at1)<len(at2):
+        atr = at1
+    else:
+        atr = at2
+    
+    return atr
+
+
+def reorder_development(Ynew, Ydev, coeffdev, layout):
+    """
+    Reorder a collection of developments (states) onto a new basis
+    
+    Parameters
+    ----------
+    Ynew : numpy array
+        new ordered basis of SYTs
+    Ydev : numpy array
+        SYTs of developments (states)
+    coeffdev : numpy array
+        expansion coefficients
+    layout : str
+        storage layout followed by coeffdev ['rows' or 'cols']
+    
+    Returns
+    -------
+    out : numpy array
+        expansion coefficients in basis defined by input Ynew
+    
+    Remark
+    ------
+    The output layout is identical to the input layout
+    """
+    
+    assert Ynew.shape[1]==Ydev.shape[1]
+    
+    n = Ydev.shape[0] # number of SYTs in each development
+    NY = Ynew.shape[0] # dimension of new basis
+    
+    if layout=='rows':
+        Nstates = coeffdev.shape[0]
+        assert coeffdev.shape[1]==n
+        out = np.zeros(shape=(Nstates, NY), dtype=float)
+    elif layout=='cols':
+        Nstates = coeffdev.shape[1]
+        assert coeffdev.shape[0]==n
+        out = np.zeros(shape=(NY, Nstates), dtype=float)
+    else:
+        sys.exit('Undefined layout')
+    
+    index_map = np.zeros(n, dtype=int)
+    for i in range(0, n):
+        ind = np.argwhere( np.sum(abs(Ynew - Ydev[i]), axis=1) < 1e-13).flatten()
+        assert len(ind)==1
+        index_map[i] = ind[0]
+    
+    if layout=='rows':
+        out[:, index_map] = coeffdev
+    else:
+        out[index_map, :] = coeffdev
+    
+    return out
+
+
+def get_matrix_permutation(P, at):
+    """
+    Compute the matrix of a permutation
+    
+    Parameters
+    ----------
+    P : list
+        list of matrices of adjacent transpositions
+    at : numpy array
+        sequence of adjacent transpositions
+    
+    Returns
+    -------
+    M : scipy.sparse.csr_matrix
+        matrix of the permutation
+    
+    Remark
+    ------
+    The permutation should have already been written as a product of adjacent 
+    transpositions
+    """
+    
+    M = scipy.sparse.eye(P[0].shape[0])
+    for k in at:
+        M = M @ P[k]
+    
+    return M
+
+
+def get_subshape(y, cy, particles):
+    """
+    Get the subshape associated to given particles in a SYT
+    
+    Parameters
+    ----------
+    y : numpy array
+        SYT
+    cy : numpy array
+        column positions
+    particles : numpy array
+        boxes to consider for extracting subshape
+    
+    Returns
+    -------
+    alphaM : numpy array
+        minimal legal irrep
+    alphaP : numpy array
+        number of boxes associated to particles in each row
+    alphaB : numpy array
+        base top-left corner irrep
+    offset : int
+        offset compared to initial irrep associated to input SYT
+    
+    Description
+    -----------
+    alphaP + alphaB = alphaM
+    
+    Example
+    -------
+    y = [0, 0, 0, 1, 0, 0, 2, 1, 1, 2]
+    cy = [0, 1, 2, 0, 3, 4, 0, 1, 2, 1]
+    irrep = [5, 3, 1] (not required in the input arguments)
+    particles = [4, 5, 6]
+    The tableau looks like:
+    | 0 | 1 | 2 | 4 | 5 |        | x | x | x | 4 | 5 |      | x | x | x | 4 | 5 |
+    | 3 | 7 | 8 |          --->  | x | x | x |         ---> | x |
+    | 6 | 9 |                    | 6 | x |                  | 6 |
+    
+    offset = 0 [there is at least 1 particle in the first row]
+    alphaP = [2, 0, 1] = number of particles in each row
+    alphaM = [5, 1, 1] = minimal legal irrep which contains the particles at exterior positions
+    alphaB = [3, 1, 0] = base top-left corner irrep such that alphaB + alphaP = alphaM
+    """
+    
+    yp = y[particles]
+    cyp = cy[particles]
+    
+    offset = np.min(yp)
+    offsetcol = np.min(cyp)
+    
+    # shift such that top row and top column are numbered 0
+    yp = yp - offset
+    cyp = cyp - offsetcol
+    
+    nr = np.max(yp) - np.min(yp) + 1
+    
+    alphaP = np.zeros(shape=(nr,), dtype=int)
+    for i in range(nr):
+        alphaP[i] = len( np.argwhere(yp==i).flatten() )
+    
+    alphaM = np.zeros(shape=(nr,), dtype=int)
+    alphaB = np.zeros(shape=(nr,), dtype=int)
+    
+    alphaB[nr-1] = 1
+    alphaM[nr-1] = alphaB[nr-1] + alphaP[nr-1]
+    
+    for i in range(nr-1,-1,-1):
+        if alphaP[i]==0:
+            alphaM[i] = alphaM[i+1]
+            alphaB[i] = alphaM[i+1]
+        else:
+            ind = np.argwhere(yp==i).flatten()
+            nbi = np.max(cyp[ind]) + 1
+            alphaM[i] = nbi
+            alphaB[i] = alphaM[i] - alphaP[i]
+    
+    return alphaM, alphaB, alphaP, offset
+
+
+def fullsimplify_development(ydev, cydev, coeff):
+    """
+    Sum coefficients of equal SYTs and remove SYTs having vanishing coefficients
+    
+    Parameters
+    ----------
+    ydev : numpy array
+        SYTs
+    cydev : numpy array
+        associated column positions
+    coeff : numpy array
+        coefficients of development
+    
+    Returns
+    -------
+    ydev1, cydev1, coeff1 : simplified development
+    """
+    
+    if len(ydev.shape)==1:
+        # only 1 SYT in the development
+        ydev1 = np.reshape(ydev, (1, ydev.shape[0]))
+        cydev1 = np.reshape(cydev, (1, cydev.shape[0]))
+        coeff1 = np.copy(coeff)
+    else:
+        Ny = ydev.shape[0] # number of SYTs in the development
+        ydev1, ia, ic = np.unique(ydev, return_index=True, return_inverse=True, axis=0)
+        cydev1 = np.copy(cydev[ia, :])
+        
+        # the following line (ic = ic.flatten())
+        # is necessary to bypass a breaking change introduced in numpy 2.0.0, 
+        # which was later fixed in numpy 2.0.1 with pull request #26961
+        # https://github.com/numpy/numpy/pull/26961
+        # Without this bypass, when using numpy 2.0.0, using ic as the "x-coordinates" 
+        # to build the scipy.sparse.csr_matrix throws a ValueError, because 
+        # (idx.ndim!=1) evaluated to True
+        ic = ic.flatten()
+        
+        data = np.full(shape=(Ny,), fill_value=1, dtype=int)
+        idx = ic
+        idy = np.arange(Ny)
+        M = scipy.sparse.csr_matrix( (data, (idx, idy)), shape=(len(ia), Ny) )
+        coeff1 = M @ coeff
+    
+    ind = np.argwhere(abs(coeff1)>1.0e-12).flatten()
+    ydev1 = ydev1[ind, :]
+    cydev1 = cydev1[ind, :]
+    coeff1 = coeff1[ind]
+    
+    return ydev1, cydev1, coeff1
+
+
+def sort_development(Y, ydev, coeffdev):
+    """
+    Sort a development according to a collection of SYTs
+    
+    Parameters
+    ----------
+    Y : numpy array
+        collection of SYTs (stored in the rows)
+    ydev : numpy array
+        SYT development
+    coeffdev : numpy array
+        coefficients of the SYTs in the development
+    
+    Returns
+    -------
+    coeff_sorted : numpy array (of dimension (Y.shape[0], ))
+        coefficients of development, expressed in the order defined by Y
+    
+    Details
+    -------
+    
+    """
+    coeff_sorted = np.zeros(shape=(Y.shape[0],), dtype=float)
+    
+    for t in range(0, ydev.shape[0]):
+        ind = np.argwhere( np.sum(abs(Y - ydev[t]), axis=1)==0 ).flatten()
+        assert len(ind)==1
+        ind = ind[0]
+        coeff_sorted[ind] = coeffdev[t]
+    
+    return coeff_sorted
+
+
+def overlap(ydev1, coeff1, ydev2, coeff2, need_fullsimplify=True):
+    """
+    Compute the overlap of two developments:
+            out = <dev2|dev1>
+    
+    Parameters
+    ----------
+    ydev1, coeff1 : numpy arrays
+        SYTs and coefficients
+    ydev2, coeff2 : numpy arrays
+        SYTs and coefficients
+    need_fullsimplify : bool
+        [default] True if fullsimplify is required on the developments
+    
+    Returns
+    -------
+    out : float
+        overlap
+    """
+    
+    if need_fullsimplify:
+        Ny1 = len(coeff1)
+        ydev1, ia1, ic1 = np.unique(ydev1, axis=0, return_index=True, return_inverse=True)
+        M = scipy.sparse.csr_matrix( (np.full(fill_value=1, shape=(Ny1,), dtype=int), 
+                                      (ic1, np.arange(0, Ny1))), 
+                                    shape=(len(ia1), Ny1) )
+        coeff1 = M @ coeff1
+        
+        Ny2 = len(coeff2)
+        ydev2, ia2, ic2 = np.unique(ydev2, axis=0, return_index=True, return_inverse=True)
+        M = scipy.sparse.csr_matrix( (np.full(fill_value=1, shape=(Ny2,), dtype=int), 
+                                      (ic2, np.arange(0, Ny2))), 
+                                    shape=(len(ia2), Ny2) )
+        coeff2 = M @ coeff2
+    
+    _, ind1, ind2 = sun4py.common.math.intersect_row(ydev1, ydev2)
+    
+    out = np.sum( np.multiply(coeff1[ind1], coeff2[ind2]) )
+    
+    return out
+
+
+def develop_consecutive_number_cpp(alpha, ydev, cydev, coeffdev, k):
+    """
+    Apply a transposition (k, k+1) on a development and return a new memory-allocated
+    development
+    
+    [Slow on Python, C++-style implementation]
+    [Prefer a call to develop_consecutive_number]
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    ydev : numpy array
+        SYTs of development
+    cydev : numpy array
+        associated column positions
+    coeffdev : numpy array
+        coefficients of development
+    k : int
+        transposition to apply (k, k+1)
+    
+    Returns
+    -------
+    ydev1, cydev1, coeffdev1 : development (as newly memory allocated instances)
+    
+    Details
+    -------
+    |input-development> = coeffdev[0] |ydev[0]> + ... + coeffdev[-1] |ydev[-1]>
+    
+    |output-development> = P_{k, k+1} |input-development>
+    
+    where P_{k, k+1} is the operator representing the transposition (k, k+1) acting on 
+    the Hilbert space of SYTs.
+    
+    Remarks
+    -------
+    - Returns a newly allocated development
+    - C++-style implementation
+    - Slow with Python
+    """
+    
+    print('WARNING : calling sun.develop_consecutive_number_cpp is slow. Prefer a call to sun.develop_consecutive_number.')
+    
+    n = np.sum(alpha)
+    assert(ydev.shape[-1]==n)
+    
+    if len(ydev.shape)==1:
+        Nydev = int(1)
+        ydev = np.reshape(ydev, (Nydev, n))
+        cydev = np.reshape(cydev, (Nydev, n))
+    else:
+        Nydev = ydev.shape[0]
+    
+    if k>=n-1:
+        sys.exit('Problem: [develop_consecutive_number] k too large. k must be striclty less than n-1.')
+    
+    ydev1 = np.zeros(shape=(2*Nydev, n), dtype=int)
+    cydev1 = np.zeros(shape=(2*Nydev, n), dtype=int)
+    coeffdev1 = np.zeros((2*Nydev,), dtype=float)
+    
+    ydev1[:Nydev] = ydev
+    cydev1[:Nydev] = cydev
+    coeffdev1[:Nydev] = coeffdev
+    
+    count = Nydev
+
+    # this loop can be parallel, with a critical section
+    for i in range(0, Nydev):
+        
+        y = ydev[i]
+        cy = cydev[i]
+        
+        if not y[k]==y[k+1]:
+            
+            if cy[k]==cy[k+1]:
+                coeffdev1[i] *= (-1)
+            else:                
+                ax = get_axial_distance(y, cy, k, k+1)
+                rho = 1.0/ax
+                yfriend = np.copy(y)
+                cyfriend = np.copy(cy)
+                yfriend[k] = y[k+1]
+                yfriend[k+1] = y[k]
+                cyfriend[k] = cy[k+1]
+                cyfriend[k+1] = cy[k]
+                
+                # start critical section - avoid concurrent writes
+                ydev1[count] = yfriend
+                cydev1[count] = cyfriend
+                coeffdev1[count] = coeffdev1[i] * np.sqrt(1.0-rho*rho)
+                count += 1
+                # finish critical section
+                coeffdev1[i] *= (-rho)
+    
+    ydev1 = ydev1[0:count]
+    cydev1 = cydev1[0:count]
+    coeffdev1 = coeffdev1[0:count]
+    
+    ydev1, cydev1, coeffdev1 = fullsimplify_development(ydev1, cydev1, coeffdev1)
+    
+    return ydev1, cydev1, coeffdev1
+
+
+def develop_consecutive_number(alpha, ydev, cydev, coeffdev, k):
+    """
+    Apply a transposition (k, k+1) on a development and return a new memory-allocated
+    development
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    ydev : numpy array
+        SYTs of development
+    cydev : numpy array
+        associated column positions
+    coeffdev : numpy array
+        coefficients of development
+    k : int
+        transposition to apply (k, k+1)
+    
+    Returns
+    -------
+    ydev1, cydev1, coeffdev1 : development (as newly memory allocated instances)
+    
+    Details
+    -------
+    |input-development> = coeffdev[0] |ydev[0]> + ... + coeffdev[-1] |ydev[-1]>
+    
+    |output-development> = P_{k, k+1} |input-development>
+    
+    where P_{k, k+1} is the operator representing the transposition (k, k+1) acting on 
+    the Hilbert space of SYTs.
+    
+    Remarks
+    -------
+    - This is a Pythonic, vectorized version of the code
+    - The output development is a newly allocated development
+    """
+    
+    n = np.sum(alpha)
+    if len(ydev.shape)==1:
+        Nydev = int(1)
+        assert(ydev.shape[0]==n)
+        ydev = np.reshape(ydev, (Nydev, n))
+        cydev = np.reshape(cydev, (Nydev, n))
+    else:
+        Nydev = ydev.shape[0]
+        assert(ydev.shape[1]==n)
+    
+    if k>=n-1:
+        sys.exit('Problem: [develop_consecutive_number_v2] k too large. k must be striclty less than n-1.')
+    
+    b_row = (ydev[:, k]==ydev[:, k+1])
+    b_col = (cydev[:, k]==cydev[:, k+1])
+    
+    # indices of SYTs where k and k+1 are neither in the same row nor same column
+    ind = np.argwhere(np.multiply(1-b_row, 1-b_col)).flatten()
+    
+    Nydev1 = Nydev + len(ind)
+    ydev1 = np.zeros(shape=(Nydev1, n), dtype=int)
+    ydev1[:Nydev] = ydev
+    cydev1 = np.zeros(shape=(Nydev1, n), dtype=int)
+    cydev1[:Nydev] = cydev
+    coeffdev1 = np.zeros(shape=(Nydev1,), dtype=float)
+    coeffdev1[:Nydev] = coeffdev
+    
+    coeffdev1[np.argwhere(b_col).flatten()] *= -1.0
+    
+    if len(ind)>0:
+        ax_vec = cydev[ind, k] - ydev[ind, k] - cydev[ind, k+1] + ydev[ind, k+1]
+        rho_vec = 1.0/ax_vec
+    
+        ydev1[Nydev:] = ydev[ind]
+        ydev1[Nydev:, k] = ydev[ind, k+1]
+        ydev1[Nydev:, k+1] = ydev[ind, k]
+        
+        cydev1[Nydev:] = cydev[ind, :]
+        cydev1[Nydev:, k] = cydev[ind, k+1]
+        cydev1[Nydev:, k+1] = cydev[ind, k]
+        
+        coeffdev1[Nydev:] = np.multiply(np.sqrt( 1.0 - rho_vec**2 ), coeffdev[ind])
+        coeffdev1[ind] = np.multiply(-rho_vec, coeffdev[ind])
+    
+    ydev1, cydev1, coeffdev1 = fullsimplify_development(ydev1, cydev1, coeffdev1)
+    
+    return ydev1, cydev1, coeffdev1
+
+
+def t_operator(ydev, cydev, coeffdev, k, rho):
+    """
+    Apply operator T_{(k, k+1)} := (P_{(k, k+1)} + rho)/sqrt(1 - rho**2) on a development
+    Return a newly allocated development
+    
+    Parameters
+    ----------
+    ydev : numpy array
+        SYTs
+    cydev : numpy array
+        associated column positions
+    coeffdev : numpy array
+        coefficients
+    k : int
+        transposition P_{(k, k+1)} to apply
+    rho : float
+        coefficient (inverse of an axial distance)
+    
+    Returns
+    -------
+    ydev1 : numpy array
+        SYTs
+    cydev1 : numpy array
+        associated column positions
+    coeffdev1 : numpy array
+        coefficients
+    
+    Example
+    -------
+    in_y = np.array([[0, 0, 1]], dtype=int)
+    in_cy = sun.get_column(in_y)
+    in_coeff = np.array([1.0])
+    k = int(1)
+    rho = sun.get_axial_distance(in_y, in_cy, k, k+1)
+    out_y, out_cy, out_coeff = sun.t_operator(in_y, in_cy, in_coeff, k, rho)
+    ---> 
+    output development = 0 2
+                         1
+    """
+    
+    if abs(abs(rho)-1)<1.0e-12:
+        raise Exception('t_operator: cannot apply t_operator on development because |rho|=1.')
+    
+    assert(len(ydev.shape)==2)
+    Nydev = ydev.shape[0]
+    n = ydev.shape[1]
+    
+    b_row = (ydev[:, k]==ydev[:, k+1])
+    b_col = (cydev[:, k]==cydev[:, k+1])
+    
+    # indices of SYTs where k and k+1 are neither in the same row nor same column
+    ind = np.argwhere(np.multiply(1-b_row, 1-b_col)).flatten()
+    
+    Nydev1 = Nydev + len(ind)
+    ydev1 = np.zeros(shape=(Nydev1, n), dtype=int)
+    ydev1[:Nydev] = ydev
+    cydev1 = np.zeros(shape=(Nydev1, n), dtype=int)
+    cydev1[:Nydev] = cydev
+    coeffdev1 = np.zeros(shape=(Nydev1,), dtype=float)
+    coeffdev1[:Nydev] = coeffdev
+    
+    coeffdev1[np.argwhere(b_row).flatten()] = (1.0 + rho) * coeffdev[b_row]
+    coeffdev1[np.argwhere(b_col).flatten()] = (-1.0 + rho) * coeffdev[b_col]
+    
+    if len(ind)>0:
+        ax_vec = cydev[ind, k] - ydev[ind, k] - cydev[ind, k+1] + ydev[ind, k+1]
+        rho_vec = 1.0/ax_vec
+    
+        ydev1[Nydev:] = ydev[ind]
+        ydev1[Nydev:, k] = ydev[ind, k+1]
+        ydev1[Nydev:, k+1] = ydev[ind, k]
+        
+        cydev1[Nydev:] = cydev[ind, :]
+        cydev1[Nydev:, k] = cydev[ind, k+1]
+        cydev1[Nydev:, k+1] = cydev[ind, k]
+        
+        # add coefficients of off-diagonal terms coming from P_{(k, k+1)}
+        coeffdev1[Nydev:] = np.multiply(np.sqrt( 1.0 - rho_vec**2 ), coeffdev[ind])
+        
+        # diagonal part of P_{(k, k+1)} and +rho*Id part on off-diagonal elements
+        coeffdev1[ind] = np.multiply(-rho_vec + rho, coeffdev[ind])
+    
+    # apply denominator of T_{(k, k+1)}
+    coeffdev1 *= 1.0/np.sqrt(1.0 - rho**2)
+    
+    ydev1, cydev1, coeffdev1 = fullsimplify_development(ydev1, cydev1, coeffdev1)
+    
+    return ydev1, cydev1, coeffdev1
+
+
+def develop_transposition(alpha, ydev, cydev, coeff, i, j):
+    """
+    Apply the transposition (i, j) on a development
+    """
+    assert(not i==j)
+    listtranspositions, _ = get_transpositions([np.array([min(i, j), max(i, j)], dtype=int)])
+    out_ydev = np.copy(ydev)
+    out_cydev = np.copy(cydev)
+    out_coeff = np.copy(coeff)
+    for k in listtranspositions[0]:
+        out_ydev, out_cydev, out_coeff = develop_consecutive_number(alpha, 
+                                                                    out_ydev, 
+                                                                    out_cydev, 
+                                                                    out_coeff, 
+                                                                    k)
+    
+    return out_ydev, out_cydev, out_coeff
+
+
+def sum_develop(ydev1, cydev1, coeff1, ydev2, cydev2, coeff2):
+    """
+    Sum two developments    
+    """
+    
+    ydev = np.vstack([ydev1, ydev2])
+    cydev = np.vstack([cydev1, cydev2])
+    coeff = np.hstack([coeff1, coeff2]).flatten()
+    
+    ydev, cydev, coeff = fullsimplify_development(ydev, cydev, coeff)
+    
+    return ydev, cydev, coeff
+
+
+def developp_symmetric(alpha, y, cy, m, n1, n2):
+    # Apply the permutation of sites (n1, n2) on the SYT y, in the case of m
+    # particles per site in the symmetric irrep.
+    # 
+    
+    j1 = min(n1, n2)
+    j2 = max(n1, n2)
+    
+    n = np.sum(alpha)
+    
+    if not n==len(y):
+        sys.exit('Problem: y does not match n')
+    
+    if n%m:
+        sys.exit('Problem: n not a multiple of m')
+    
+    ydevfinal = np.zeros(shape=(1, n), dtype=int)
+    cydevfinal = np.zeros(shape=(1, n), dtype=int)
+    coefffinal = np.array([0.0], dtype=float)
+    
+    if m==2:
+        
+        cpt = int(1)
+        
+        ydev = np.zeros(shape=(2**(j2-j1+1), n), dtype=int)
+        cydev = np.zeros(shape=(2**(j2-j1+1), n), dtype=int)
+        coeff = np.zeros(shape=(2**(j2-j1+1),), dtype=float)
+        
+        ydev[0,:] = np.copy(y)
+        cydev[0,:] = np.copy(cy)
+        coeff[0] = 1.0
+        
+        for j in range(j1, j2+1):
+            
+            p1 = 2*j
+            p2 = 2*j+1
+            
+            if not y[p1]==y[p2]:
+                # not in the same row
+                
+                axialdist = get_axial_distance(y, cy, p1, p2)
+                
+                for t in range(1, cpt+1):
+                    rp1 = ydev[t-1, p1]
+                    rp2 = ydev[t-1, p2]
+                    cp1 = cydev[t-1, p1]
+                    cp2 = cydev[t-1, p2]
+                    # create new SYT
+                    ydev[cpt+t-1,:] = np.copy(ydev[t-1,:])
+                    cydev[cpt+t-1,:] = np.copy(cydev[t-1,:])
+                    # perform exchange of particles
+                    ydev[cpt+t-1, p2] = rp1
+                    ydev[cpt+t-1, p1] = rp2
+                    cydev[cpt+t-1, p2] = cp1
+                    cydev[cpt+t-1, p1] = cp2
+                    # update coefficients
+                    coeff[cpt+t-1] = coeff[t-1] * np.sqrt((1.0 + 1.0/axialdist)/2.0)
+                    coeff[t-1] *= np.sqrt((1.0 - 1.0/axialdist)/2.0)
+                # end for t
+                
+                cpt *= 2
+            # end if not y[p1]==y[p2]
+        # end for j
+        
+        ydev = ydev[0:cpt,:]
+        cydev = cydev[0:cpt,:]
+        coeff = coeff[0:cpt]
+        
+        # STEP 2:
+        ydev, cydev, coefficients = develop_transposition(alpha, ydev, cydev, coeff, 2*j1+1, 2*j2)
+        Nydev = ydev.shape[0]
+
+        # STEP 3:
+        for qq in range(1, Nydev+1):
+            for kk in range(j1, j2+1):
+                
+                # particles at site kk
+                p1 = 2*kk
+                p2 = 2*kk+1
+                
+                if not cydev[qq-1, p2]==cydev[qq-1,p1]:
+                    distanceproj = cydev[qq-1,p1] - cydev[qq-1,p2] + ydev[qq-1,p2] - ydev[qq-1,p1]
+                    # This is the axial distance. To check.
+                    ax = get_axial_distance(ydev[qq-1,:], cydev[qq-1,:], p1, p2)
+                    
+                    if not ax==distanceproj:
+                        sys.exit('Problem: need to swap 2*kk and 2*kk+1 in ax')
+                    
+                    coefficients[qq-1] *= np.sqrt((1.0-(1.0/distanceproj))/2.0)
+                    
+                    if ydev[qq-1, p2]<ydev[qq-1, p1]:
+                        ytemp = np.copy(ydev[qq-1, :])
+                        ctemp = np.copy(cydev[qq-1, :])
+                        ydev[qq-1, p2] = ytemp[p1]
+                        ydev[qq-1, p1] = ytemp[p2]
+                        cydev[qq-1, p2] = ctemp[p1]
+                        cydev[qq-1, p1] = ctemp[p2]
+                else:
+                    coefficients[qq-1] = 0
+            # end for kk
+        # end for qq
+        
+        newcoeff = 4.0*np.copy(coefficients)
+        
+        ydev, cydev, coeff = fullsimplify_development(ydev, cydev, newcoeff)
+        
+        ydevfinal, cydevfinal, coefffinal = sum_develop(ydevfinal, cydevfinal, coefffinal, ydev, cydev, coeff)
+
+        
+    elif m==3:
+        
+        cpt = int(1)
+        
+        ydev = np.zeros(shape=(10*3**(j2-j1+1), n), dtype=int)
+        cydev = np.zeros(shape=(10*3**(j2-j1+1), n), dtype=int)
+        coeff = np.zeros(shape=(10*3**(j2-j1+1),), dtype=float)
+        
+        ydev[0,:] = np.copy(y)
+        cydev[0,:] = np.copy(cy)
+        coeff[0] = 1.0
+        
+        for q in range(j1, j2+1):
+            
+            # the 3 particles at site q are:
+            p1 = 3*q
+            p2 = 3*q+1
+            p3 = 3*q+2
+            
+            cpt_temp = cpt
+            
+            axdistx = get_axial_distance(y, cy, p1, p2)
+            axdisty = get_axial_distance(y, cy, p1, p3)
+            axdistz = get_axial_distance(y, cy, p2, p3)
+            rhox = 1.0/axdistx
+            rhoy = 1.0/axdisty
+            rhoz = 1.0/axdistz
+            
+            if not y[p1]==y[p2]:
+                
+                for t in range(1, cpt_temp+1):
+                    rp1 = ydev[t-1, p1]
+                    rp2 = ydev[t-1, p2]
+                    cp1 = cydev[t-1, p1]
+                    cp2 = cydev[t-1, p2]
+                    # create new SYT
+                    ydev[cpt+t-1, :] = np.copy(ydev[t-1, :])
+                    cydev[cpt+t-1, :] = np.copy(cydev[t-1, :])
+                    # exchange p1 and p2
+                    ydev[cpt+t-1, p2] = rp1
+                    ydev[cpt+t-1, p1] = rp2
+                    cydev[cpt+t-1, p2] = cp1
+                    cydev[cpt+t-1, p1] = cp2
+                    
+                    coeff[cpt+t-1] = coeff[t-1] * np.sqrt(1+rhox) * np.sqrt(1-rhoy) * np.sqrt(1-rhoz) * (1.0/np.sqrt(6.0))
+                # end for t
+                cpt += cpt_temp
+                
+                for t in range(1, cpt_temp+1):
+                    rp1 = ydev[t-1, p1]
+                    rp2 = ydev[t-1, p2]
+                    rp3 = ydev[t-1, p3]
+                    cp1 = cydev[t-1, p1]
+                    cp2 = cydev[t-1, p2]
+                    cp3 = cydev[t-1, p3]
+                    #---------
+                    ydev[cpt+t-1, :] = np.copy(ydev[t-1, :])
+                    cydev[cpt+t-1, :] = np.copy(cydev[t-1, :])
+                    #---------
+                    ydev[cpt+t-1, p1] = rp2
+                    ydev[cpt+t-1, p2] = rp3
+                    ydev[cpt+t-1, p3] = rp1
+                    cydev[cpt+t-1, p1] = cp2
+                    cydev[cpt+t-1, p2] = cp3
+                    cydev[cpt+t-1, p3] = cp1
+                    
+                    coeff[cpt+t-1] = coeff[t-1] * np.sqrt(1+rhox) * np.sqrt(1+rhoy) * np.sqrt(1-rhoz) * (1.0/np.sqrt(6.0))
+                # end for t
+                
+                cpt += cpt_temp
+            # end if not y[p1]==y[p2]
+            
+            ###################################################################
+            
+            if not y[p2]==y[p3]:
+                
+                for t in range(1, cpt_temp+1):
+                    rp2 = ydev[t-1, p2]
+                    rp3 = ydev[t-1, p3]
+                    cp2 = cydev[t-1, p2]
+                    cp3 = cydev[t-1, p3]
+                    #---------
+                    ydev[cpt+t-1, :] = np.copy(ydev[t-1, :])
+                    cydev[cpt+t-1, :] = np.copy(cydev[t-1, :])
+                    #---------
+                    ydev[cpt+t-1, p2] = rp3
+                    ydev[cpt+t-1, p3] = rp2
+                    cydev[cpt+t-1, p2] = cp3
+                    cydev[cpt+t-1, p3] = cp2
+                    
+                    coeff[cpt+t-1] = coeff[t-1] * np.sqrt(1-rhox) * np.sqrt(1-rhoy) * np.sqrt(1+rhoz) * (1.0/np.sqrt(6.0))
+                # end for t
+                
+                cpt += cpt_temp
+                
+                for t in range(1, cpt_temp+1):
+                    rp1 = ydev[t-1, p1]
+                    rp2 = ydev[t-1, p2]
+                    rp3 = ydev[t-1, p3]
+                    cp1 = cydev[t-1, p1]
+                    cp2 = cydev[t-1, p2]
+                    cp3 = cydev[t-1, p3]
+                    #---------
+                    ydev[cpt+t-1, :] = np.copy(ydev[t-1, :])
+                    cydev[cpt+t-1, :] = np.copy(cydev[t-1, :])
+                    #---------
+                    ydev[cpt+t-1, p1] = rp3
+                    ydev[cpt+t-1, p2] = rp1
+                    ydev[cpt+t-1, p3] = rp2
+                    cydev[cpt+t-1, p1] = cp3
+                    cydev[cpt+t-1, p2] = cp1
+                    cydev[cpt+t-1, p3] = cp2
+                    
+                    coeff[cpt+t-1] = coeff[t-1] * np.sqrt(1-rhox) * np.sqrt(1+rhoy) * np.sqrt(1+rhoz) * (1.0/np.sqrt(6.0))
+                # end for t
+                
+                cpt += cpt_temp
+                
+                if not y[p1]==y[p2]:
+                    
+                    for t in range(1, cpt_temp+1):
+                        rp1 = ydev[t-1, p1]
+                        rp3 = ydev[t-1, p3]
+                        cp1 = cydev[t-1, p1]
+                        cp3 = cydev[t-1, p3]
+                        #---------
+                        ydev[cpt+t-1, :] = np.copy(ydev[t-1, :])
+                        cydev[cpt+t-1, :] = np.copy(cydev[t-1, :])
+                        #---------
+                        ydev[cpt+t-1, p1] = rp3
+                        ydev[cpt+t-1, p3] = rp1
+                        cydev[cpt+t-1, p1] = cp3
+                        cydev[cpt+t-1, p3] = cp1
+                        
+                        coeff[cpt+t-1] = coeff[t-1] * np.sqrt(1+rhox) * np.sqrt(1+rhoy) * np.sqrt(1+rhoz) * (1.0/np.sqrt(6.0))
+                    # end for t
+                    
+                    cpt += cpt_temp
+                # end if not y[p1]==y[p2]
+            # end if not y[p2]==y[p3]
+            
+            ###################################################################
+            
+            for t in range(1, cpt_temp+1):
+                coeff[t-1] *= np.sqrt(1-rhox) * np.sqrt(1-rhoy) * np.sqrt(1-rhoz) * (1.0/np.sqrt(6.0))
+            
+        # end for q
+        
+        ydev = ydev[0:cpt, :]
+        cydev = cydev[0:cpt, :]
+        coeff = coeff[0:cpt]
+        
+        ydev, cydev, coefficients = develop_transposition(alpha, ydev, cydev, coeff, 3*j1+2, 3*j2)
+        
+        Nydev = ydev.shape[0]
+        
+        for qq in range(1, Nydev+1):
+            
+            prod_if = int(1)
+            
+            for kk in range(j1, j2+1):
+                p1 = 3*kk
+                p2 = 3*kk+1
+                p3 = 3*kk+2
+                
+                prod_if *= (cydev[qq-1, p2]-cydev[qq-1, p1]) * (cydev[qq-1, p3]-cydev[qq-1, p2]) * (cydev[qq-1, p3]-cydev[qq-1, p1])
+            
+            if not prod_if==0:
+                
+                for k in range(j1, j2+1):
+                    p1 = 3*k
+                    p2 = 3*k+1
+                    p3 = 3*k+2
+                    
+                    axdistx = get_axial_distance(ydev[qq-1, :], cydev[qq-1, :], p1, p2)
+                    axdisty = get_axial_distance(ydev[qq-1, :], cydev[qq-1, :], p1, p3)
+                    axdistz = get_axial_distance(ydev[qq-1, :], cydev[qq-1, :], p2, p3)
+                    rhox = 1.0/axdistx
+                    rhoy = 1.0/axdisty
+                    rhoz = 1.0/axdistz
+                    
+                    coefficients[qq-1] *= np.sqrt(1-rhox) * np.sqrt(1-rhoy) * np.sqrt(1-rhoz) * (1.0/np.sqrt(6.0))
+                    
+                    yd1 = ydev[qq-1, p1]
+                    yd2 = ydev[qq-1, p2]
+                    yd3 = ydev[qq-1, p3]
+                    
+                    a = ( yd1 + yd2 + abs(yd1 - yd2) )/2
+                    b = ( yd2 + yd3 + abs(yd2 - yd3) )/2
+                    c = ( yd1 + yd3 + abs(yd1 - yd3) )/2
+                    d = ( yd1 + yd2 - abs(yd1 - yd2) )/2
+                    e = ( yd3 + yd2 - abs(yd3 - yd2) )/2
+                    f = ( a + b - abs(a-b) )/2
+                    
+                    ydev[qq-1, p1] = ( d + e - abs(d-e) )/2 # min(y[p1],y[p2],y[p3])
+                    ydev[qq-1, p2] = ( f + c - abs(f-c) )/2 # intermediary value
+                    ydev[qq-1, p3] = ( a + b + abs(a-b) )/2 # max(y[p1],y[p2],y[p3])
+                    
+                    cydev[qq-1, :] = get_column(ydev[qq-1, :]).flatten()
+                    
+                # end for k
+                
+            else:
+                coefficients[qq-1] = 0.0
+            # end if prod_if
+        # end for qq
+        
+        newcoeff = 9.0 * np.copy(coefficients)
+        
+        ydev, cydev, coeff = fullsimplify_development(ydev, cydev, newcoeff)
+        ydevfinal, cydevfinal, coefffinal = sum_develop(ydevfinal, cydevfinal, coefffinal, ydev, cydev, coeff)
+        
+    else:
+        sys.exit('Problem: case m>3 not implemented.')
+    
+    
+    return ydevfinal, cydevfinal, coefffinal
+
+
+def developp_antisymmetric(alpha, y, cy, m, n1, n2):
+    # Apply the permutation of sites (n1, n2) on the SYT y, in the case of m
+    # particles per site in the antisymmetric irrep.
+    # 
+    
+    j1 = min(n1, n2)
+    j2 = max(n1, n2)
+    
+    n = np.sum(alpha)
+    
+    if not n==len(y):
+        sys.exit('Problem: y does not match n')
+    
+    if n%m:
+        sys.exit('Problem: n not a multiple of m')
+    
+    ydevfinal = np.zeros(shape=(1, n), dtype=int)
+    cydevfinal = np.zeros(shape=(1, n), dtype=int)
+    coefffinal = np.array([0.0], dtype=float)
+    
+    if m==2:
+        
+        cpt = int(1)
+        
+        ydev = np.zeros(shape=(2**(j2-j1+1), n), dtype=int)
+        cydev = np.zeros(shape=(2**(j2-j1+1), n), dtype=int)
+        coeff = np.zeros(shape=(2**(j2-j1+1),), dtype=float)
+        
+        ydev[0,:] = np.copy(y)
+        cydev[0,:] = np.copy(cy)
+        coeff[0] = 1.0
+        
+        for j in range(j1, j2+1):
+            
+            p1 = 2*j
+            p2 = 2*j+1
+            
+            if not cy[p1]==cy[p2]:
+                # not in the same column
+                
+                axialdist = get_axial_distance(y, cy, p1, p2)
+                
+                for t in range(1, cpt+1):
+                    rp1 = ydev[t-1, p1]
+                    rp2 = ydev[t-1, p2]
+                    cp1 = cydev[t-1, p1]
+                    cp2 = cydev[t-1, p2]
+                    # create new SYT
+                    ydev[cpt+t-1,:] = np.copy(ydev[t-1,:])
+                    cydev[cpt+t-1,:] = np.copy(cydev[t-1,:])
+                    # perform exchange of particles
+                    ydev[cpt+t-1, p2] = rp1
+                    ydev[cpt+t-1, p1] = rp2
+                    cydev[cpt+t-1, p2] = cp1
+                    cydev[cpt+t-1, p1] = cp2
+                    # update coefficients
+                    coeff[cpt+t-1] = - coeff[t-1] * np.sqrt((1.0 - 1.0/axialdist)/2.0)
+                    coeff[t-1] *= np.sqrt((1.0 + 1.0/axialdist)/2.0)
+                # end for t
+                
+                cpt *= 2
+            # end if not cy[p1]==cy[p2]
+        # end for j
+        
+        ydev = ydev[0:cpt,:]
+        cydev = cydev[0:cpt,:]
+        coeff = coeff[0:cpt]
+        
+        # STEP 2:
+        ydev, cydev, coefficients = develop_transposition(alpha, ydev, cydev, coeff, 2*j1+1, 2*j2)
+        Nydev = ydev.shape[0]
+        
+        # STEP 3:
+        for qq in range(1, Nydev+1):
+            for kk in range(j1, j2+1):
+                
+                # particles at site kk
+                p1 = 2*kk
+                p2 = 2*kk+1
+                
+                if not ydev[qq-1, p2]==ydev[qq-1,p1]:
+                    distanceproj = cydev[qq-1,p1] - cydev[qq-1,p2] + ydev[qq-1,p2] - ydev[qq-1,p1]
+                    # This is the axial distance. To check.
+                    ax = get_axial_distance(ydev[qq-1,:], cydev[qq-1,:], p1, p2)
+                    
+                    if not ax==distanceproj:
+                        sys.exit('Problem: need to swap 2*kk and 2*kk+1 in ax')
+                    
+                    coefficients[qq-1] *= np.sqrt((1.0+(1.0/distanceproj))/2.0)
+                    
+                    if ydev[qq-1, p2]<ydev[qq-1, p1]:
+                        ytemp = np.copy(ydev[qq-1, :])
+                        ctemp = np.copy(cydev[qq-1, :])
+                        ydev[qq-1, p2] = ytemp[p1]
+                        ydev[qq-1, p1] = ytemp[p2]
+                        cydev[qq-1, p2] = ctemp[p1]
+                        cydev[qq-1, p1] = ctemp[p2]
+                        coefficients[qq-1] *= -1
+                else:
+                    coefficients[qq-1] = 0
+            # end for kk
+        # end for qq
+        
+        newcoeff = 4.0*np.copy(coefficients)
+
+        ydev, cydev, coeff = fullsimplify_development(ydev, cydev, newcoeff)
+        
+        ydevfinal, cydevfinal, coefffinal = sum_develop(ydevfinal, cydevfinal, coefffinal, ydev, cydev, coeff)
+        
+    else:
+        sys.exit('Problem: case m>2 not yet implemented.')
+    
+    
+    return ydevfinal, cydevfinal, coefffinal
+
+
+def print_to_latex(y, **kwargs):
+    r"""
+    Print a SYT to text in LaTeX format, using \ytableau
+    
+    Parameters
+    ----------
+    y : numpy array
+        SYT
+    zeroBased : bool [optional][default: True]
+        if True, top left box is filled by number 0 (zero-based numbering)
+        if False, top left box is filled by number 1
+    shift : float [optional][default: 0]
+         vertical shift
+    scale : float [optional][default: 1]
+        scaling coefficient of size of ytableau
+    colors : dict [optional][default: {i: '' for i in range(0, n)}]
+        key-value pairs, box-to-color
+    
+    Remark
+    ------
+    The formatting assumes the following definition in the tex preamble:
+    \newcommand{\shsc}[3]{\mathrel{\raisebox{#1}{\protect\scalebox{#2}{#3}}}}
+    """
+    
+    if not 'shift' in kwargs:
+        kwargs['shift'] = 0
+    if not 'scale' in kwargs:
+        kwargs['scale'] = 1
+    if not 'zeroBased' in kwargs:
+        kwargs['zeroBased'] = True
+    
+    if kwargs['zeroBased']==True:
+        szb = int(0)
+    else:
+        szb = int(1)
+    
+    n = len(y)
+    if not 'colors' in kwargs:
+        cols = {i: '' for i in range(0, n)}
+    else:
+        allkeys = [i for i in range(0, n)]
+        cols = {}
+        for i in allkeys:
+            if i in kwargs['colors'].keys():
+                if not ((kwargs['colors'][i][0:2]=='*(') and (kwargs['colors'][i][-1:]==')')):
+                    cols[i] = '*('+kwargs['colors'][i]+')'
+                else:
+                    cols[i] = kwargs['colors'][i]
+            else:
+                cols[i] = ''
+    
+    nl = np.max(y) + 1 # number of rows in the shape
+    
+    print('\\shsc{' + '{:.1f}'.format(kwargs['shift']) + 'pt}{' + '{:.1f}'.format(kwargs['scale']) + '}{\\begin{ytableau}')
+    
+    for j in range(0, nl):
+        # find all numbers situated in the j-th row
+        indj = np.argwhere(y==j).flatten()
+        
+        # print all numbers of the j-th row
+        line = ''
+        for k in range(0, len(indj)-1):
+            line += cols[indj[k]] + str(indj[k]+szb) + ' & '
+        
+        line += cols[indj[-1]] + str(indj[-1]+szb) + ' \\\\ '
+        print(line)
+    
+    print('\\end{ytableau}}\n')
+    
+    return
+
+
+def print_subSYT_to_latex(y, alpha, **kwargs):
+    r"""
+    Print a sub-SYT to text in LaTeX format, using \ytableau
+    
+    Parameters
+    ----------
+    y : numpy array
+        sub-SYT
+    alpha : numpy array
+        total irrep
+    shift : float [optional][default: 0]
+         vertical shift
+    scale : float [optional][default: 1]
+        scaling coefficient of size of ytableau
+    lowcol : str [optional][default: '{}']
+        color for the base part
+    highcol : str [optional][default: '']
+        color for the relevant part
+    zeroBased : bool [optional][default: True]
+        if True, top left box is filled by number 0 (zero-based numbering)
+        if False, top left box is filled by number 1
+    
+    Remark
+    ------
+    The formatting assumes the following definition in the tex preamble:
+    \newcommand{\shsc}[3]{\mathrel{\raisebox{#1}{\protect\scalebox{#2}{#3}}}}
+    """
+    
+    if not 'shift' in kwargs:
+        kwargs['shift'] = 0
+    if not 'scale' in kwargs:
+        kwargs['scale'] = 1
+    
+    if not 'lowcol' in kwargs:
+        kwargs['lowcol'] = '{}'
+    else:
+        kwargs['lowcol'] = '*(' + kwargs['lowcol'] + ')'
+    
+    if not 'highcol' in kwargs:
+        kwargs['highcol'] = ''
+    else:
+        kwargs['highcol'] = '*(' + kwargs['highcol'] + ')'
+    
+    if not 'zeroBased' in kwargs:
+        kwargs['zeroBased'] = True
+    
+    if kwargs['zeroBased']==True:
+        szb = int(0)
+    else:
+        szb = int(1)
+    
+    n = np.sum(alpha)
+    n1 = len(y)
+    n0 = n - n1
+    
+    alpha1 = np.zeros(shape=alpha.shape, dtype=int)
+    
+    for i in range(0, n1):
+        alpha1[y[i]] += 1
+    
+    y0 = np.full(shape=(n0,), fill_value=-1, dtype=int)
+    yglobal = np.hstack([y0, y])
+    
+    nl = len(np.argwhere(alpha>0).flatten()) # number of rows in global shape alpha
+    
+    print('\\shsc{' + '{:.1f}'.format(kwargs['shift']) + 'pt}{' + '{:.1f}'.format(kwargs['scale']) + '}{\\begin{ytableau}')
+    
+    for j in range(0, nl):
+        # find all numbers of subtableau situated in the j-th row
+        indj = np.argwhere(yglobal==j).flatten()
+        
+        ns = len(indj) # number of filled boxes in the j-th row
+        nb = alpha[j] - ns # number of blank boxes
+        
+        # print all numbers of the j-th row
+        line = ''
+        for k in range(0, nb-1):
+            line += str(kwargs['lowcol'] + ' & ')
+        if ns==0:
+            line += str(kwargs['lowcol'] + ' \\\\')
+        else:
+            if nb>0:
+                line += str(kwargs['lowcol'] + ' & ')
+            for k in range(0, len(indj)-1):
+                line += kwargs['highcol'] + str(indj[k]+szb) + ' & '
+            line += kwargs['highcol'] + str(indj[-1]+szb) + ' \\\\ '
+        
+        print(line)
+    
+    print('\\end{ytableau}}\n')
+    
+    return
+
+
+def get_adjacent_transposition_matrix(alpha, Y, CY, k):
+    """
+    Get matrix of adjacent transposition P_{k, k+1}
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    Y : numpy array
+        SYTs associated to irrep alpha
+    k : int
+        transposition to obtain
+    
+    Returns
+    -------
+    Pk : scipy.sparse.csr_matrix
+        matrix of adjacent transposition P_{k, k+1}
+    
+    Description
+    -----------
+    Computes the adjacent transposition P_{k, k+1} for the irrep alpha
+    """
+    
+    NY = Y.shape[0]
+    
+    Pk_diagval = np.zeros(shape=(NY,), dtype=float)
+    Pk_offdiagrowindex = np.zeros(shape=(NY, ), dtype=int)
+    Pk_offdiagcolindex = np.zeros(shape=(NY, ), dtype=int)
+    Pk_offdiagval = np.zeros(shape=(NY, ), dtype=float)
+    
+    offdiagcounter = int(0)
+    
+    for i in range(0, NY):
+        
+        y = Y[i]
+        cy = CY[i]
+        
+        if Pk_diagval[i]==0:
+            
+            if y[k]==y[k+1]:
+            
+                Pk_diagval[i] = 1
+            
+            else:
+                
+                c1 = cy[k]
+                c2 = cy[k+1]
+                
+                if c1==c2:
+                    Pk_diagval[i] = -1
+                else:
+                    rho = 1.0/get_axial_distance(y, cy, k, k+1)
+                    yfriend = np.copy(y)
+                    yfriend[k] = y[k+1]
+                    yfriend[k+1] = y[k]
+                    
+                    # index = np.argwhere(np.sum(np.abs(self.Y - yfriend), axis=1) < 1e-13).flatten()[0]
+                    index = i + np.argwhere(np.sum(np.abs(Y[i:,:] - yfriend), axis=1)<1.0e-13).flatten()[0]
+                    
+                    # diagonal elements
+                    Pk_diagval[i] = -rho
+                    Pk_diagval[index] = rho
+                    
+                    # off-diagonal elements
+                    Pk_offdiagrowindex[offdiagcounter] = i
+                    Pk_offdiagcolindex[offdiagcounter] = index
+                    Pk_offdiagval[offdiagcounter] = np.sqrt(1.0-rho**2)
+                    offdiagcounter += 1        
+    
+    
+    Pkdiag = scipy.sparse.diags(Pk_diagval, offsets=0, shape=(NY, NY))
+    Pkoffdiag = scipy.sparse.csr_matrix(
+                    (Pk_offdiagval[0:offdiagcounter], 
+                    (Pk_offdiagrowindex[0:offdiagcounter], 
+                     Pk_offdiagcolindex[0:offdiagcounter])), 
+                    shape=(NY, NY))    
+    Pk = Pkdiag + Pkoffdiag + Pkoffdiag.transpose()
+    
+    return Pk
+
+
+def get_adjacent_transposition_matrices(alpha, Y, CY):
+    """
+    Get all matrices of adjacent transpositions
+    
+    Parameters
+    ----------
+    alpha : numpy array
+        irrep
+    Y : numpy array
+        SYTs associated to irrep alpha
+    
+    Returns
+    -------
+    P : list
+        matrices of adjacent transpositions P_{k, k+1}
+    
+    Description
+    -----------
+    Computes the n-1 (where n is the number of boxes in alpha) adjacent transpositions
+    P_{k, k+1} for the irrep alpha.
+    """
+    
+    n = np.sum(alpha)
+    P = []
+    
+    for k in range(n-1):
+        P.append( get_adjacent_transposition_matrix(alpha, Y, CY, k) )
+    
+    return P

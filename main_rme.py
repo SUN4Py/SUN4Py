@@ -1,5 +1,5 @@
 """
-SUNPy A Python Library for solving SU(N) Heisenberg models
+SUN4Py A Python Library for solving SU(N) Heisenberg models
 Copyright (C) 2026  Samuel Gozel, GNU GPLv3
 
 This program is free software: you can redistribute it and/or modify
@@ -16,8 +16,8 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from sunpy.dmrg.rme import rmefund
-#from sunpy.dmrg.rme import rmesymm
+from sun4py.dmrg.rme import rmefund
+#from sun4py.dmrg.rme import rmesymm
 
 
 N = int(3)
