@@ -23,19 +23,18 @@ SU(_N_)4Py is a Python 3 implementation requiring:
 - numpy
 - scipy
 - matplotlib
-- pytest
 
 ## Running tests
 
-Running tests might be a good way to start:
+If you cloned the SUNPy repository, running tests might be a good way to start:
 ```
 import pytest
 pytest.main()
 ```
 
-## Running main file
+## Example codes
 
-Three example main files are provided: `main_ed.py` shows how to perform ED calculations, `main_rme.py` how to compute the lists of reduced matrix elements of the interaction necessary for DMRG, and `main_dmrg.py` illustrates a simple DMRG calculation.
+Several illustrative examples are provided in [SUNPy Examples](./examples) to guide the user through different use-cases of SUNPy.
 
 ## Significant others
 
