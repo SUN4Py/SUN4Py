@@ -59,10 +59,10 @@ all = [
 
 [project.urls]
 Homepage = "https://SUN4Py.readthedocs.io"
-Repository = "https://github.com/sgozel/SUN4Py"
+Repository = "https://github.com/SUN4Py/SUN4Py"
 Documentation = "https://SUN4Py.readthedocs.io" # Read the Doc
-"Documentation (GitHub Pages)" = "https://sgozel.github.io/SUN4Py/"  # GitHub pages
-"Bug Tracker" = "https://github.com/sgozel/SUN4Py/issues"
+"Documentation (GitHub Pages)" = "https://SUN4Py.github.io/SUN4Py/"  # GitHub pages
+"Bug Tracker" = "https://github.com/SUN4Py/SUN4Py/issues"
 
 # Package discovery for src layout
 [tool.setuptools.packages.find]
