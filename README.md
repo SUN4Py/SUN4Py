@@ -1,6 +1,6 @@
 # SU(_N_)4Py
 
-[![Tests](https://github.com/sgozel/SUN4Py/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/sgozel/SUN4Py/actions/workflows/test.yml)
+[![Tests](https://github.com/SUN4Py/SUN4Py/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/SUN4Py/SUN4Py/actions/workflows/test.yml)
 
 SU(_N_)4Py is a Python library implementing the SU(_N_) symmetry, exploiting the Schur-Weyl duality between the SU(_N_) group and the symmetric group $S_n$. The library implements the symmetry through Standard Young Tableaux.
 
@@ -31,7 +31,7 @@ SU(_N_)4Py is a Python implementation requiring:
 
 Currently, the recommended way to use SU(_N_)4Py is to clone the repository, and install it, for instance in a dedicated conda environment:
 ```
-git clone https://github.com/sgozel/SUN4Py.git
+git clone https://github.com/SUN4Py/SUN4Py.git
 cd ./SUN4Py/
 pip install -e .
 ```
@@ -40,7 +40,7 @@ pip install -e .
 
 If you want to run tests on your own machine, you need to install SU(_N_)4Py with its optional development dependencies:
 ```
-git clone https://github.com/sgozel/SUN4Py.git
+git clone https://github.com/SUN4Py/SUN4Py.git
 cd ./SUN4Py/
 pip install -e ".[dev]"
 ```
