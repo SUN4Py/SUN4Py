@@ -76,6 +76,22 @@ jobs:
     - name: Run tests with coverage
       run: |
         pytest --cov=sun4py --cov-report=xml --cov-report=term-missing
+    
+    - name: Coveralls
+      uses: coverallsapp/github-action@v2
+      with:
+        flag-name: py${{ matrix.python-version }}-np${{ matrix.numpy-version }}-${{ matrix.dependencies }}
+        parallel: true
+
+  coveralls-finish:
+    name: Coveralls final report
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+    - name: Coveralls finished
+      uses: coverallsapp/github-action@v2
+      with:
+        parallel-finished: true
 
   type-check:
     name: Type checking with mypy
