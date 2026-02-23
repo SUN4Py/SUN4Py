@@ -2,6 +2,7 @@
 
 [![Tests](https://github.com/SUN4Py/SUN4Py/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/SUN4Py/SUN4Py/actions/workflows/test.yml)
 [![Coverage Status](https://coveralls.io/repos/github/SUN4Py/SUN4Py/badge.svg?branch=develop)](https://coveralls.io/github/SUN4Py/SUN4Py?branch=develop)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18740578.svg)](https://doi.org/10.5281/zenodo.18740578)
 
 SU(_N_)4Py is a Python library implementing the SU(_N_) symmetry, exploiting the Schur-Weyl duality between the SU(_N_) group and the symmetric group $S_n$. The library implements the symmetry through Standard Young Tableaux.
 
