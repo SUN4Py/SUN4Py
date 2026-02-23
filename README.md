@@ -17,7 +17,7 @@ It allows solving the SU(_N_) Heisenberg model (or any other SU(_N_)-symmetric m
 
 By local constraints, we understand different SU(_N_) "spins", which are nothing but irreducible representations of the Lie algebra su(_N_).
 
-SU(_N_)4Py is by no means expected to execute on the largest systems. SU(_N_)4Py has not been developped with the aim of reaching high performance (beyond the symmetry aspect). SU(_N_)4Py however provides all the algorithmic details, implements many tricks and will allow any user to easily port SU(_N_)4Py to their favorite high-performance frameworks, depending on their specific needs.
+SU(_N_)4Py is by no means expected to execute on the largest systems. SU(_N_)4Py has not been developed with the aim of reaching high performance (beyond the symmetry aspect). SU(_N_)4Py however provides all the algorithmic details, implements many tricks and will allow any user to easily port SU(_N_)4Py to their favorite high-performance frameworks, depending on their specific needs.
 
 ## Prerequisites
 
@@ -50,6 +50,8 @@ Then, from the root directory `/path/to/SUN4Py/`, run:
 ```
 pytest
 ```
+
+Alternatively, you can check the status of the testing CI pipeline on [Coveralls](https://coveralls.io/github/SUN4Py/SUN4Py).
 
 ## Example codes
 
