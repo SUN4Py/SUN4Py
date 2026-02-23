@@ -1,6 +1,7 @@
 # SU(_N_)4Py
 
-[![Tests](https://github.com/sgozel/SUN4Py/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/sgozel/SUN4Py/actions/workflows/test.yml)
+[![Tests](https://github.com/SUN4Py/SUN4Py/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/SUN4Py/SUN4Py/actions/workflows/test.yml)
+[![Coverage Status](https://coveralls.io/repos/github/SUN4Py/SUN4Py/badge.svg?branch=develop)](https://coveralls.io/github/SUN4Py/SUN4Py?branch=develop)
 
 SU(_N_)4Py is a Python library implementing the SU(_N_) symmetry, exploiting the Schur-Weyl duality between the SU(_N_) group and the symmetric group $S_n$. The library implements the symmetry through Standard Young Tableaux.
 
@@ -16,7 +17,7 @@ It allows solving the SU(_N_) Heisenberg model (or any other SU(_N_)-symmetric m
 
 By local constraints, we understand different SU(_N_) "spins", which are nothing but irreducible representations of the Lie algebra su(_N_).
 
-SU(_N_)4Py is by no means expected to execute on the largest systems. SU(_N_)4Py has not been developped with the aim of reaching high performance (beyond the symmetry aspect). SU(_N_)4Py however provides all the algorithmic details, implements many tricks and will allow any user to easily port SU(_N_)4Py to their favorite high-performance frameworks, depending on their specific needs.
+SU(_N_)4Py is by no means expected to execute on the largest systems. SU(_N_)4Py has not been developed with the aim of reaching high performance (beyond the symmetry aspect). SU(_N_)4Py however provides all the algorithmic details, implements many tricks and will allow any user to easily port SU(_N_)4Py to their favorite high-performance frameworks, depending on their specific needs.
 
 ## Prerequisites
 
@@ -31,7 +32,7 @@ SU(_N_)4Py is a Python implementation requiring:
 
 Currently, the recommended way to use SU(_N_)4Py is to clone the repository, and install it, for instance in a dedicated conda environment:
 ```
-git clone https://github.com/sgozel/SUN4Py.git
+git clone https://github.com/SUN4Py/SUN4Py.git
 cd ./SUN4Py/
 pip install -e .
 ```
@@ -40,7 +41,7 @@ pip install -e .
 
 If you want to run tests on your own machine, you need to install SU(_N_)4Py with its optional development dependencies:
 ```
-git clone https://github.com/sgozel/SUN4Py.git
+git clone https://github.com/SUN4Py/SUN4Py.git
 cd ./SUN4Py/
 pip install -e ".[dev]"
 ```
@@ -49,6 +50,8 @@ Then, from the root directory `/path/to/SUN4Py/`, run:
 ```
 pytest
 ```
+
+Alternatively, you can check the status of the testing CI pipeline on [Coveralls](https://coveralls.io/github/SUN4Py/SUN4Py).
 
 ## Example codes
 
