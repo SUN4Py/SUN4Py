@@ -224,8 +224,8 @@ class Lattice:
                             color=colors[i], linewidth=2, zorder=1)
         
         # draw nodes
-        nx.draw_networkx_nodes(G, pos=pos, node_color='lightgreen', node_size=500, zorder=3)
-        nx.draw_networkx_labels(G, pos=pos, font_size=16, font_weight='bold', zorder=4)
+        nx.draw_networkx_nodes(G, pos=pos, node_color='lightgreen', node_size=500)
+        nx.draw_networkx_labels(G, pos=pos, font_size=16, font_weight='bold')
         
         legs = [Line2D([0], [0], color=colors[i], lw=2, label=all_bond_types[i]) 
                           for i in range(len(all_bond_types)) 
