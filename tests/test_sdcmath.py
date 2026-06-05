@@ -263,6 +263,7 @@ def test_SDC_9():
     NY2 = int(2)
     NY = int(6)
     
+    # See Section 3.1.8 of thesis, in particular Eq. (3.40)
     expected = np.zeros(shape=(NY2, NY, Ntau), dtype=float)
     expected[0, :, 0] = np.array([np.sqrt(1/6), np.sqrt(1/2), 
                                 -np.sqrt(1/8), -np.sqrt(5/24), 0.0, 0.0])
@@ -276,6 +277,40 @@ def test_SDC_9():
     # act
     _, _, sdcs = sdcmath.get_SDC(N, nu, nu1, nu2, ref2firstLLOS=True, ref1firstLLOS=True)
     
+    # following the update in the phase fixing procedure, one needs to perform
+    # a rotation of the SDCs in order to recover the thesis convention
+    
+    v1 = sdcs[0, :, 0]
+    v2 = sdcs[0, :, 1]
+    a = v1[-1]
+    b = v2[-1]
+    eta = np.sqrt( b**2/(a**2+b**2) )
+    assert(eta > 1.0e-12)
+    c1 = eta * v1 + np.sqrt(1.0 - eta**2) * v2
+    c2 = np.sqrt(1.0 - eta**2) * v1 - eta * v2
+    change_sign = False
+    if abs(c1[-1]) > 1.0e-12:
+        # we made the wrong choice of phase in eta
+        c1 = eta * v1 - np.sqrt(1.0 - eta**2) * v2
+        c2 = np.sqrt(1.0 - eta**2) * v1 + eta * v2
+        change_sign = True
+    
+    rotated_sdcs = np.zeros(shape=sdcs.shape, dtype=float)
+    rotated_sdcs[0, :, 0] = c1
+    rotated_sdcs[0, :, 1] = c2
+    
+    # apply change to other SDCs
+    v1 = sdcs[1:, :, 0]
+    v2 = sdcs[1:, :, 1]
+    if change_sign == False:
+        c1 = eta * v1 + np.sqrt(1.0 - eta**2) * v2
+        c2 = np.sqrt(1.0 - eta**2) * v1 - eta * v2
+    else:
+        c1 = eta * v1 - np.sqrt(1.0 - eta**2) * v2
+        c2 = np.sqrt(1.0 - eta**2) * v1 + eta * v2
+    rotated_sdcs[1:, :, 0] = c1
+    rotated_sdcs[1:, :, 1] = c2
+    
     # assert
     assert(sdcs.shape[0]==NY2)
     assert(sdcs.shape[1]==NY)
@@ -283,5 +318,5 @@ def test_SDC_9():
     
     for tau in range(Ntau):
         for m2 in range(NY2):
-            assert(np.sum(abs(sdcs[m2, :, tau] - expected[m2, :, tau]))/NY<prec)
+            assert(np.sum(abs(rotated_sdcs[m2, :, tau] - expected[m2, :, tau]))/NY < prec)
     
