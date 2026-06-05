@@ -238,22 +238,6 @@ class EDSolverGeneral(EDSolver):
         
         return self._H
 
-
-def sg_null_space(A, rcond=None):
-    """
-    Basic implementation for
-        scipy.linalg.null_space( A, rcond=None )
-    """
-    u, s, vh = scipy.linalg.svd(A, full_matrices=True)
-    M, N = u.shape[0], vh.shape[1]
-    if rcond is None:
-        rcond = np.finfo(s.dtype).eps * max(M, N)
-    tol = np.amax(s) * rcond
-    num = np.sum(s > tol, dtype=int)
-    Q = vh[num:,:].T.conj()
-    return Q
-
-
 class OrthogonalUnits:
     r"""
     Class to represent the orthogonal units associated to an irrep
@@ -460,8 +444,7 @@ class LocalStates:
                 V = np.zeros(shape=(0, 0), dtype=float)
                 self._n = int(0)
         else:
-            #V = scipy.linalg.null_space( (Proj - scipy.sparse.eye(n)).toarray(), overwrite_a=False )
-            V = sg_null_space((Proj - scipy.sparse.eye(self._NYdev)).toarray())
+            V = scipy.linalg.null_space((Proj - scipy.sparse.eye(self._NYdev)).toarray())
             self._n = V.shape[1]
             if self._n>0:
                 for i in range(self._n):
