@@ -16,7 +16,6 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-import sys
 import numpy as np
 import scipy.sparse
 
@@ -43,61 +42,92 @@ def set_overall_phase(COEFF_REF):
         each element in IND_REF is a numpy array of indices for non-zero elements
         in output COEFF_REF
     """
+    tol = 1.0e-12
     
     nu1nu2nu = COEFF_REF.shape[1]
     
-    if (nu1nu2nu==1):
+    if (nu1nu2nu == 1):
         # The coefficient of the first (in increasing order of the LLOS) non-zero
         # term must be positive
-        ind_sdc = np.argwhere(abs(COEFF_REF[:, 0])>1.0e-12).flatten()
-        if (COEFF_REF[ind_sdc[0], 0]<0):
+        ind_sdc = np.argwhere(abs(COEFF_REF[:, 0]) > tol).flatten()
+        if (COEFF_REF[ind_sdc[0], 0] < 0):
             COEFF_REF *= -1.0
         IND_REF = [ind_sdc]
     else:
-        if (nu1nu2nu>2):
-            print('sdcutils.set_overall_phase(): multiplicity>2: abort. Code needs to perform the same operations recursively')
-            sys.exit()
+        COEFF_REF = canonicalize_basis(COEFF_REF)
+        IND_REF = []
+        for i in range(nu1nu2nu):
+            ind = np.argwhere( abs(COEFF_REF[:, i]) > tol ).flatten()
+            IND_REF.append(ind)
         
-        ind_a = np.argwhere( abs(COEFF_REF[:, 0])<1.0e-12 ).flatten()
-        ind_b = np.argwhere( abs(COEFF_REF[:, 1])<1.0e-12 ).flatten()
-        
-        if (len(ind_a)>0) | (len(ind_b)>0):
-            sys.exit('This is very unlikely, but could cause a problem further down. If it occurs, that case needs to be treated.')
-        
-        # We apply a rotation in order to set to 0 the last component of one of
-        # the vectors
-        a = COEFF_REF[-1, 0]
-        b = COEFF_REF[-1, 1]
-        ii = COEFF_REF.shape[0] - 1
-        
-        while ( (abs(a**2+b**2)<1.0e-12) & (ii>=0) ): # necessary to avoid possible division by 0 in eta
-            a = COEFF_REF[ii, 0]
-            b = COEFF_REF[ii, 1]
-            ii -= 1
-        
-        eta = np.sqrt( b**2/(a**2+b**2) )
-        
-        c1 = eta*COEFF_REF[:, 0] + np.sqrt(1.0-eta**2)*COEFF_REF[:, 1]
-        c2 = np.sqrt(1.0-eta**2)*COEFF_REF[:, 0] - eta*COEFF_REF[:, 1]
-        
-        if abs(c1[-1])>1.0e-12:
-            # we made the wrong choice of phase in lambdaa ==> need to correct
-            c1 = eta*COEFF_REF[:, 0] - np.sqrt(1.0-eta**2)*COEFF_REF[:, 1]
-            c2 = np.sqrt(1.0-eta**2)*COEFF_REF[:, 0] + eta*COEFF_REF[:, 1]
-        
-        ind_c1 = np.argwhere(abs(c1)>1.0e-12).flatten()
-        if (c1[ind_c1[0]]<0):
-            c1 *= -1
-        ind_c2 = np.argwhere(abs(c2)>1.0e-12).flatten()
-        if (c2[ind_c2[0]]<0):
-            c2 *= -1
-        
-        COEFF_REF[:, 0] = c1
-        COEFF_REF[:, 1] = c2
-        
-        IND_REF = [ind_c1, ind_c2]
-    
     return COEFF_REF, IND_REF
+
+
+def canonicalize_basis(COEFF_REF):
+    """
+    Generate a canonical orthonormal basis of the subspace spanned by the 
+    K columns of COEFF_REF.
+    
+    Parameters
+    ----------
+    COEFF_REF : numpy array shape (N, K)
+        K orthonormal vectors (stored in the columns)
+    
+    Returns
+    -------
+    W : numpy array shape (N, K)
+        K orthogonal vectors (stored in the columns) spaning a K-dimensional 
+        subspace
+
+    """
+    tol = 1.0e-12
+    
+    N, K = COEFF_REF.shape
+    
+    # build diagonal of projection matrix onto the spanned subspace
+    Pi_diag = np.sum(COEFF_REF ** 2, axis=1)
+    
+    W = np.zeros(shape=(N, K), dtype=float)
+    used_axes = []
+    
+    # residual projection matrix diagonal - updated at each step
+    Pi_residual_diag = np.copy(Pi_diag)
+    
+    for step in range(K):
+        candidates = np.arange(N)
+        mask = np.ones(N, dtype=bool)
+        for ax in used_axes:
+            mask[ax] = False
+        candidates = candidates[mask]
+        
+        k_pivot = candidates[np.argmax(Pi_residual_diag[candidates])]
+        used_axes.append(k_pivot)
+        
+        # project e_{k_pivot} onto the subspace
+        coords = COEFF_REF[k_pivot, :]
+        p = coords @ COEFF_REF.T
+        
+        # orthogonalize
+        for j in range(step):
+            p -= np.dot(p, W[:, j]) * W[:, j]
+        
+        # normalize
+        norm = np.linalg.norm(p)
+        if norm < tol:
+            raise RuntimeError(f'Step {step}: projected vector has near-zero norm.')
+        w = p/norm
+        
+        # fix sign
+        ind_first_nonzero = np.argwhere(np.abs(w) > tol).flatten()[0]
+        if (w[ind_first_nonzero] < 0):
+            w *= -1
+        
+        W[:, step] = w
+        
+        # update residual projection diagonal
+        Pi_residual_diag -= w**2
+    
+    return W
 
 
 def casimir_canonical_chain(nu, y):
